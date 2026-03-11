@@ -347,10 +347,12 @@ export default function App() {
         borderBottom: `1px solid ${C.border}`, height: 64,
         display: 'flex', alignItems: 'center', padding: '0 32px', gap: 32
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button onClick={() => setActiveNav('discover')} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✦</div>
-          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 18, color: C.text }}>Dreamscape</span>
-        </div>
+          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 18 }}>
+            <span style={{ color: C.text }}>Dream</span><span style={{ color: C.accent }}>scape</span>
+          </span>
+        </button>
         <div style={{ display: 'flex', gap: 4, flex: 1 }}>
           {[['discover', 'Discover'], ['channels', 'Channels'], ['marketplace', 'Marketplace'], ['create', 'Create']].map(([id, label]) => (
             <button key={id} onClick={() => setActiveNav(id)} style={{
