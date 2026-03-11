@@ -1,119 +1,55 @@
-export default async (req) => {
-  const url = new URL(req.url)
-  const action = url.searchParams.get('action')
+const fetch = require("node-fetch");
 
-  const apiKey = process.env.PRINTFUL_API_KEY
+exports.handler = async function (event, context) {
+  const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY;
 
-  if (!apiKey) {
-    return new Response(JSON.stringify({
-      error: 'PRINTFUL_API_KEY is not set in environment variables',
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  const authHeaders = {
-    'Authorization': `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
+  if (!PRINTFUL_API_KEY) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Missing PRINTFUL_API_KEY environment variable" }),
+    };
   }
 
   try {
-    // GET catalog products
-    if (req.method === 'GET' && action === 'catalog') {
-      const res = await fetch('https://api.printful.com/products?limit=20', {
-        method: 'GET',
-        headers: authHeaders,
-      })
+    // Fetch all sync products from the store
+    const response = await fetch("https://api.printful.com/store/products?limit=100", {
+      headers: {
+        Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        return new Response(JSON.stringify({
-          error: data?.error?.message || data?.message || 'Printful API error',
-          status: res.status,
-          raw: data,
-        }), {
-          status: res.status,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
-
-      // Return all products, no filtering
-      const products = (data.result || []).slice(0, 20)
-
-      return new Response(JSON.stringify({ products }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        statusCode: response.status,
+        body: JSON.stringify({ error: "Printful API error", details: errorText }),
+      };
     }
 
-    // GET single product variants
-    if (req.method === 'GET' && action === 'product') {
-      const productId = url.searchParams.get('id')
-      const res = await fetch(`https://api.printful.com/products/${productId}`, { headers: authHeaders })
-      const data = await res.json()
-      return new Response(JSON.stringify(data.result || data), {
-        status: res.ok ? 200 : res.status,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
+    const data = await response.json();
 
-    // POST create store product
-    if (req.method === 'POST' && action === 'create') {
-      const body = await req.json()
-      const { title, description, variantIds, imageUrl } = body
+    // Return all products — no type filtering
+    const products = (data.result || []).map((product) => ({
+      id: product.id,
+      name: product.name,
+      thumbnail_url: product.thumbnail_url,
+      variants: product.variants,
+      synced: product.synced,
+    }));
 
-      const payload = {
-        sync_product: {
-          name: title,
-          description: description || '',
-        },
-        sync_variants: variantIds.map(variantId => ({
-          variant_id: variantId,
-          retail_price: '35.00',
-          files: [{
-            url: imageUrl,
-            position: 'front',
-          }]
-        }))
-      }
-
-      const res = await fetch('https://api.printful.com/store/products', {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      return new Response(JSON.stringify(data.result || data), {
-        status: res.ok ? 200 : res.status,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    // GET store products
-    if (req.method === 'GET' && action === 'store') {
-      const res = await fetch('https://api.printful.com/store/products?limit=20', { headers: authHeaders })
-      const data = await res.json()
-      return new Response(JSON.stringify({ products: data.result || [] }), {
-        status: res.ok ? 200 : res.status,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-
-    return new Response(JSON.stringify({ error: 'Unknown action' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
-
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ products }),
+    };
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Unexpected error", details: err.message }),
+    };
   }
-}
-
-export const config = {
-  path: '/api/printful',
-}
+};
