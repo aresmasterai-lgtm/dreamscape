@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from './lib/auth'
 import AuthModal from './components/AuthModal'
 import ProfileSetup from './components/ProfileSetup'
+import Marketplace from './components/Marketplace'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -66,7 +67,6 @@ function DreamChat({ user, onSignIn }) {
           <div style={{ fontSize: 11, color: C.teal }}>● online</div>
         </div>
       </div>
-
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -92,7 +92,6 @@ function DreamChat({ user, onSignIn }) {
         )}
         <div ref={bottomRef} />
       </div>
-
       <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
         <input
           value={input}
@@ -114,7 +113,6 @@ function DreamChat({ user, onSignIn }) {
 
 function ProfilePage({ user, profile }) {
   const avatarLetter = profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()
-
   return (
     <div style={{ padding: '40px 32px', maxWidth: 700, margin: '0 auto' }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '32px 36px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
@@ -138,7 +136,6 @@ function ProfilePage({ user, profile }) {
           </div>
         </div>
       </div>
-
       <div>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Artworks</h3>
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -280,23 +277,7 @@ export default function App() {
 
         {/* MARKETPLACE */}
         {activeNav === 'marketplace' && (
-          <div style={{ padding: '40px 32px', maxWidth: 1100, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 32, marginBottom: 8 }}>Marketplace</h2>
-            <p style={{ color: C.muted, marginBottom: 32 }}>Original art on premium products, shipped worldwide.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-              {[['Cosmic Dreams Tee', '$34', '🌌'], ['Afrofuture Hoodie', '$65', '🚀'], ['Surreal Poster', '$28', '🎨'], ['Dream Mug', '$22', '☕'], ['Vaporwave Print', '$45', '🌊'], ['Abstract Phone Case', '$19', '📱']].map(([name, price, icon]) => (
-                <div key={name} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                  <div style={{ height: 180, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52 }}>{icon}</div>
-                  <div style={{ padding: '14px 16px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{name}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: C.accent }}>{price}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Marketplace user={user} onSignIn={() => setShowAuth(true)} />
         )}
 
         {/* CREATE */}
