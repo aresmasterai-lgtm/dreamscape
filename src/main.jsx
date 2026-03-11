@@ -1,12 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import DevDashboard from './DevDashboard.jsx'
-
-// To switch to the main Dreamscape site, change DevDashboard to App:
-// import App from './App.jsx'
+import App from './App.jsx'
+import { AuthProvider } from './lib/auth.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <DevDashboard />
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   </React.StrictMode>,
 )
