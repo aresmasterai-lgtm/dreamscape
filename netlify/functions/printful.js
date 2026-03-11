@@ -4,64 +4,43 @@ export default async (req) => {
 
   const apiKey = process.env.PRINTFUL_API_KEY
 
-  // Debug: confirm env var is present
   if (!apiKey) {
     return new Response(JSON.stringify({
       error: 'PRINTFUL_API_KEY is not set in environment variables',
-      debug: true
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  const headers = {
+  const authHeaders = {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
-    'X-PF-Store-Id': process.env.PRINTFUL_STORE_ID || '',
   }
 
   try {
-    // GET catalog products — uses the public catalog endpoint
+    // GET catalog products
     if (req.method === 'GET' && action === 'catalog') {
-      const res = await fetch('https://api.printful.com/products', {
+      const res = await fetch('https://api.printful.com/products?limit=20', {
         method: 'GET',
-        headers,
+        headers: authHeaders,
       })
 
-      const text = await res.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch {
-        return new Response(JSON.stringify({
-          error: 'Printful returned non-JSON response',
-          raw: text.slice(0, 500),
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
+      const data = await res.json()
 
       if (!res.ok) {
         return new Response(JSON.stringify({
           error: data?.error?.message || data?.message || 'Printful API error',
           status: res.status,
-          data,
+          raw: data,
         }), {
           status: res.status,
           headers: { 'Content-Type': 'application/json' },
         })
       }
 
-      // Filter to popular product types
-      const popular = ['T-SHIRT', 'HOODIE', 'SWEATSHIRT', 'POSTER', 'MUG', 'PHONE', 'TOTE', 'HAT', 'JACKET', 'LEGGINGS']
-      const filtered = (data.result || []).filter(p =>
-        popular.some(type => (p.type || '').toUpperCase().includes(type))
-      ).slice(0, 12)
-
-      // If filter returns nothing, just return first 12
-      const products = filtered.length > 0 ? filtered : (data.result || []).slice(0, 12)
+      // Return all products, no filtering
+      const products = (data.result || []).slice(0, 20)
 
       return new Response(JSON.stringify({ products }), {
         status: 200,
@@ -72,7 +51,7 @@ export default async (req) => {
     // GET single product variants
     if (req.method === 'GET' && action === 'product') {
       const productId = url.searchParams.get('id')
-      const res = await fetch(`https://api.printful.com/products/${productId}`, { headers })
+      const res = await fetch(`https://api.printful.com/products/${productId}`, { headers: authHeaders })
       const data = await res.json()
       return new Response(JSON.stringify(data.result || data), {
         status: res.ok ? 200 : res.status,
@@ -102,7 +81,7 @@ export default async (req) => {
 
       const res = await fetch('https://api.printful.com/store/products', {
         method: 'POST',
-        headers,
+        headers: authHeaders,
         body: JSON.stringify(payload),
       })
       const data = await res.json()
@@ -114,7 +93,7 @@ export default async (req) => {
 
     // GET store products
     if (req.method === 'GET' && action === 'store') {
-      const res = await fetch('https://api.printful.com/store/products?limit=20', { headers })
+      const res = await fetch('https://api.printful.com/store/products?limit=20', { headers: authHeaders })
       const data = await res.json()
       return new Response(JSON.stringify({ products: data.result || [] }), {
         status: res.ok ? 200 : res.status,
@@ -128,10 +107,7 @@ export default async (req) => {
     })
 
   } catch (err) {
-    return new Response(JSON.stringify({
-      error: err.message,
-      stack: err.stack?.slice(0, 300),
-    }), {
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
