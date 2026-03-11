@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from './lib/auth'
 import AuthModal from './components/AuthModal'
+import ProfileSetup from './components/ProfileSetup'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -25,13 +26,11 @@ function DreamChat({ user, onSignIn }) {
 
   const send = async () => {
     if (!input.trim() || loading) return
-
     const userMsg = { role: 'user', content: input.trim() }
     const history = [...messages.filter((m, i) => i > 0), userMsg]
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setLoading(true)
-
     try {
       const res = await fetch('/api/dream', {
         method: 'POST',
@@ -60,7 +59,6 @@ function DreamChat({ user, onSignIn }) {
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 520 }}>
-      {/* Chat Header */}
       <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
         <div>
@@ -69,7 +67,6 @@ function DreamChat({ user, onSignIn }) {
         </div>
       </div>
 
-      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.map((msg, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -96,7 +93,6 @@ function DreamChat({ user, onSignIn }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
         <input
           value={input}
@@ -108,19 +104,60 @@ function DreamChat({ user, onSignIn }) {
         <button onClick={send} disabled={loading || !input.trim()} style={{
           background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
           border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff',
-          fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', transition: 'all 0.15s'
+          fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
         }}>✦</button>
       </div>
-
       <style>{`@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }`}</style>
     </div>
   )
 }
 
+function ProfilePage({ user, profile }) {
+  const avatarLetter = profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()
+
+  return (
+    <div style={{ padding: '40px 32px', maxWidth: 700, margin: '0 auto' }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '32px 36px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+          {avatarLetter}
+        </div>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: C.text, marginBottom: 4 }}>
+            @{profile?.username || user.email?.split('@')[0]}
+          </h2>
+          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>
+            {profile?.bio || 'No bio yet.'}
+          </p>
+          <div style={{ display: 'flex', gap: 20 }}>
+            {[['0', 'Artworks'], ['0', 'Followers'], ['0', 'Following']].map(([count, label]) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{count}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Artworks</h3>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
+          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
+            No artworks yet. Head to <strong style={{ color: C.accent }}>Create</strong> to generate your first piece with Dream AI.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
-  const { user, profile, signOut, loading } = useAuth()
+  const { user, profile, setProfile, signOut, loading } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
   const [activeNav, setActiveNav] = useState('discover')
+
+  const needsProfileSetup = user && !profile?.username
 
   if (loading) {
     return (
@@ -160,14 +197,19 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {user ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 }}>
+              <button onClick={() => setActiveNav('profile')} style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                background: activeNav === 'profile' ? `${C.accent}20` : 'none',
+                border: `1px solid ${activeNav === 'profile' ? C.accent + '55' : 'transparent'}`,
+                borderRadius: 20, padding: '4px 12px 4px 4px',
+              }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff' }}>
                   {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
                 </div>
                 <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
                   {profile?.username || user.email?.split('@')[0]}
                 </span>
-              </div>
+              </button>
               <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Sign Out</button>
             </>
           ) : (
@@ -268,9 +310,23 @@ export default function App() {
           </div>
         )}
 
+        {/* PROFILE */}
+        {activeNav === 'profile' && user && (
+          <ProfilePage user={user} profile={profile} />
+        )}
+
       </div>
 
+      {/* Modals */}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {needsProfileSetup && (
+        <ProfileSetup
+          user={user}
+          onComplete={(updatedProfile) => {
+            setProfile(prev => ({ ...prev, ...updatedProfile }))
+          }}
+        />
+      )}
     </div>
   )
 }
