@@ -145,12 +145,15 @@ function DreamChat({ user, onSignIn }) {
       } else {
         alert('Image generation failed: ' + (data.error || 'Unknown error'))
       }
-    } catch (err) {
+    } catch {
       alert('Connection error generating image.')
     } finally {
       setGeneratingIndex(null)
     }
   }
+
+  // Find last assistant message index (excluding welcome)
+  const lastAssistantIndex = messages.reduce((last, msg, i) => msg.role === 'assistant' && i > 0 ? i : last, -1)
 
   if (!user) {
     return (
@@ -170,17 +173,21 @@ function DreamChat({ user, onSignIn }) {
           ✅ Saved to your gallery! View it on your profile.
         </div>
       )}
+
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 520 }}>
-        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
             <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
         </div>
+
+        {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {messages.map((msg, i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{
                 maxWidth: '80%', padding: '10px 14px',
                 borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
@@ -190,46 +197,6 @@ function DreamChat({ user, onSignIn }) {
               }}>
                 {msg.content}
               </div>
-              {msg.role === 'assistant' && i > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
-                  {generatedImages[i] && (
-                    <img src={generatedImages[i]} alt="Generated artwork" style={{ maxWidth: '80%', borderRadius: 10, border: `1px solid ${C.border}` }} />
-                  )}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {!generatedImages[i] && (
-                      <button
-                        onClick={() => generatingIndex !== i && generateImage(msg.content, i)}
-                        disabled={generatingIndex === i}
-                        style={{
-                          background: generatingIndex === i ? C.border : `${C.teal}20`,
-                          border: `1px solid ${generatingIndex === i ? C.border : C.teal + '55'}`,
-                          borderRadius: 6, padding: '4px 10px',
-                          color: generatingIndex === i ? C.muted : C.teal,
-                          fontSize: 11, cursor: generatingIndex === i ? 'not-allowed' : 'pointer',
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        {generatingIndex === i ? '⏳ Generating...' : '🍌 Generate Image'}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => !savedIndexes.has(i) && setSaveTarget({ prompt: msg.content, index: i, imageUrl: generatedImages[i] || '' })}
-                      style={{
-                        background: 'none',
-                        border: `1px solid ${savedIndexes.has(i) ? C.teal + '55' : C.border}`,
-                        borderRadius: 6, padding: '4px 10px',
-                        color: savedIndexes.has(i) ? C.teal : C.muted,
-                        fontSize: 11, cursor: savedIndexes.has(i) ? 'default' : 'pointer',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.accent + '88' }}
-                      onMouseLeave={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.border }}
-                    >
-                      {savedIndexes.has(i) ? '✅ Saved to Gallery' : '✦ Save to Gallery'}
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
           {loading && (
@@ -243,7 +210,62 @@ function DreamChat({ user, onSignIn }) {
           )}
           <div ref={bottomRef} />
         </div>
-        <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+
+        {/* Action bar — always visible when Dream has responded */}
+        {lastAssistantIndex >= 0 && !loading && (
+          <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+            {generatedImages[lastAssistantIndex] ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, flexWrap: 'wrap' }}>
+                <img src={generatedImages[lastAssistantIndex]} alt="Generated" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.border}` }} />
+                <span style={{ fontSize: 12, color: C.teal }}>✅ Image ready!</span>
+                <button
+                  onClick={() => !savedIndexes.has(lastAssistantIndex) && setSaveTarget({ prompt: messages[lastAssistantIndex].content, index: lastAssistantIndex, imageUrl: generatedImages[lastAssistantIndex] })}
+                  style={{
+                    background: savedIndexes.has(lastAssistantIndex) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+                    border: `1px solid ${savedIndexes.has(lastAssistantIndex) ? C.teal + '55' : 'transparent'}`,
+                    borderRadius: 8, padding: '6px 14px',
+                    color: savedIndexes.has(lastAssistantIndex) ? C.teal : '#fff',
+                    fontSize: 12, fontWeight: 600, cursor: savedIndexes.has(lastAssistantIndex) ? 'default' : 'pointer',
+                  }}
+                >
+                  {savedIndexes.has(lastAssistantIndex) ? '✅ Saved to Gallery' : '✦ Save to Gallery'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Happy with this prompt?</span>
+                <button
+                  onClick={() => generatingIndex === null && generateImage(messages[lastAssistantIndex].content, lastAssistantIndex)}
+                  disabled={generatingIndex !== null}
+                  style={{
+                    background: generatingIndex !== null ? C.border : `${C.teal}20`,
+                    border: `1px solid ${generatingIndex !== null ? C.border : C.teal + '66'}`,
+                    borderRadius: 8, padding: '6px 14px',
+                    color: generatingIndex !== null ? C.muted : C.teal,
+                    fontSize: 12, fontWeight: 600, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {generatingIndex !== null ? '⏳ Generating...' : '🍌 Generate Image'}
+                </button>
+                <button
+                  onClick={() => !savedIndexes.has(lastAssistantIndex) && setSaveTarget({ prompt: messages[lastAssistantIndex].content, index: lastAssistantIndex, imageUrl: '' })}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${savedIndexes.has(lastAssistantIndex) ? C.teal + '55' : C.border}`,
+                    borderRadius: 8, padding: '6px 14px',
+                    color: savedIndexes.has(lastAssistantIndex) ? C.teal : C.muted,
+                    fontSize: 12, cursor: savedIndexes.has(lastAssistantIndex) ? 'default' : 'pointer',
+                  }}
+                >
+                  {savedIndexes.has(lastAssistantIndex) ? '✅ Saved' : '✦ Save Prompt'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Input */}
+        <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -259,6 +281,7 @@ function DreamChat({ user, onSignIn }) {
         </div>
         <style>{`@keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }`}</style>
       </div>
+
       {saveTarget && (
         <SaveModal
           prompt={saveTarget.prompt}
