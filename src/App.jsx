@@ -520,6 +520,30 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   )
 }
 
+// ── Success Page (/success) ───────────────────────────────────
+function SuccessPage() {
+  useMeta({ title: 'Order Confirmed', description: 'Your order has been placed and is being fulfilled.' })
+  const navigate = useNavigate()
+  return (
+    <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.teal}55`, borderRadius: 24, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center' }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 24px' }}>✅</div>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 12 }}>Order Confirmed!</h1>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>
+          Your payment was successful and your order is now being processed by Printful.
+        </p>
+        <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 32 }}>
+          You'll receive a shipping confirmation email once your item is on its way. Production typically takes 2–5 business days.
+        </p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => navigate('/marketplace')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Back to Shop</button>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 24px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Go Home</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
   const { user, profile, setProfile, signOut, loading } = useAuth()
@@ -556,6 +580,7 @@ export default function App() {
           <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
           <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
           <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
+          <Route path="/success" element={<SuccessPage />} />
           <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
         </Routes>
       </div>
