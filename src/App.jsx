@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import AuthModal from './components/AuthModal'
 import ProfileSetup from './components/ProfileSetup'
 import Marketplace from './components/Marketplace'
+import Channels from './components/Channels'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -423,29 +424,7 @@ export default function App() {
         )}
 
         {/* CHANNELS */}
-        {activeNav === 'channels' && (
-          <div style={{ padding: '40px 20px', maxWidth: 900, margin: '0 auto' }}>
-            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, marginBottom: 8, color: C.text }}>Channels</h2>
-            <p style={{ color: C.muted, marginBottom: 28 }}>Join conversations with artists around the world.</p>
-            {!user && (
-              <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                <span style={{ fontSize: 14, color: C.text }}>Sign in to post and join the conversation</span>
-                <button onClick={() => setShowAuth(true)} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Sign In</button>
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-              {[['🎨','Surrealism','4.8K'],['⚡','AI Generation','9.1K'],['🌍','Afrofuturism','6.5K'],['🌊','Vaporwave','2.9K'],['🛒','Product Drops','8.3K'],['🤝','Collabs Wanted','2.2K']].map(([icon, name, members]) => (
-                <div key={name} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
-                  <div style={{ fontSize: 24, marginBottom: 10 }}>{icon}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>#{name}</div>
-                  <div style={{ fontSize: 12, color: C.muted }}>{members} members</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {activeNav === 'channels' && <Channels user={user} onSignIn={() => setShowAuth(true)} />}
 
         {/* MARKETPLACE */}
         {activeNav === 'marketplace' && <Marketplace user={user} onSignIn={() => setShowAuth(true)} />}
