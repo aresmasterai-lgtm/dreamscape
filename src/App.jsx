@@ -12,7 +12,7 @@ const C = {
 }
 
 // ── Save to Gallery Modal ─────────────────────────────────────
-function SaveModal({ prompt, onSave, onClose }) {
+function SaveModal({ prompt, imageUrl, onSave, onClose }) {
   const [title, setTitle] = useState('')
   const [tags, setTags] = useState('')
   const [saving, setSaving] = useState(false)
@@ -23,7 +23,7 @@ function SaveModal({ prompt, onSave, onClose }) {
     setError('')
     setSaving(true)
     const styleTags = tags.split(',').map(t => t.trim()).filter(Boolean)
-    await onSave({ title: title.trim(), prompt, styleTags })
+    await onSave({ title: title.trim(), prompt, styleTags, imageUrl })
     setSaving(false)
   }
 
@@ -84,6 +84,8 @@ function DreamChat({ user, onSignIn }) {
   const [saveTarget, setSaveTarget] = useState(null)
   const [savedIndexes, setSavedIndexes] = useState(new Set())
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [generatingIndex, setGeneratingIndex] = useState(null)
+  const [generatedImages, setGeneratedImages] = useState({})
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -112,12 +114,12 @@ function DreamChat({ user, onSignIn }) {
     }
   }
 
-  const handleSave = async ({ title, prompt, styleTags }) => {
+  const handleSave = async ({ title, prompt, styleTags, imageUrl }) => {
     const { error } = await supabase.from('artwork').insert({
       user_id: user.id,
       title,
       prompt,
-      image_url: '',
+      image_url: imageUrl || '',
       style_tags: styleTags,
     })
     if (!error) {
@@ -125,6 +127,28 @@ function DreamChat({ user, onSignIn }) {
       setSaveTarget(null)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
+    }
+  }
+
+  const generateImage = async (prompt, index) => {
+    setGeneratingIndex(index)
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, resolution: '1K' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const dataUrl = `data:${data.mimeType};base64,${data.imageData}`
+        setGeneratedImages(prev => ({ ...prev, [index]: dataUrl }))
+      } else {
+        alert('Image generation failed: ' + (data.error || 'Unknown error'))
+      }
+    } catch (err) {
+      alert('Connection error generating image.')
+    } finally {
+      setGeneratingIndex(null)
     }
   }
 
@@ -167,21 +191,44 @@ function DreamChat({ user, onSignIn }) {
                 {msg.content}
               </div>
               {msg.role === 'assistant' && i > 0 && (
-                <button
-                  onClick={() => !savedIndexes.has(i) && setSaveTarget({ prompt: msg.content, index: i })}
-                  style={{
-                    marginTop: 6, background: 'none',
-                    border: `1px solid ${savedIndexes.has(i) ? C.teal + '55' : C.border}`,
-                    borderRadius: 6, padding: '4px 10px',
-                    color: savedIndexes.has(i) ? C.teal : C.muted,
-                    fontSize: 11, cursor: savedIndexes.has(i) ? 'default' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.accent + '88' }}
-                  onMouseLeave={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.border }}
-                >
-                  {savedIndexes.has(i) ? '✅ Saved to Gallery' : '✦ Save to Gallery'}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
+                  {generatedImages[i] && (
+                    <img src={generatedImages[i]} alt="Generated artwork" style={{ maxWidth: '80%', borderRadius: 10, border: `1px solid ${C.border}` }} />
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {!generatedImages[i] && (
+                      <button
+                        onClick={() => generatingIndex !== i && generateImage(msg.content, i)}
+                        disabled={generatingIndex === i}
+                        style={{
+                          background: generatingIndex === i ? C.border : `${C.teal}20`,
+                          border: `1px solid ${generatingIndex === i ? C.border : C.teal + '55'}`,
+                          borderRadius: 6, padding: '4px 10px',
+                          color: generatingIndex === i ? C.muted : C.teal,
+                          fontSize: 11, cursor: generatingIndex === i ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {generatingIndex === i ? '⏳ Generating...' : '🍌 Generate Image'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => !savedIndexes.has(i) && setSaveTarget({ prompt: msg.content, index: i, imageUrl: generatedImages[i] || '' })}
+                      style={{
+                        background: 'none',
+                        border: `1px solid ${savedIndexes.has(i) ? C.teal + '55' : C.border}`,
+                        borderRadius: 6, padding: '4px 10px',
+                        color: savedIndexes.has(i) ? C.teal : C.muted,
+                        fontSize: 11, cursor: savedIndexes.has(i) ? 'default' : 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.accent + '88' }}
+                      onMouseLeave={e => { if (!savedIndexes.has(i)) e.currentTarget.style.borderColor = C.border }}
+                    >
+                      {savedIndexes.has(i) ? '✅ Saved to Gallery' : '✦ Save to Gallery'}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           ))}
@@ -215,6 +262,7 @@ function DreamChat({ user, onSignIn }) {
       {saveTarget && (
         <SaveModal
           prompt={saveTarget.prompt}
+          imageUrl={saveTarget.imageUrl}
           onSave={handleSave}
           onClose={() => setSaveTarget(null)}
         />
@@ -293,8 +341,11 @@ function ProfilePage({ user, profile }) {
                 onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = expanded === art.id ? C.accent + '88' : C.border}
               >
-                <div style={{ height: 120, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, fontSize: 36 }}>
-                  🎨
+                <div style={{ height: 120, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, fontSize: 36, overflow: 'hidden' }}>
+                  {art.image_url
+                    ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : '🎨'
+                  }
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>{art.title}</div>
                 <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? '300px' : '40px', transition: 'max-height 0.3s' }}>
