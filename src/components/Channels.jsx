@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const C = {
@@ -16,7 +17,8 @@ function timeAgo(ts) {
 }
 
 // ── Single Post Card ──────────────────────────────────────────
-function PostCard({ post, user, onLike, onViewArtist }) {
+function PostCard({ post, user, onLike }) {
+  const navigate = useNavigate()
   const avatarLetter = post.profiles?.username?.[0]?.toUpperCase() || '?'
   const username = post.profiles?.username || 'artist'
   const liked = post._liked
@@ -30,8 +32,8 @@ function PostCard({ post, user, onLike, onViewArtist }) {
           {avatarLetter}
         </div>
         <div>
-          <div onClick={() => onViewArtist && post.user_id && onViewArtist(post.user_id)}
-            style={{ fontSize: 13, fontWeight: 600, color: onViewArtist ? C.accent : C.text, cursor: onViewArtist ? 'pointer' : 'default' }}>@{username}</div>
+          <div onClick={() => navigate(`/u/${username}`)}
+            style={{ fontSize: 13, fontWeight: 600, color: C.accent, cursor: 'pointer' }}>@{username}</div>
           <div style={{ fontSize: 11, color: C.muted }}>{timeAgo(post.created_at)}</div>
         </div>
       </div>
@@ -55,7 +57,7 @@ function PostCard({ post, user, onLike, onViewArtist }) {
 }
 
 // ── Channel View ──────────────────────────────────────────────
-function ChannelView({ channel, user, onSignIn, onBack, onViewArtist }) {
+function ChannelView({ channel, user, onSignIn, onBack }) {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState('')
@@ -162,7 +164,7 @@ function ChannelView({ channel, user, onSignIn, onBack, onViewArtist }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {posts.map(post => <PostCard key={post.id} post={post} user={user} onLike={handleLike} onViewArtist={onViewArtist} />)}
+          {posts.map(post => <PostCard key={post.id} post={post} user={user} onLike={handleLike} />)}
         </div>
       )}
     </div>
@@ -170,20 +172,39 @@ function ChannelView({ channel, user, onSignIn, onBack, onViewArtist }) {
 }
 
 // ── Channels Home ─────────────────────────────────────────────
-export default function Channels({ user, onSignIn, onViewArtist }) {
+export default function Channels({ user, onSignIn }) {
+  const { channelName } = useParams()
+  const navigate = useNavigate()
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState(null)
 
   useEffect(() => {
     supabase.from('channels').select('*').eq('is_live', true).order('member_count', { ascending: false })
-      .then(({ data }) => { setChannels(data || []); setLoading(false) })
-  }, [])
+      .then(({ data }) => {
+        setChannels(data || [])
+        setLoading(false)
+        if (channelName && data) {
+          const match = data.find(c => c.name === channelName)
+          if (match) setActive(match)
+        }
+      })
+  }, [channelName])
+
+  const openChannel = (ch) => {
+    setActive(ch)
+    navigate(`/channels/${ch.name}`)
+  }
+
+  const closeChannel = () => {
+    setActive(null)
+    navigate('/channels')
+  }
 
   if (active) {
     return (
       <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
-        <ChannelView channel={active} user={user} onSignIn={onSignIn} onBack={() => setActive(null)} onViewArtist={onViewArtist} />
+        <ChannelView channel={active} user={user} onSignIn={onSignIn} onBack={closeChannel} />
       </div>
     )
   }
@@ -207,7 +228,7 @@ export default function Channels({ user, onSignIn, onViewArtist }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
           {channels.map(ch => (
-            <div key={ch.id} onClick={() => setActive(ch)}
+            <div key={ch.id} onClick={() => openChannel(ch)}
               style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px', cursor: 'pointer', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = ch.color + '88'; e.currentTarget.style.transform = 'translateY(-2px)' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
