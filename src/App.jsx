@@ -242,29 +242,94 @@ function DreamChat({ user, onSignIn }) {
   )
 }
 
+// ── Artwork Grid (reusable) ───────────────────────────────────
+function ArtworkGrid({ artworks, loading }) {
+  const [expanded, setExpanded] = useState(null)
+  if (loading) return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
+      {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+    </div>
+  )
+  if (artworks.length === 0) return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
+      <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>No artworks yet.</p>
+    </div>
+  )
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+      {artworks.map(art => (
+        <div key={art.id} onClick={() => setExpanded(expanded === art.id ? null : art.id)}
+          style={{ background: C.card, border: `1px solid ${expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = expanded === art.id ? C.accent + '88' : C.border}>
+          <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, overflow: 'hidden' }}>
+            {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎨'}
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 6 }}>{art.title}</div>
+            {art.profiles?.username && <div style={{ fontSize: 11, color: C.accent, marginBottom: 6 }}>@{art.profiles.username}</div>}
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? '300px' : '36px', transition: 'max-height 0.3s' }}>{art.prompt}</div>
+            {art.style_tags?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Profile Page ──────────────────────────────────────────────
 function ProfilePage({ user, profile }) {
   const [artworks, setArtworks] = useState([])
   const [loadingArt, setLoadingArt] = useState(true)
-  const [expanded, setExpanded] = useState(null)
+  const [feedArtworks, setFeedArtworks] = useState([])
+  const [loadingFeed, setLoadingFeed] = useState(true)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [tab, setTab] = useState('artworks')
 
   useEffect(() => {
     if (!user) return
+    // Load own artworks
     supabase.from('artwork').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
       .then(({ data }) => { setArtworks(data || []); setLoadingArt(false) })
+    // Load follower/following counts
+    supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', user.id)
+      .then(({ count }) => setFollowerCount(count || 0))
+    supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id)
+      .then(({ count }) => setFollowingCount(count || 0))
+    // Load following feed
+    loadFeed()
   }, [user])
 
+  const loadFeed = async () => {
+    setLoadingFeed(true)
+    const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
+    if (!followRows?.length) { setFeedArtworks([]); setLoadingFeed(false); return }
+    const ids = followRows.map(r => r.following_id)
+    const { data } = await supabase.from('artwork').select('*, profiles(username)').in('user_id', ids).order('created_at', { ascending: false }).limit(40)
+    setFeedArtworks(data || [])
+    setLoadingFeed(false)
+  }
+
   const avatarLetter = profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()
+  const tabs = [['artworks', `Artworks (${loadingArt ? '…' : artworks.length})`], ['feed', 'Following Feed']]
 
   return (
     <div style={{ padding: '40px 16px', maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 32, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+      {/* Profile card */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 28, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarLetter}</div>
         <div style={{ flex: 1, minWidth: 200 }}>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 4 }}>@{profile?.username || user.email?.split('@')[0]}</h2>
           <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{profile?.bio || 'No bio yet.'}</p>
-          <div style={{ display: 'flex', gap: 20 }}>
-            {[[loadingArt ? '—' : artworks.length, 'Artworks'], ['0', 'Followers'], ['0', 'Following']].map(([count, label]) => (
+          <div style={{ display: 'flex', gap: 24 }}>
+            {[[loadingArt ? '—' : artworks.length, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following']].map(([count, label]) => (
               <div key={label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{count}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
@@ -273,43 +338,126 @@ function ProfilePage({ user, profile }) {
           </div>
         </div>
       </div>
-      <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Artworks</h3>
-      {loadingArt ? (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
-          {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
-        </div>
-      ) : artworks.length === 0 ? (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
-          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>No artworks yet. Head to <strong style={{ color: C.accent }}>Create</strong> and hit <strong style={{ color: C.accent }}>Save to Gallery</strong>.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-          {artworks.map(art => (
-            <div key={art.id} onClick={() => setExpanded(expanded === art.id ? null : art.id)}
-              style={{ background: C.card, border: `1px solid ${expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = expanded === art.id ? C.accent + '88' : C.border}>
-              <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, overflow: 'hidden' }}>
-                {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎨'}
-              </div>
-              <div style={{ padding: '14px 16px' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 6 }}>{art.title}</div>
-                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? '300px' : '36px', transition: 'max-height 0.3s' }}>{art.prompt}</div>
-                {art.style_tags?.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                    {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+        {tabs.map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`,
+            padding: '8px 16px', color: tab === id ? C.accent : C.muted,
+            fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1,
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'artworks' && <ArtworkGrid artworks={artworks} loading={loadingArt} />}
+
+      {tab === 'feed' && (
+        followingCount === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
+            <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>You're not following anyone yet.<br />Explore the <strong style={{ color: C.accent }}>Discover</strong> page to find artists.</p>
+          </div>
+        ) : <ArtworkGrid artworks={feedArtworks} loading={loadingFeed} />
       )}
     </div>
   )
 }
+
+// ── Public Artist Profile ─────────────────────────────────────
+function ArtistProfile({ targetUserId, viewerUser, onBack }) {
+  const [profile, setProfile] = useState(null)
+  const [artworks, setArtworks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followingCount, setFollowingCount] = useState(0)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+
+  useEffect(() => {
+    loadProfile()
+  }, [targetUserId])
+
+  const loadProfile = async () => {
+    setLoading(true)
+    const [{ data: prof }, { data: art }, { count: followers }, { count: following }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', targetUserId).single(),
+      supabase.from('artwork').select('*').eq('user_id', targetUserId).order('created_at', { ascending: false }),
+      supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', targetUserId),
+      supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', targetUserId),
+    ])
+    setProfile(prof)
+    setArtworks(art || [])
+    setFollowerCount(followers || 0)
+    setFollowingCount(following || 0)
+    if (viewerUser) {
+      const { data: f } = await supabase.from('follows').select('id').eq('follower_id', viewerUser.id).eq('following_id', targetUserId).maybeSingle()
+      setIsFollowing(!!f)
+    }
+    setLoading(false)
+  }
+
+  const toggleFollow = async () => {
+    if (!viewerUser || followLoading) return
+    setFollowLoading(true)
+    if (isFollowing) {
+      await supabase.from('follows').delete().eq('follower_id', viewerUser.id).eq('following_id', targetUserId)
+      setIsFollowing(false)
+      setFollowerCount(c => c - 1)
+    } else {
+      await supabase.from('follows').insert({ follower_id: viewerUser.id, following_id: targetUserId })
+      setIsFollowing(true)
+      setFollowerCount(c => c + 1)
+    }
+    setFollowLoading(false)
+  }
+
+  const avatarLetter = profile?.username?.[0]?.toUpperCase() || '?'
+  const isOwnProfile = viewerUser?.id === targetUserId
+
+  if (loading) return (
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '80px 0' }}>
+      {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '40px 16px', maxWidth: 900, margin: '0 auto' }}>
+      <button onClick={onBack} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer', marginBottom: 24 }}>← Back</button>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 28, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarLetter}</div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 4 }}>@{profile?.username || 'artist'}</h2>
+          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{profile?.bio || 'No bio yet.'}</p>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+            {[[artworks.length, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following']].map(([count, label]) => (
+              <div key={label} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{count}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+              </div>
+            ))}
+            {!isOwnProfile && viewerUser && (
+              <button onClick={toggleFollow} disabled={followLoading} style={{
+                marginLeft: 'auto',
+                background: isFollowing ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+                border: `1px solid ${isFollowing ? C.border : 'transparent'}`,
+                borderRadius: 10, padding: '8px 20px',
+                color: isFollowing ? C.muted : '#fff',
+                fontSize: 13, fontWeight: 600, cursor: followLoading ? 'not-allowed' : 'pointer',
+              }}>
+                {followLoading ? '...' : isFollowing ? 'Following ✓' : '+ Follow'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Artworks</h3>
+      <ArtworkGrid artworks={artworks} loading={false} />
+    </div>
+  )
+}
+
+
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
@@ -317,6 +465,7 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false)
   const [activeNav, setActiveNav] = useState('discover')
   const [mobileMenu, setMobileMenu] = useState(false)
+  const [viewingArtist, setViewingArtist] = useState(null)
 
   const needsProfileSetup = user && !profile?.username
 
@@ -343,31 +492,24 @@ export default function App() {
 
       {/* Navbar */}
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(8,11,20,0.9)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}`, height: 60, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 24 }}>
-
-        {/* Logo */}
-        <button onClick={() => setActiveNav('discover')} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+        <button onClick={() => { setActiveNav('discover'); setViewingArtist(null) }} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
           <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 17 }}>
             <span style={{ color: '#E8EAF0' }}>Dream</span><span style={{ color: C.accent }}>scape</span>
           </span>
         </button>
-
-        {/* Nav links — hidden on mobile */}
         <div className="nav-links" style={{ display: 'flex', gap: 2, flex: 1 }}>
           {navItems.map(([id, label]) => (
-            <button key={id} onClick={() => setActiveNav(id)} style={{ background: activeNav === id ? `${C.accent}20` : 'none', border: `1px solid ${activeNav === id ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: activeNav === id ? C.accent : C.muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>{label}</button>
+            <button key={id} onClick={() => { setActiveNav(id); setViewingArtist(null) }} style={{ background: activeNav === id && !viewingArtist ? `${C.accent}20` : 'none', border: `1px solid ${activeNav === id && !viewingArtist ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: activeNav === id && !viewingArtist ? C.accent : C.muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>{label}</button>
           ))}
         </div>
-
-        {/* Auth area */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
           {user ? (
             <>
-              <button onClick={() => setActiveNav('profile')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: activeNav === 'profile' ? `${C.accent}20` : 'none', border: `1px solid ${activeNav === 'profile' ? C.accent + '55' : 'transparent'}`, borderRadius: 20, padding: '3px 10px 3px 3px' }}>
+              <button onClick={() => { setActiveNav('profile'); setViewingArtist(null) }} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: activeNav === 'profile' && !viewingArtist ? `${C.accent}20` : 'none', border: `1px solid ${activeNav === 'profile' && !viewingArtist ? C.accent + '55' : 'transparent'}`, borderRadius: 20, padding: '3px 10px 3px 3px' }}>
                 <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
                   {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
                 </div>
-                <span style={{ fontSize: 13, color: C.text, fontWeight: 500, display: 'none' }} className="username-text">{profile?.username || user.email?.split('@')[0]}</span>
               </button>
               <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign Out</button>
             </>
@@ -378,70 +520,70 @@ export default function App() {
             </>
           )}
         </div>
-
-        {/* Mobile hamburger */}
         <button className="mobile-menu-btn" onClick={() => setMobileMenu(!mobileMenu)} style={{ display: 'none', background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>☰</button>
       </nav>
 
-      {/* Mobile dropdown menu */}
       {mobileMenu && (
         <div style={{ position: 'fixed', top: 60, left: 0, right: 0, zIndex: 99, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {navItems.map(([id, label]) => (
-            <button key={id} onClick={() => { setActiveNav(id); setMobileMenu(false) }} style={{ background: activeNav === id ? `${C.accent}20` : 'none', border: 'none', borderRadius: 8, padding: '10px 14px', color: activeNav === id ? C.accent : C.text, fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>{label}</button>
+            <button key={id} onClick={() => { setActiveNav(id); setViewingArtist(null); setMobileMenu(false) }} style={{ background: activeNav === id ? `${C.accent}20` : 'none', border: 'none', borderRadius: 8, padding: '10px 14px', color: activeNav === id ? C.accent : C.text, fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>{label}</button>
           ))}
         </div>
       )}
 
-      {/* Page content */}
       <div style={{ paddingTop: 60 }}>
 
-        {/* DISCOVER */}
-        {activeNav === 'discover' && (
-          <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
-            <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
-            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
-              Where Artists<br />
-              <span style={{ background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Create & Thrive</span>
-            </h1>
-            <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: C.muted, maxWidth: 500, lineHeight: 1.7, marginBottom: 36 }}>
-              Generate stunning artwork with AI, connect with artists worldwide, and sell merchandise globally.
-            </p>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <button onClick={() => { setActiveNav('create'); if (!user) setShowAuth(true) }} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Start Creating Free ✦</button>
-              <button onClick={() => setActiveNav('marketplace')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.text, fontSize: 14, cursor: 'pointer' }}>Explore Marketplace</button>
-            </div>
-            <div style={{ display: 'flex', gap: 40, marginTop: 56, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {[['10K+', 'Artists'], ['50K+', 'Artworks'], ['120+', 'Channels'], ['150+', 'Countries']].map(([num, label]) => (
-                <div key={label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{num}</div>
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{label}</div>
+        {/* Artist profile view (overlay) */}
+        {viewingArtist && (
+          <ArtistProfile
+            targetUserId={viewingArtist}
+            viewerUser={user}
+            onBack={() => setViewingArtist(null)}
+          />
+        )}
+
+        {!viewingArtist && (
+          <>
+            {activeNav === 'discover' && (
+              <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
+                <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
+                <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
+                  Where Artists<br />
+                  <span style={{ background: `linear-gradient(135deg, ${C.accent}, ${C.teal})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Create & Thrive</span>
+                </h1>
+                <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: C.muted, maxWidth: 500, lineHeight: 1.7, marginBottom: 36 }}>
+                  Generate stunning artwork with AI, connect with artists worldwide, and sell merchandise globally.
+                </p>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <button onClick={() => { setActiveNav('create'); if (!user) setShowAuth(true) }} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Start Creating Free ✦</button>
+                  <button onClick={() => setActiveNav('marketplace')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.text, fontSize: 14, cursor: 'pointer' }}>Explore Marketplace</button>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div style={{ display: 'flex', gap: 40, marginTop: 56, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {[['10K+', 'Artists'], ['50K+', 'Artworks'], ['120+', 'Channels'], ['150+', 'Countries']].map(([num, label]) => (
+                    <div key={label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{num}</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {activeNav === 'channels' && <Channels user={user} onSignIn={() => setShowAuth(true)} onViewArtist={setViewingArtist} />}
+            {activeNav === 'marketplace' && <Marketplace user={user} onSignIn={() => setShowAuth(true)} />}
+            {activeNav === 'create' && (
+              <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
+                <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                  <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(26px, 5vw, 36px)', marginBottom: 10, color: C.text }}>Create with Dream AI</h2>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>Describe your vision and Dream will craft the perfect prompt — then generate an image and sell it globally.</p>
+                </div>
+                <DreamChat user={user} onSignIn={() => setShowAuth(true)} />
+              </div>
+            )}
+            {activeNav === 'profile' && user && <ProfilePage user={user} profile={profile} onViewArtist={setViewingArtist} />}
+          </>
         )}
-
-        {/* CHANNELS */}
-        {activeNav === 'channels' && <Channels user={user} onSignIn={() => setShowAuth(true)} />}
-
-        {/* MARKETPLACE */}
-        {activeNav === 'marketplace' && <Marketplace user={user} onSignIn={() => setShowAuth(true)} />}
-
-        {/* CREATE */}
-        {activeNav === 'create' && (
-          <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: 28 }}>
-              <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(26px, 5vw, 36px)', marginBottom: 10, color: C.text }}>Create with Dream AI</h2>
-              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>Describe your vision and Dream will craft the perfect prompt — then generate an image and sell it globally.</p>
-            </div>
-            <DreamChat user={user} onSignIn={() => setShowAuth(true)} />
-          </div>
-        )}
-
-        {/* PROFILE */}
-        {activeNav === 'profile' && user && <ProfilePage user={user} profile={profile} />}
       </div>
 
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}

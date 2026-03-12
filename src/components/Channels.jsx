@@ -16,7 +16,7 @@ function timeAgo(ts) {
 }
 
 // ── Single Post Card ──────────────────────────────────────────
-function PostCard({ post, user, onLike }) {
+function PostCard({ post, user, onLike, onViewArtist }) {
   const avatarLetter = post.profiles?.username?.[0]?.toUpperCase() || '?'
   const username = post.profiles?.username || 'artist'
   const liked = post._liked
@@ -30,7 +30,8 @@ function PostCard({ post, user, onLike }) {
           {avatarLetter}
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>@{username}</div>
+          <div onClick={() => onViewArtist && post.user_id && onViewArtist(post.user_id)}
+            style={{ fontSize: 13, fontWeight: 600, color: onViewArtist ? C.accent : C.text, cursor: onViewArtist ? 'pointer' : 'default' }}>@{username}</div>
           <div style={{ fontSize: 11, color: C.muted }}>{timeAgo(post.created_at)}</div>
         </div>
       </div>
@@ -54,7 +55,7 @@ function PostCard({ post, user, onLike }) {
 }
 
 // ── Channel View ──────────────────────────────────────────────
-function ChannelView({ channel, user, onSignIn, onBack }) {
+function ChannelView({ channel, user, onSignIn, onBack, onViewArtist }) {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [content, setContent] = useState('')
@@ -161,7 +162,7 @@ function ChannelView({ channel, user, onSignIn, onBack }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {posts.map(post => <PostCard key={post.id} post={post} user={user} onLike={handleLike} />)}
+          {posts.map(post => <PostCard key={post.id} post={post} user={user} onLike={handleLike} onViewArtist={onViewArtist} />)}
         </div>
       )}
     </div>
@@ -169,7 +170,7 @@ function ChannelView({ channel, user, onSignIn, onBack }) {
 }
 
 // ── Channels Home ─────────────────────────────────────────────
-export default function Channels({ user, onSignIn }) {
+export default function Channels({ user, onSignIn, onViewArtist }) {
   const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
   const [active, setActive] = useState(null)
@@ -182,7 +183,7 @@ export default function Channels({ user, onSignIn }) {
   if (active) {
     return (
       <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
-        <ChannelView channel={active} user={user} onSignIn={onSignIn} onBack={() => setActive(null)} />
+        <ChannelView channel={active} user={user} onSignIn={onSignIn} onBack={() => setActive(null)} onViewArtist={onViewArtist} />
       </div>
     )
   }
