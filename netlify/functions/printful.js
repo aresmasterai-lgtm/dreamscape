@@ -17,6 +17,13 @@ export default async (req) => {
   const BASE = 'https://api.printful.com'
 
   try {
+    // GET stores (to find store ID)
+    if (req.method === 'GET' && action === 'stores') {
+      const res = await fetch(`${BASE}/stores`, { headers: authHeaders })
+      const data = await res.json()
+      return new Response(JSON.stringify(data), { status: res.ok ? 200 : res.status, headers: { 'Content-Type': 'application/json' } })
+    }
+
     // GET catalog products (v2)
     if (req.method === 'GET' && action === 'catalog') {
       const res = await fetch(`${BASE}/v2/catalog/products?limit=20&selling_region_name=worldwide`, {
