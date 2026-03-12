@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -161,54 +163,43 @@ function ShopView({ user, onSignIn }) {
   const [loading, setLoading] = useState(true)
   const [buyingId, setBuyingId] = useState(null)
   const [selectedProduct, setSelectedProduct] = useState(null)
-  const [selectedVariant, setSelectedVariant] = useState(null)
+  const navigate = useNavigate()
 
-  useEffect(() => {
-    fetch('/api/printful?action=store')
-      .then(r => r.json())
-      .then(data => { setProducts(data.products || []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  useEffect(() => { loadProducts() }, [])
 
-  const openProduct = (product) => {
-    setSelectedProduct(product)
-    setSelectedVariant(product.variants?.[0] || null)
+  const loadProducts = async () => {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('*, profiles(id, username)')
+        .order('created_at', { ascending: false })
+        .limit(60)
+      setProducts(data || [])
+    } catch {}
+    setLoading(false)
   }
 
-  const handleBuy = async () => {
+  const handleBuy = async (product) => {
     if (!user) return onSignIn()
-    if (!selectedProduct) return
-    setBuyingId(selectedProduct.id)
-
-    // Use first variant price, or a sensible default
-    const price = selectedVariant?.retail_price
-      ? parseFloat(selectedVariant.retail_price)
-      : 29.99
-
+    setBuyingId(product.id)
     try {
       const res = await fetch('/api/create-checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productName: selectedProduct.name,
-          variantName: selectedVariant?.name || '',
-          price,
-          imageUrl: selectedProduct.thumbnail_url || '',
-          printfulProductId: selectedProduct.id,
-          printfulVariantId: selectedVariant?.id || '',
+          productName: product.title,
+          variantName: '',
+          price: product.price || 29.99,
+          imageUrl: product.mockup_url || '',
+          printfulProductId: product.printful_product_id,
+          printfulVariantId: product.printful_variant_ids?.[0] || '',
           quantity: 1,
         }),
       })
       const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert('Checkout failed: ' + (data.error || 'Unknown error'))
-      }
-    } catch (err) {
-      alert('Connection error. Please try again.')
-    } finally {
-      setBuyingId(null)
-    }
+      if (data.url) window.location.href = data.url
+      else alert('Checkout error: ' + (data.error || 'Unknown'))
+    } catch (e) { alert('Connection error.') }
+    setBuyingId(null)
   }
 
   if (loading) return <Spinner />
@@ -216,8 +207,8 @@ function ShopView({ user, onSignIn }) {
   if (products.length === 0) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
-      <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
-        No products listed yet. Browse the <strong style={{ color: C.accent }}>Create Products</strong> tab and create your first product!
+      <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>
+        No products listed yet. Go to <strong style={{ color: C.accent }}>Create Products</strong> to publish your first item!
       </p>
     </div>
   )
@@ -226,69 +217,47 @@ function ShopView({ user, onSignIn }) {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
         {products.map(product => (
-          <div key={product.id}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', transition: 'all 0.2s', cursor: 'pointer' }}
+          <div key={product.id} onClick={() => setSelectedProduct(product)}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}
-            onClick={() => openProduct(product)}>
-            <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-              {product.thumbnail_url
-                ? <img src={product.thumbnail_url} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: 52 }}>🎨</span>
-              }
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
+            <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {product.mockup_url
+                ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontSize: 52 }}>🎨</span>}
             </div>
-            <div style={{ padding: '16px' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.name}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <div style={{ fontSize: 13, color: C.teal, fontWeight: 700 }}>
-                  {product.variants?.[0]?.retail_price ? `$${parseFloat(product.variants[0].retail_price).toFixed(2)}` : 'View pricing'}
-                </div>
-                <div style={{ fontSize: 11, color: C.muted }}>{product.variants_count || product.variants?.length || 0} variants</div>
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.title}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 13, color: C.teal, fontWeight: 700 }}>${parseFloat(product.price || 29.99).toFixed(2)}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>by @{product.profiles?.username || 'artist'}</div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Product Detail / Buy Modal */}
       {selectedProduct && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,11,20,0.93)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
           onClick={e => e.target === e.currentTarget && setSelectedProduct(null)}>
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '0', maxWidth: 520, width: '100%', overflow: 'hidden' }}>
-            <div style={{ height: 220, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              {selectedProduct.thumbnail_url
-                ? <img src={selectedProduct.thumbnail_url} alt={selectedProduct.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: 64 }}>🎨</span>
-              }
-              <button onClick={() => setSelectedProduct(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.7)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: C.text, cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, maxWidth: 500, width: '100%', overflow: 'hidden' }}>
+            <div style={{ height: 240, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selectedProduct.mockup_url
+                ? <img src={selectedProduct.mockup_url} alt={selectedProduct.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontSize: 64 }}>🎨</span>}
+              <button onClick={() => setSelectedProduct(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: C.text, cursor: 'pointer', fontSize: 16 }}>✕</button>
             </div>
             <div style={{ padding: '24px 28px' }}>
-              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8 }}>{selectedProduct.name}</h3>
-
-              {selectedProduct.variants?.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Select Variant</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {selectedProduct.variants.slice(0, 8).map(v => (
-                      <button key={v.id} onClick={() => setSelectedVariant(v)}
-                        style={{ background: selectedVariant?.id === v.id ? `${C.accent}30` : C.bg, border: `1px solid ${selectedVariant?.id === v.id ? C.accent : C.border}`, borderRadius: 8, padding: '6px 12px', color: selectedVariant?.id === v.id ? C.accent : C.muted, fontSize: 12, cursor: 'pointer' }}>
-                        {v.name?.split(' / ').slice(-2).join(' / ') || v.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>{selectedProduct.title}</h3>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>by @{selectedProduct.profiles?.username || 'artist'} · {selectedProduct.product_type}</div>
+              {selectedProduct.description && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>{selectedProduct.description}</p>}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <div style={{ fontSize: 24, fontWeight: 800, color: C.teal, fontFamily: 'Playfair Display, serif' }}>
-                  {selectedVariant?.retail_price ? `$${parseFloat(selectedVariant.retail_price).toFixed(2)}` : '$29.99'}
-                </div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: C.teal, fontFamily: 'Playfair Display, serif' }}>${parseFloat(selectedProduct.price || 29.99).toFixed(2)}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>Free worldwide shipping</div>
               </div>
-
-              <button onClick={handleBuy} disabled={buyingId === selectedProduct.id}
+              <button onClick={() => handleBuy(selectedProduct)} disabled={buyingId === selectedProduct.id}
                 style={{ width: '100%', background: buyingId === selectedProduct.id ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: buyingId === selectedProduct.id ? 'not-allowed' : 'pointer' }}>
-                {buyingId === selectedProduct.id ? '⏳ Redirecting to checkout...' : '🛒 Buy Now'}
+                {buyingId === selectedProduct.id ? '⏳ Redirecting...' : '🛒 Buy Now'}
               </button>
               <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 10 }}>Secure checkout powered by Stripe</p>
             </div>

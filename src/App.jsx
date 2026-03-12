@@ -6,6 +6,8 @@ import AuthModal from './components/AuthModal'
 import ProfileSetup from './components/ProfileSetup'
 import Marketplace from './components/Marketplace'
 import Channels from './components/Channels'
+import Gallery from './components/Gallery'
+import CreateProductModal from './components/CreateProductModal'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -144,6 +146,7 @@ function DreamChat({ user, onSignIn }) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [generatingIndex, setGeneratingIndex] = useState(null)
   const [generatedImages, setGeneratedImages] = useState({})
+  const [createProductImage, setCreateProductImage] = useState(null)
   const [bottomEl, setBottomEl] = useState(null)
 
   useEffect(() => { bottomEl?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
@@ -225,13 +228,21 @@ function DreamChat({ user, onSignIn }) {
         {lastAiIndex >= 0 && !loading && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <img src={generatedImages[lastAiIndex]} alt="Generated" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55` }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <img src={generatedImages[lastAiIndex]} alt="Generated" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55` }} />
                 <span style={{ fontSize: 12, color: C.teal, flex: 1 }}>✅ Image ready!</span>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: generatedImages[lastAiIndex] })}
-                  style={{ background: savedIndexes.has(lastAiIndex) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : 'transparent'}`, borderRadius: 8, padding: '7px 16px', color: savedIndexes.has(lastAiIndex) ? C.teal : '#fff', fontSize: 12, fontWeight: 700, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
-                  {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save to Gallery'}
+                  style={{ background: savedIndexes.has(lastAiIndex) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : 'transparent'}`, borderRadius: 8, padding: '7px 13px', color: savedIndexes.has(lastAiIndex) ? C.teal : '#fff', fontSize: 12, fontWeight: 700, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
+                  {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save'}
                 </button>
+                <button onClick={() => setCreateProductImage(generatedImages[lastAiIndex])}
+                  style={{ background: `${C.teal}22`, border: `1px solid ${C.teal}55`, borderRadius: 8, padding: '7px 13px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell
+                </button>
+                <a href={generatedImages[lastAiIndex]} download="dreamscape-art.png" target="_blank"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'none' }}>
+                  ↓
+                </a>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -256,6 +267,15 @@ function DreamChat({ user, onSignIn }) {
         </div>
       </div>
       {saveTarget && <SaveModal prompt={saveTarget.prompt} imageUrl={saveTarget.imageUrl} onSave={handleSave} onClose={() => setSaveTarget(null)} />}
+      {createProductImage && user && (
+        <CreateProductModal
+          user={user}
+          imageUrl={createProductImage}
+          title=""
+          onClose={() => setCreateProductImage(null)}
+          onSuccess={() => setCreateProductImage(null)}
+        />
+      )}
     </>
   )
 }
@@ -511,7 +531,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
   const [mobileMenu, setMobileMenu] = useState(false)
   const nav = location.pathname
-  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/marketplace', 'Marketplace'], ['/create', 'Create']]
+  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create']]
   const isActive = (path) => path === '/' ? nav === '/' : nav.startsWith(path)
 
   return (
@@ -616,6 +636,7 @@ export default function App() {
             <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/channels" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/channels/:channelName" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
