@@ -11,7 +11,7 @@ export default async (req) => {
   }
 
   try {
-    const { prompt, style, resolution = '1K' } = await req.json()
+    const { prompt, style } = await req.json()
 
     if (!prompt) {
       return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
@@ -23,9 +23,7 @@ export default async (req) => {
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: fullPrompt }] }],
           generationConfig: {
@@ -46,7 +44,9 @@ export default async (req) => {
     const textPart = parts.find(p => p.text)
 
     if (!imagePart) {
-      throw new Error('No image returned from Gemini')
+      const finishReason = data.candidates?.[0]?.finishReason || 'unknown'
+      const debugText = textPart?.text || 'none'
+      throw new Error(`No image in response. FinishReason: ${finishReason}. Text: ${debugText.substring(0, 200)}`)
     }
 
     return new Response(JSON.stringify({
