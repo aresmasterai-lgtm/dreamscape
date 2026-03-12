@@ -28,7 +28,9 @@ export default async (req) => {
 
     // GET catalog products (v1)
     if (req.method === 'GET' && action === 'catalog') {
-      const res = await fetch(`${BASE}/products?limit=20`, { headers: authHeaders })
+      const offset = parseInt(url.searchParams.get('offset') || '0')
+      const limit = 100
+      const res = await fetch(`${BASE}/products?limit=${limit}&offset=${offset}`, { headers: authHeaders })
       const data = await res.json()
 
       if (!res.ok) {
@@ -46,7 +48,10 @@ export default async (req) => {
         variants: p.variants || [],
       }))
 
-      return new Response(JSON.stringify({ products }), {
+      return new Response(JSON.stringify({
+        products,
+        paging: data.paging || {},
+      }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })

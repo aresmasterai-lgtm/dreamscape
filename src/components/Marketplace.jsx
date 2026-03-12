@@ -39,18 +39,30 @@ function Spinner() {
 function CatalogView({ user, onSignIn }) {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
   const [selected, setSelected] = useState(null)
   const [creating, setCreating] = useState(false)
   const [success, setSuccess] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', imageUrl: '' })
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetch('/api/printful?action=catalog')
-      .then(r => r.json())
-      .then(data => { setProducts(data.products || []); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
+  useEffect(() => { loadProducts(0, true) }, [])
+
+  const loadProducts = async (offsetVal, fresh = false) => {
+    fresh ? setLoading(true) : setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/printful?action=catalog&offset=${offsetVal}`)
+      const data = await res.json()
+      const newProducts = data.products || []
+      setProducts(prev => fresh ? newProducts : [...prev, ...newProducts])
+      const paging = data.paging || {}
+      setHasMore((offsetVal + newProducts.length) < (paging.total || 0))
+      setOffset(offsetVal + newProducts.length)
+    } catch (e) {}
+    fresh ? setLoading(false) : setLoadingMore(false)
+  }
 
   const handleCreate = async () => {
     if (!form.title.trim()) return setError('Product title is required.')
@@ -98,6 +110,15 @@ function CatalogView({ user, onSignIn }) {
           </div>
         ))}
       </div>
+
+      {hasMore && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <button onClick={() => loadProducts(offset)} disabled={loadingMore}
+            style={{ background: loadingMore ? C.border : `${C.accent}20`, border: `1px solid ${loadingMore ? C.border : C.accent + '55'}`, borderRadius: 10, padding: '10px 28px', color: loadingMore ? C.muted : C.accent, fontSize: 13, fontWeight: 600, cursor: loadingMore ? 'not-allowed' : 'pointer' }}>
+            {loadingMore ? 'Loading...' : 'Load More Products'}
+          </button>
+        </div>
+      )}
 
       {selected && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
