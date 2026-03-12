@@ -196,7 +196,7 @@ function ShopView({ user, onSignIn }) {
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
       <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
-        No products listed yet. Browse the <strong style={{ color: C.accent }}>Catalog</strong> tab and create your first product!
+        No products listed yet. Browse the <strong style={{ color: C.accent }}>Create Products</strong> tab and create your first product!
       </p>
     </div>
   )

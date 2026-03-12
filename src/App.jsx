@@ -13,6 +13,44 @@ const C = {
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
 }
 
+// ── Starfield Background ──────────────────────────────────────
+function StarField() {
+  const stars = Array.from({ length: 120 }, (_, i) => ({
+    id: i,
+    top: Math.random() * 100,
+    left: Math.random() * 100,
+    size: Math.random() * 2 + 0.5,
+    duration: Math.random() * 4 + 2,
+    delay: Math.random() * 5,
+    opacity: Math.random() * 0.6 + 0.1,
+  }))
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes twinkle {
+          0%, 100% { opacity: var(--base-opacity); transform: scale(1); }
+          50% { opacity: calc(var(--base-opacity) * 0.15); transform: scale(0.7); }
+        }
+      `}</style>
+      {stars.map(s => (
+        <div key={s.id} style={{
+          position: 'absolute',
+          top: `${s.top}%`,
+          left: `${s.left}%`,
+          width: s.size,
+          height: s.size,
+          borderRadius: '50%',
+          background: '#fff',
+          '--base-opacity': s.opacity,
+          opacity: s.opacity,
+          animation: `twinkle ${s.duration}s ease-in-out infinite`,
+          animationDelay: `${s.delay}s`,
+        }} />
+      ))}
+    </div>
+  )
+}
+
 // ── Meta tag helper ───────────────────────────────────────────
 function useMeta({ title, description, image } = {}) {
   useEffect(() => {
@@ -557,7 +595,7 @@ export default function App() {
   )
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
@@ -569,24 +607,26 @@ export default function App() {
         }
       `}</style>
 
-      <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
+      <StarField />
 
-      <div style={{ paddingTop: 60 }}>
-        <Routes>
-          <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-          <Route path="/channels" element={<Channels user={user} onSignIn={() => setShowAuth(true)} onViewArtist={(username) => {}} />} />
-          <Route path="/channels/:channelName" element={<Channels user={user} onSignIn={() => setShowAuth(true)} onViewArtist={(username) => {}} />} />
-          <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
-          <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
-          <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-          <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
-          <Route path="/success" element={<SuccessPage />} />
-          <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-        </Routes>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
+        <div style={{ paddingTop: 60 }}>
+          <Routes>
+            <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/channels" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/channels/:channelName" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
+            <Route path="/success" element={<SuccessPage />} />
+            <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+          </Routes>
+        </div>
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+        {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
       </div>
-
-      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-      {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
     </div>
   )
 }
