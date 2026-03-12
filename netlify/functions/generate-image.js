@@ -20,12 +20,11 @@ export default async (req) => {
     const fullPrompt = style ? `${style}: ${prompt}` : prompt
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`,
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: fullPrompt }] }],
