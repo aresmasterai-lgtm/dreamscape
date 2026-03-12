@@ -238,7 +238,7 @@ function DreamChat({ user, onSignIn }) {
                 <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Happy with this prompt?</span>
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
                   style={{ background: generatingIndex !== null ? C.border : `${C.teal}22`, border: `1px solid ${generatingIndex !== null ? C.border : C.teal + '66'}`, borderRadius: 8, padding: '7px 14px', color: generatingIndex !== null ? C.muted : C.teal, fontSize: 12, fontWeight: 600, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
-                  {generatingIndex !== null ? '⏳ Generating...' : '🍌 Generate Image'}
+                  {generatingIndex !== null ? '⏳ Generating...' : '✦ Generate Image'}
                 </button>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
                   style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '7px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
