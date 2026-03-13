@@ -1,10 +1,15 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
+const TIER_MAP = {
+  'price_1TAYSiBG6LCYdFQRikmsiaPS': 'starter',
+  'price_1TAYSxBG6LCYdFQRWgaITKun': 'pro',
+  'price_1TAYTCBG6LCYdFQRZ3Yr0vKP': 'studio',
+}
+
 export default async (req) => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-
   const body = await req.text()
   const signature = req.headers.get('stripe-signature')
 
@@ -16,9 +21,57 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: 'Invalid signature' }), { status: 400 })
   }
 
+  const supabase = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+  )
+
+  // ── Subscription events ───────────────────────────────────────
+  if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
+    const sub = event.data.object
+    const userId = sub.metadata?.user_id
+    const priceId = sub.items?.data?.[0]?.price?.id
+    const tier = TIER_MAP[priceId] || 'free'
+    const status = sub.status // active, past_due, canceled, etc.
+
+    if (userId) {
+      await supabase.from('profiles').update({
+        subscription_tier: status === 'active' ? tier : 'free',
+        subscription_status: status,
+        stripe_customer_id: sub.customer,
+      }).eq('id', userId)
+      console.log(`✅ Subscription ${event.type}: user ${userId} → ${tier} (${status})`)
+    }
+  }
+
+  if (event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object
+    const userId = sub.metadata?.user_id
+    if (userId) {
+      await supabase.from('profiles').update({
+        subscription_tier: 'free',
+        subscription_status: 'canceled',
+      }).eq('id', userId)
+      console.log(`✅ Subscription canceled: user ${userId} → free`)
+    }
+  }
+
+  // ── One-time checkout (product purchases) ────────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object
 
+    // Handle subscription checkout — update customer ID
+    if (session.mode === 'subscription') {
+      const userId = session.metadata?.user_id
+      if (userId) {
+        await supabase.from('profiles').update({
+          stripe_customer_id: session.customer,
+        }).eq('id', userId)
+      }
+      return new Response(JSON.stringify({ received: true }), { status: 200 })
+    }
+
+    // Handle product purchase
     if (session.payment_status !== 'paid') {
       return new Response(JSON.stringify({ received: true }), { status: 200 })
     }
@@ -33,8 +86,6 @@ export default async (req) => {
 
     if (!printful_product_id || !shipping?.address) {
       console.log('No Printful product ID or shipping — skipping order creation')
-      console.log('shipping_details:', JSON.stringify(session.shipping_details))
-      console.log('customer_details:', JSON.stringify(session.customer_details))
       return new Response(JSON.stringify({ received: true }), { status: 200 })
     }
 
@@ -48,11 +99,8 @@ export default async (req) => {
     let mockupUrl = ''
 
     try {
-      // Fetch store product to get sync variant IDs + mockup
       console.log(`Fetching Printful store product: ${printful_product_id}`)
-      const productRes = await fetch(`https://api.printful.com/store/products/${printful_product_id}`, {
-        headers: pfHeaders,
-      })
+      const productRes = await fetch(`https://api.printful.com/store/products/${printful_product_id}`, { headers: pfHeaders })
       const productData = await productRes.json()
 
       if (!productRes.ok) {
@@ -61,8 +109,8 @@ export default async (req) => {
       }
 
       const syncVariants = productData.result?.sync_variants || []
-      if (syncVariants.length === 0) {
-        console.error('No sync variants found for product:', printful_product_id)
+      if (!syncVariants.length) {
+        console.error('No sync variants found')
         return new Response(JSON.stringify({ received: true }), { status: 200 })
       }
 
@@ -70,7 +118,6 @@ export default async (req) => {
       mockupUrl = productData.result?.sync_product?.thumbnail_url || ''
       console.log(`Using sync variant ID: ${syncVariantId} (${syncVariants[0].name})`)
 
-      // Create Printful order
       const printfulOrder = {
         recipient: {
           name: shipping.name,
@@ -82,12 +129,6 @@ export default async (req) => {
           zip: shipping.address.postal_code,
         },
         items: [{ sync_variant_id: syncVariantId, quantity: parseInt(quantity || 1) }],
-        retail_costs: {
-          subtotal: (session.amount_total / 100).toFixed(2),
-          shipping: '0.00',
-          tax: '0.00',
-          total: (session.amount_total / 100).toFixed(2),
-        },
       }
 
       const pfRes = await fetch('https://api.printful.com/orders', {
@@ -98,46 +139,68 @@ export default async (req) => {
       if (pfRes.ok) {
         printfulOrderId = String(pfData.result?.id || '')
         console.log(`✅ Printful order created: ${printfulOrderId} for ${product_name}`)
-
         const confirmRes = await fetch(`https://api.printful.com/orders/${pfData.result.id}/confirm`, {
           method: 'POST', headers: pfHeaders,
         })
-        if (confirmRes.ok) {
-          console.log(`✅ Printful order confirmed and submitted to production`)
-        } else {
-          const confirmData = await confirmRes.json()
-          console.error('Printful confirm failed:', JSON.stringify(confirmData))
-        }
+        if (confirmRes.ok) console.log(`✅ Printful order confirmed`)
+        else console.error('Printful confirm failed:', await confirmRes.json())
       } else {
-        console.error('Printful order creation failed:', JSON.stringify(pfData))
+        console.error('Printful order failed:', JSON.stringify(pfData))
       }
     } catch (err) {
       console.error('Error creating Printful order:', err.message)
     }
 
-    // Save order to Supabase regardless of Printful outcome
+    // Save order + calculate creator earnings
     try {
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
-      )
+      const amountTotal = session.amount_total / 100
+
+      // Look up product to find creator and their tier for commission rate
+      const { data: product } = await supabase
+        .from('products')
+        .select('user_id, printful_cost')
+        .eq('printful_product_id', printful_product_id)
+        .single()
+
+      let creatorEarnings = null
+      let dreamscapeEarnings = null
+
+      if (product?.user_id) {
+        const { data: creatorProfile } = await supabase
+          .from('profiles')
+          .select('subscription_tier')
+          .eq('id', product.user_id)
+          .single()
+
+        const tier = creatorProfile?.subscription_tier || 'free'
+        const commissionRates = { free: 0.30, starter: 0.25, pro: 0.20, studio: 0.15 }
+        const printfulCost = product.printful_cost || 0
+        const grossProfit = amountTotal - printfulCost
+        const dreamscapeRate = commissionRates[tier] || 0.30
+        dreamscapeEarnings = parseFloat((grossProfit * dreamscapeRate).toFixed(2))
+        creatorEarnings = parseFloat((grossProfit * (1 - dreamscapeRate)).toFixed(2))
+        console.log(`💰 Creator earnings: $${creatorEarnings} | Dreamscape: $${dreamscapeEarnings} (${tier} tier, ${dreamscapeRate * 100}% commission)`)
+      }
 
       await supabase.from('orders').insert({
-        user_id: null, // claimed by user on success page via session_id
+        user_id: null,
         stripe_session_id: session.id,
         printful_order_id: printfulOrderId,
         product_name: product_name || '',
         variant_name: variant_name || '',
         quantity: parseInt(quantity || 1),
-        amount_total: session.amount_total / 100,
+        amount_total: amountTotal,
         status: printfulOrderId ? 'confirmed' : 'pending',
         mockup_url: mockupUrl,
         shipping_name: shipping.name || '',
         shipping_address: shipping.address || {},
+        creator_id: product?.user_id || null,
+        creator_earnings: creatorEarnings,
+        dreamscape_earnings: dreamscapeEarnings,
       })
-      console.log(`✅ Order saved to Supabase (session: ${session.id})`)
+      console.log(`✅ Order saved to Supabase`)
     } catch (err) {
-      console.error('Error saving order to Supabase:', err.message)
+      console.error('Error saving order:', err.message)
     }
   }
 

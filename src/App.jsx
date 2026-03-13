@@ -9,6 +9,7 @@ import Channels from './components/Channels'
 import Gallery from './components/Gallery'
 import CreateProductModal from './components/CreateProductModal'
 import OrderHistory from './components/OrderHistory'
+import Pricing from './components/Pricing'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -876,6 +877,39 @@ function ProfilePage({ user, profile: initialProfile }) {
 
       {tab === 'about' && (
         <div style={{ maxWidth: 640 }}>
+          {/* Subscription card */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Subscription</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                {(() => {
+                  const tier = profile?.subscription_tier || 'free'
+                  const colors = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold }
+                  const color = colors[tier] || C.muted
+                  return (
+                    <div>
+                      <span style={{ background: color + '20', border: `1px solid ${color}44`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 700, color, textTransform: 'capitalize' }}>✦ {tier} Plan</span>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+                        {tier === 'free' ? 'Upgrade to start selling and earning.' : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(!profile?.subscription_tier || profile.subscription_tier === 'free') && (
+                  <button onClick={() => navigate('/pricing')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⬆ Upgrade</button>
+                )}
+                {profile?.subscription_tier && profile.subscription_tier !== 'free' && (
+                  <button onClick={async () => {
+                    const res = await fetch('/api/customer-portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }) })
+                    const data = await res.json()
+                    if (data.url) window.location.href = data.url
+                  }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 18px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Manage Plan</button>
+                )}
+              </div>
+            </div>
+          </div>
           {profile?.artist_statement ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 32px', marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Artist Statement</div>
@@ -1118,7 +1152,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
   const [mobileMenu, setMobileMenu] = useState(false)
   const nav = location.pathname
-  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create']]
+  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/pricing', 'Pricing']]
   const isActive = (path) => path === '/' ? nav === '/' : nav.startsWith(path)
 
   return (
@@ -1250,6 +1284,7 @@ export default function App() {
             <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
+            <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/success" element={<SuccessPage />} />
             <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
