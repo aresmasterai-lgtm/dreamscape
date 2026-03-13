@@ -16,32 +16,95 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+// ── Product Card embedded in feed ─────────────────────────────
+function ProductCard({ product, navigate }) {
+  if (!product) return null
+  return (
+    <div style={{
+      background: C.bg,
+      border: `1px solid ${C.accent}33`,
+      borderRadius: 14,
+      overflow: 'hidden',
+      marginTop: 12,
+    }}>
+      {product.mockup_url && (
+        <img src={product.mockup_url} alt={product.title}
+          style={{ width: '100%', maxHeight: 260, objectFit: 'cover', display: 'block' }} />
+      )}
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{product.product_type}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: C.gold }}>${parseFloat(product.price || 0).toFixed(2)}</span>
+          <button
+            onClick={() => navigate(`/marketplace`)}
+            style={{
+              background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+              border: 'none', borderRadius: 8, padding: '7px 14px',
+              color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}>
+            Buy Now ✦
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Single Post Card ──────────────────────────────────────────
 function PostCard({ post, user, onLike }) {
   const navigate = useNavigate()
   const avatarLetter = post.profiles?.username?.[0]?.toUpperCase() || '?'
   const username = post.profiles?.username || 'artist'
   const liked = post._liked
+  const isProductPost = !!post.product_id
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', transition: 'border-color 0.2s' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '44'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+    <div style={{
+      background: C.card,
+      border: `1px solid ${isProductPost ? C.accent + '44' : C.border}`,
+      borderRadius: 14, padding: '18px 20px', transition: 'border-color 0.2s',
+    }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = (isProductPost ? C.accent + '88' : C.accent + '44')}
+      onMouseLeave={e => e.currentTarget.style.borderColor = (isProductPost ? C.accent + '44' : C.border)}>
+
+      {/* Author row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
           {avatarLetter}
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div onClick={() => navigate(`/u/${username}`)}
             style={{ fontSize: 13, fontWeight: 600, color: C.accent, cursor: 'pointer' }}>@{username}</div>
           <div style={{ fontSize: 11, color: C.muted }}>{timeAgo(post.created_at)}</div>
         </div>
+        {isProductPost && (
+          <span style={{ fontSize: 10, background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '3px 10px', color: C.accent, fontWeight: 600 }}>
+            🛍 New Drop
+          </span>
+        )}
       </div>
-      <p style={{ fontSize: 14, color: C.text, lineHeight: 1.7, marginBottom: 12, whiteSpace: 'pre-wrap' }}>{post.content}</p>
-      {post.image_url && (
-        <img src={post.image_url} alt="" style={{ width: '100%', borderRadius: 10, marginBottom: 12, maxHeight: 320, objectFit: 'cover' }} />
+
+      {/* Caption */}
+      {post.content && (
+        <p style={{ fontSize: 14, color: C.text, lineHeight: 1.7, marginBottom: isProductPost ? 0 : 12, whiteSpace: 'pre-wrap' }}>{post.content}</p>
       )}
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+
+      {/* Product card (if product post) */}
+      {isProductPost && post.products ? (
+        <ProductCard product={post.products} navigate={navigate} />
+      ) : (
+        /* Regular image post */
+        post.image_url && (
+          <img src={post.image_url} alt="" style={{ width: '100%', borderRadius: 10, marginBottom: 12, maxHeight: 320, objectFit: 'cover' }} />
+        )
+      )}
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 14 }}>
         <button onClick={() => user && onLike(post)} style={{
           display: 'flex', alignItems: 'center', gap: 6, background: 'none',
           border: `1px solid ${liked ? '#ff6b9d55' : C.border}`, borderRadius: 20,
@@ -65,15 +128,13 @@ function ChannelView({ channel, user, onSignIn, onBack }) {
   const [likedIds, setLikedIds] = useState(new Set())
   const textareaRef = useRef(null)
 
-  useEffect(() => {
-    loadPosts()
-  }, [channel.id])
+  useEffect(() => { loadPosts() }, [channel.id])
 
   const loadPosts = async () => {
     setLoading(true)
     const { data } = await supabase
       .from('channel_posts')
-      .select('*, profiles(username, bio)')
+      .select('*, profiles(username, bio), products(id, title, price, mockup_url, product_type)')
       .eq('channel_id', channel.id)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -91,7 +152,7 @@ function ChannelView({ channel, user, onSignIn, onBack }) {
       image_url: '',
       like_count: 0,
       reply_count: 0,
-    }).select('*, profiles(username, bio)').single()
+    }).select('*, profiles(username, bio), products(id, title, price, mockup_url, product_type)').single()
 
     if (!error && data) {
       setPosts(prev => [{ ...data, _liked: false }, ...prev])
@@ -191,15 +252,8 @@ export default function Channels({ user, onSignIn }) {
       })
   }, [channelName])
 
-  const openChannel = (ch) => {
-    setActive(ch)
-    navigate(`/channels/${ch.name}`)
-  }
-
-  const closeChannel = () => {
-    setActive(null)
-    navigate('/channels')
-  }
+  const openChannel = (ch) => { setActive(ch); navigate(`/channels/${ch.name}`) }
+  const closeChannel = () => { setActive(null); navigate('/channels') }
 
   if (active) {
     return (
