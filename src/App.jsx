@@ -10,6 +10,7 @@ import Gallery from './components/Gallery'
 import CreateProductModal from './components/CreateProductModal'
 import OrderHistory from './components/OrderHistory'
 import Pricing from './components/Pricing'
+import Admin from './components/Admin'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -1183,6 +1184,9 @@ function Navbar({ user, profile, signOut, onSignIn }) {
                 </div>
               </Link>
               <Link to="/orders" style={{ background: nav === '/orders' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/orders' ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: nav === '/orders' ? C.accent : C.muted, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
+              {profile?.is_admin && (
+                <Link to="/admin" style={{ background: nav === '/admin' ? `${C.gold}20` : `${C.gold}10`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '5px 12px', color: C.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
+              )}
               <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign Out</button>
             </>
           ) : (
@@ -1285,6 +1289,7 @@ export default function App() {
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
             <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/admin" element={<Admin user={user} profile={profile} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/success" element={<SuccessPage />} />
             <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
