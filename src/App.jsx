@@ -582,6 +582,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                   )}
                 </div>
                 <input ref={bannerRef} type="file" accept="image/*" onChange={e => handleImageSelect(e.target.files?.[0], 'banner')} style={{ display: 'none' }} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>💡 Recommended size: <span style={{ color: C.text }}>1500×500px</span> (3:1 ratio) · JPG, PNG or WebP · The center of the image shows best on all screens.</div>
               </div>
             </div>
           )}
