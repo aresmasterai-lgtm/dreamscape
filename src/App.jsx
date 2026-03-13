@@ -146,6 +146,7 @@ function DreamChat({ user, onSignIn }) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [generatingIndex, setGeneratingIndex] = useState(null)
   const [generatedImages, setGeneratedImages] = useState({})
+  const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const [bottomEl, setBottomEl] = useState(null)
 
@@ -229,8 +230,9 @@ function DreamChat({ user, onSignIn }) {
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <img src={generatedImages[lastAiIndex]} alt="Generated" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55` }} />
-                <span style={{ fontSize: 12, color: C.teal, flex: 1 }}>✅ Image ready!</span>
+                <img src={generatedImages[lastAiIndex]} alt="Generated" onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
+                  style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in' }} />
+                <span style={{ fontSize: 12, color: C.teal, flex: 1 }}>✅ Image ready! <span style={{ color: C.muted, fontSize: 11 }}>(click to preview)</span></span>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: generatedImages[lastAiIndex] })}
                   style={{ background: savedIndexes.has(lastAiIndex) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : 'transparent'}`, borderRadius: 8, padding: '7px 13px', color: savedIndexes.has(lastAiIndex) ? C.teal : '#fff', fontSize: 12, fontWeight: 700, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
                   {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save'}
@@ -267,6 +269,20 @@ function DreamChat({ user, onSignIn }) {
         </div>
       </div>
       {saveTarget && <SaveModal prompt={saveTarget.prompt} imageUrl={saveTarget.imageUrl} onSave={handleSave} onClose={() => setSaveTarget(null)} />}
+      {lightboxImage && (
+        <div onClick={() => setLightboxImage(null)} style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <div style={{ position: 'relative', maxWidth: 800, width: '100%' }}>
+            <img src={lightboxImage} alt="Preview" style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block' }} />
+            <button onClick={() => setLightboxImage(null)} style={{ position: 'absolute', top: -14, right: -14, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+              <button onClick={e => { e.stopPropagation(); setCreateProductImage(lightboxImage); setLightboxImage(null) }}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>🛍 Sell This</button>
+              <a href={lightboxImage} download="dreamscape-art.png" target="_blank" onClick={e => e.stopPropagation()}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>↓ Download</a>
+            </div>
+          </div>
+        </div>
+      )}}
       {createProductImage && user && (
         <CreateProductModal
           user={user}
