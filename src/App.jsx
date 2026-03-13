@@ -8,6 +8,7 @@ import Marketplace from './components/Marketplace'
 import Channels from './components/Channels'
 import Gallery from './components/Gallery'
 import CreateProductModal from './components/CreateProductModal'
+import OrderHistory from './components/OrderHistory'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -650,6 +651,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
                   {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
                 </div>
               </Link>
+              <Link to="/orders" style={{ background: nav === '/orders' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/orders' ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: nav === '/orders' ? C.accent : C.muted, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
               <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign Out</button>
             </>
           ) : (
@@ -666,6 +668,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           {navItems.map(([path, label]) => (
             <Link key={path} to={path} onClick={() => setMobileMenu(false)} style={{ background: isActive(path) ? `${C.accent}20` : 'none', borderRadius: 8, padding: '10px 14px', color: isActive(path) ? C.accent : C.text, fontSize: 14, textDecoration: 'none' }}>{label}</Link>
           ))}
+          {user && <Link to="/orders" onClick={() => setMobileMenu(false)} style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', borderRadius: 8, padding: '10px 14px', color: isActive('/orders') ? C.accent : C.text, fontSize: 14, textDecoration: 'none' }}>📦 Orders</Link>}
         </div>
       )}
     </>
@@ -676,6 +679,19 @@ function Navbar({ user, profile, signOut, onSignIn }) {
 function SuccessPage() {
   useMeta({ title: 'Order Confirmed', description: 'Your order has been placed and is being fulfilled.' })
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  useEffect(() => {
+    // Claim the order by linking session_id to logged-in user
+    const sessionId = new URLSearchParams(window.location.search).get('session_id')
+    if (sessionId && user) {
+      supabase.from('orders')
+        .update({ user_id: user.id })
+        .eq('stripe_session_id', sessionId)
+        .is('user_id', null)
+        .then(() => {})
+    }
+  }, [user])
   return (
     <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ background: C.card, border: `1px solid ${C.teal}55`, borderRadius: 24, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center' }}>
@@ -689,6 +705,7 @@ function SuccessPage() {
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => navigate('/marketplace')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Back to Shop</button>
+          <button onClick={() => navigate('/orders')} style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '11px 24px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>📦 View Orders</button>
           <button onClick={() => navigate('/')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 24px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Go Home</button>
         </div>
       </div>
@@ -735,6 +752,7 @@ export default function App() {
             <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
+            <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/success" element={<SuccessPage />} />
             <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
           </Routes>

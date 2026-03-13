@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { createClient } from '@supabase/supabase-js'
 
 export default async (req) => {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -24,7 +25,6 @@ export default async (req) => {
 
     const { printful_product_id, product_name, variant_name, quantity } = session.metadata
 
-    // Fall back to customer_details if shipping_details not collected
     const shipping = session.shipping_details?.address
       ? session.shipping_details
       : session.customer_details
@@ -33,7 +33,6 @@ export default async (req) => {
 
     if (!printful_product_id || !shipping?.address) {
       console.log('No Printful product ID or shipping — skipping order creation')
-      console.log('metadata:', JSON.stringify(session.metadata))
       console.log('shipping_details:', JSON.stringify(session.shipping_details))
       console.log('customer_details:', JSON.stringify(session.customer_details))
       return new Response(JSON.stringify({ received: true }), { status: 200 })
@@ -45,8 +44,11 @@ export default async (req) => {
       'X-PF-Store-Id': process.env.PRINTFUL_STORE_ID || '',
     }
 
+    let printfulOrderId = null
+    let mockupUrl = ''
+
     try {
-      // Step 1: Fetch the store product to get sync variant IDs
+      // Fetch store product to get sync variant IDs + mockup
       console.log(`Fetching Printful store product: ${printful_product_id}`)
       const productRes = await fetch(`https://api.printful.com/store/products/${printful_product_id}`, {
         headers: pfHeaders,
@@ -64,11 +66,11 @@ export default async (req) => {
         return new Response(JSON.stringify({ received: true }), { status: 200 })
       }
 
-      // Use the first sync variant (buyer picked product, not size — size selection coming later)
       const syncVariantId = syncVariants[0].id
+      mockupUrl = productData.result?.sync_product?.thumbnail_url || ''
       console.log(`Using sync variant ID: ${syncVariantId} (${syncVariants[0].name})`)
 
-      // Step 2: Create the Printful order
+      // Create Printful order
       const printfulOrder = {
         recipient: {
           name: shipping.name,
@@ -79,12 +81,7 @@ export default async (req) => {
           country_code: shipping.address.country,
           zip: shipping.address.postal_code,
         },
-        items: [
-          {
-            sync_variant_id: syncVariantId,
-            quantity: parseInt(quantity || 1),
-          },
-        ],
+        items: [{ sync_variant_id: syncVariantId, quantity: parseInt(quantity || 1) }],
         retail_costs: {
           subtotal: (session.amount_total / 100).toFixed(2),
           shipping: '0.00',
@@ -94,25 +91,21 @@ export default async (req) => {
       }
 
       const pfRes = await fetch('https://api.printful.com/orders', {
-        method: 'POST',
-        headers: pfHeaders,
-        body: JSON.stringify(printfulOrder),
+        method: 'POST', headers: pfHeaders, body: JSON.stringify(printfulOrder),
       })
       const pfData = await pfRes.json()
 
       if (pfRes.ok) {
-        console.log(`✅ Printful order created: ${pfData.result?.id} for ${product_name}`)
+        printfulOrderId = String(pfData.result?.id || '')
+        console.log(`✅ Printful order created: ${printfulOrderId} for ${product_name}`)
 
-        // Confirm order — moves from draft to production
         const confirmRes = await fetch(`https://api.printful.com/orders/${pfData.result.id}/confirm`, {
-          method: 'POST',
-          headers: pfHeaders,
+          method: 'POST', headers: pfHeaders,
         })
-        const confirmData = await confirmRes.json()
-
         if (confirmRes.ok) {
           console.log(`✅ Printful order confirmed and submitted to production`)
         } else {
+          const confirmData = await confirmRes.json()
           console.error('Printful confirm failed:', JSON.stringify(confirmData))
         }
       } else {
@@ -120,6 +113,31 @@ export default async (req) => {
       }
     } catch (err) {
       console.error('Error creating Printful order:', err.message)
+    }
+
+    // Save order to Supabase regardless of Printful outcome
+    try {
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+      )
+
+      await supabase.from('orders').insert({
+        user_id: null, // claimed by user on success page via session_id
+        stripe_session_id: session.id,
+        printful_order_id: printfulOrderId,
+        product_name: product_name || '',
+        variant_name: variant_name || '',
+        quantity: parseInt(quantity || 1),
+        amount_total: session.amount_total / 100,
+        status: printfulOrderId ? 'confirmed' : 'pending',
+        mockup_url: mockupUrl,
+        shipping_name: shipping.name || '',
+        shipping_address: shipping.address || {},
+      })
+      console.log(`✅ Order saved to Supabase (session: ${session.id})`)
+    } catch (err) {
+      console.error('Error saving order to Supabase:', err.message)
     }
   }
 
