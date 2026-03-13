@@ -456,6 +456,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
       const tags = styleTags.split(',').map(t => t.trim()).filter(Boolean)
       const updates = {
         id: user.id,
+        username: profile?.username, // preserve existing username — required field
         display_name: displayName.trim() || null,
         bio: bio.trim() || null,
         location: location.trim() || null,
