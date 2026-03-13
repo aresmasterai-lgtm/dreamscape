@@ -342,7 +342,7 @@ function DreamChat({ user, onSignIn }) {
             <button onClick={() => fileInputRef.current?.click()}
               title="Attach reference image"
               style={{ background: referenceImage ? `${C.accent}22` : 'none', border: `1px solid ${referenceImage ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '10px 12px', color: referenceImage ? C.accent : C.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
-              🖼
+              📎
             </button>
             <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Describe your vision or ask Dream anything..."
@@ -365,7 +365,7 @@ function DreamChat({ user, onSignIn }) {
             </div>
           </div>
         </div>
-      )}}
+      )}
       {createProductImage && user && (
         <CreateProductModal
           user={user}
@@ -1120,8 +1120,10 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           {user ? (
             <>
               <Link to="/profile" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : 'transparent'}`, borderRadius: 20, padding: '3px 10px 3px 3px' }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
-                  {profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
+                  {profile?.avatar_url
+                    ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
                 </div>
               </Link>
               <Link to="/orders" style={{ background: nav === '/orders' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/orders' ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: nav === '/orders' ? C.accent : C.muted, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
