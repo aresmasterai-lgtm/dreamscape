@@ -11,6 +11,7 @@ import CreateProductModal from './components/CreateProductModal'
 import OrderHistory from './components/OrderHistory'
 import Pricing from './components/Pricing'
 import Admin from './components/Admin'
+import Privacy from './components/Privacy'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -1289,6 +1290,7 @@ export default function App() {
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
             <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="/admin" element={<Admin user={user} profile={profile} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/success" element={<SuccessPage />} />
@@ -1297,6 +1299,15 @@ export default function App() {
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
+          <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
+            <Link to="/privacy" style={{ color: C.muted, textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/pricing" style={{ color: C.muted, textDecoration: 'none' }}>Pricing</Link>
+            <a href="mailto:privacy@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Contact</a>
+            <span>© {new Date().getFullYear()} Dreamscape. All rights reserved.</span>
+          </div>
+        </div>
       </div>
     </div>
   )
