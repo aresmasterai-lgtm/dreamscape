@@ -23,12 +23,19 @@ export default async (req) => {
     }
 
     const { printful_product_id, product_name, variant_name, quantity } = session.metadata
-    const shipping = session.shipping_details
+
+    // Fall back to customer_details if shipping_details not collected
+    const shipping = session.shipping_details?.address
+      ? session.shipping_details
+      : session.customer_details
+        ? { name: session.customer_details.name, address: session.customer_details.address }
+        : null
 
     if (!printful_product_id || !shipping?.address) {
       console.log('No Printful product ID or shipping — skipping order creation')
       console.log('metadata:', JSON.stringify(session.metadata))
-      console.log('shipping:', JSON.stringify(shipping))
+      console.log('shipping_details:', JSON.stringify(session.shipping_details))
+      console.log('customer_details:', JSON.stringify(session.customer_details))
       return new Response(JSON.stringify({ received: true }), { status: 200 })
     }
 
