@@ -8,6 +8,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
     "@supabase/supabase-js": "^2.98.0",
     "node-fetch": "^2.7.0",
     "react": "^18.2.0",
