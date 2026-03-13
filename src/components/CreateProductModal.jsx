@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -8,11 +8,14 @@ const C = {
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
 }
 
-function Spinner() {
+function Spinner({ label }) {
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
-      {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      </div>
+      {label && <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{label}</p>}
     </div>
   )
 }
@@ -24,23 +27,30 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
 
   const [step, setStep] = useState(1)
   const [hostedImageUrl, setHostedImageUrl] = useState('')
-  const [uploading, setUploading] = useState(false)
 
+  // Step 2
   const [catalog, setCatalog] = useState([])
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [selected, setSelected] = useState(null)
   const [variantLoading, setVariantLoading] = useState(false)
   const [search, setSearch] = useState('')
 
+  // Step 3
   const [title, setTitle] = useState(defaultTitle || '')
+  const [titleTouched, setTitleTouched] = useState(false)
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('35.00')
   const [tags, setTags] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
+  // Mockup generation
+  const [mockupStatus, setMockupStatus] = useState('idle') // idle | generating | done | failed
+  const [mockupUrl, setMockupUrl] = useState('')
+  const mockupPollRef = useRef(null)
+
+  // Step 4 - share
   const [createdProductId, setCreatedProductId] = useState(null)
-  const [createdMockupUrl, setCreatedMockupUrl] = useState('')
   const [channels, setChannels] = useState([])
   const [channelsLoading, setChannelsLoading] = useState(false)
   const [selectedChannel, setSelectedChannel] = useState(null)
@@ -56,10 +66,20 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       setHostedImageUrl(imageUrl || '')
       setStep(2)
     }
+    return () => { if (mockupPollRef.current) clearTimeout(mockupPollRef.current) }
   }, [])
 
+  // ── Auto-fill title when product selected ────────────────────
+  useEffect(() => {
+    if (selected && !titleTouched) {
+      const base = defaultTitle || 'My Design'
+      setTitle(`${base} ${selected.model}`)
+    }
+  }, [selected])
+
+  // ── Upload ────────────────────────────────────────────────────
   const uploadDataUrl = async (dataUrl) => {
-    setStep(1); setUploading(true)
+    setStep(1)
     try {
       const [header, data] = dataUrl.split(',')
       const mime = header.match(/:(.*?);/)[1]
@@ -78,9 +98,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       setError('Image upload failed: ' + e.message)
       setStep(2)
     }
-    setUploading(false)
   }
 
+  // ── Catalog ───────────────────────────────────────────────────
   const loadCatalog = async () => {
     setCatalogLoading(true)
     try {
@@ -98,7 +118,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       try {
         const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`)
         const data = await res.json()
-        setSelected({ ...p, variants: data.variants || [] })
+        const full = { ...p, variants: data.variants || [] }
+        setSelected(full)
       } catch {}
       setVariantLoading(false)
     }
@@ -108,6 +129,62 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     !search || p.model?.toLowerCase().includes(search.toLowerCase()) || p.type?.toLowerCase().includes(search.toLowerCase())
   )
 
+  // ── Mockup polling ────────────────────────────────────────────
+  const pollMockup = async (taskKey, productId, attempt = 0) => {
+    if (attempt > 20) { // ~60s max
+      setMockupStatus('failed')
+      return
+    }
+    try {
+      const res = await fetch(`/api/printful?action=mockupStatus&taskKey=${encodeURIComponent(taskKey)}`)
+      const data = await res.json()
+      const status = data.status
+
+      if (status === 'completed') {
+        // Grab first mockup image
+        const url = data.mockups?.[0]?.mockup_url || data.mockups?.[0]?.url || ''
+        if (url) {
+          setMockupUrl(url)
+          setMockupStatus('done')
+          // Update Supabase product row
+          if (productId) {
+            await supabase.from('products').update({ mockup_url: url }).eq('id', productId)
+          }
+        } else {
+          setMockupStatus('failed')
+        }
+      } else if (status === 'failed') {
+        setMockupStatus('failed')
+      } else {
+        // Still pending — poll again in 3s
+        mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
+      }
+    } catch {
+      mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
+    }
+  }
+
+  const triggerMockup = async (catalogProductId, variantIds, imageUrl, productId) => {
+    setMockupStatus('generating')
+    try {
+      const res = await fetch('/api/printful?action=mockupCreate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalogProductId, variantIds, imageUrl }),
+      })
+      const data = await res.json()
+      const taskKey = data.task_key
+      if (taskKey) {
+        pollMockup(taskKey, productId)
+      } else {
+        setMockupStatus('failed')
+      }
+    } catch {
+      setMockupStatus('failed')
+    }
+  }
+
+  // ── Create product ────────────────────────────────────────────
   const handleCreate = async () => {
     if (!title.trim()) return setError('Product title is required.')
     if (!hostedImageUrl) return setError('No image URL available.')
@@ -134,13 +211,17 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         price: parseFloat(price),
         printful_product_id: String(printfulId),
         printful_variant_ids: allVariantIds.map(String),
-        mockup_url: hostedImageUrl,
+        mockup_url: hostedImageUrl, // Fallback until Printful mockup is ready
         tags: tagList,
       }).select().single()
 
-      setCreatedProductId(inserted?.id || null)
-      setCreatedMockupUrl(inserted?.mockup_url || hostedImageUrl)
+      const newProductId = inserted?.id || null
+      setCreatedProductId(newProductId)
 
+      // Kick off mockup generation in background (non-blocking)
+      triggerMockup(selected.id, allVariantIds.slice(0, 3), hostedImageUrl, newProductId)
+
+      // Load channels for share step
       setChannelsLoading(true)
       const { data: chData } = await supabase.from('channels').select('*').eq('is_live', true).order('member_count', { ascending: false })
       setChannels(chData || [])
@@ -153,15 +234,17 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     setCreating(false)
   }
 
+  // ── Share ─────────────────────────────────────────────────────
   const handleShare = async () => {
     if (!selectedChannel) return setShareError('Pick a channel to share to.')
     setSharing(true); setShareError('')
     try {
+      const displayMockup = mockupUrl || hostedImageUrl
       const { error: postErr } = await supabase.from('channel_posts').insert({
         channel_id: selectedChannel.id,
         user_id: user.id,
-        content: caption.trim() || `Check out my new product: ${title}`,
-        image_url: createdMockupUrl || '',
+        content: caption.trim() || `Just dropped: ${title} — available now in the marketplace!`,
+        image_url: displayMockup,
         product_id: createdProductId,
         like_count: 0,
         reply_count: 0,
@@ -175,6 +258,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   }
 
   const progressPct = step === 1 ? 0 : step === 2 ? 25 : step === 3 ? 50 : step === 4 ? 75 : 100
+
+  // The best available preview image: real mockup > artwork
+  const previewImage = mockupUrl || hostedImageUrl
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, backdropFilter: 'blur(4px)' }}
@@ -207,10 +293,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
           {/* Step 1: Uploading */}
           {step === 1 && (
             <div style={{ padding: '20px 24px' }}>
-              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '32px', textAlign: 'center' }}>
-                <Spinner />
-                <p style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>Uploading your artwork to Dreamscape...</p>
-              </div>
+              <Spinner label="Uploading your artwork to Dreamscape..." />
             </div>
           )}
 
@@ -226,9 +309,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   </div>
                 </div>
               )}
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search t-shirts, hoodies, mugs..."
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search t-shirts, hoodies, rugs, mugs..."
                 style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 }} />
-              {catalogLoading ? <Spinner /> : (
+              {catalogLoading ? <Spinner label="Loading Printful catalog..." /> : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
                   {filtered.slice(0, 60).map(p => (
                     <div key={p.id} onClick={() => selectProduct(p)}
@@ -252,23 +335,54 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
           {/* Step 3: Details */}
           {step === 3 && (
             <div style={{ padding: '0 24px 20px' }}>
+              {/* Product + artwork preview side by side */}
               {selected && (
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 14px', marginBottom: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
-                    {selected.image ? <img src={selected.image} alt={selected.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span>🎨</span>}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', marginBottom: 18 }}>
+                  {/* Artwork */}
+                  <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                    <img src={hostedImageUrl} alt="Your artwork"
+                      style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
+                    <div style={{ padding: '6px 10px', fontSize: 10, color: C.muted, textAlign: 'center' }}>Your artwork</div>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.accent }}>{selected.model}</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>{selected.type} · {selected.variants?.length || 0} sizes/colors — all offered automatically</div>
+                  {/* Product blank */}
+                  <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.accent}33`, borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {selected.image
+                        ? <img src={selected.image} alt={selected.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontSize: 40 }}>🎨</span>}
+                    </div>
+                    <div style={{ padding: '6px 10px', fontSize: 10, color: C.accent, textAlign: 'center', fontWeight: 600 }}>{selected.model}</div>
                   </div>
-                  <button onClick={() => { setStep(2); setError('') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>Change</button>
+                </div>
+              )}
+
+              {/* Mockup status banner */}
+              {mockupStatus === 'generating' && (
+                <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+                  </div>
+                  <span style={{ fontSize: 12, color: C.accent }}>Generating product preview — this appears in your listing automatically when ready.</span>
+                </div>
+              )}
+              {mockupStatus === 'done' && mockupUrl && (
+                <div style={{ marginBottom: 14, background: C.bg, border: `1px solid ${C.teal}44`, borderRadius: 12, overflow: 'hidden' }}>
+                  <img src={mockupUrl} alt="Product mockup" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', display: 'block', background: '#fff' }} />
+                  <div style={{ padding: '8px 12px', fontSize: 11, color: C.teal, fontWeight: 600 }}>✦ Product preview ready — buyers will see this in the marketplace</div>
                 </div>
               )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Product Title</label>
-                <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder={`e.g. My Dreamscape ${selected?.model || ''}`}
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={e => { setTitle(e.target.value); setTitleTouched(true) }}
+                  placeholder={`e.g. My Design ${selected?.model || ''}`}
                   style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <p style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+                  💡 Include the product type so buyers know exactly what they're getting.
+                </p>
               </div>
 
               <div style={{ marginBottom: 14 }}>
@@ -281,7 +395,6 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Tags <span style={{ fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
                 <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surreal, neon, abstract, fantasy"
                   style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                <p style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>Tags help buyers discover your product in search.</p>
               </div>
 
               <div style={{ marginBottom: 20 }}>
@@ -301,15 +414,39 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
           {/* Step 4: Share to Channel */}
           {step === 4 && (
             <div style={{ padding: '0 24px 24px' }}>
-              <div style={{ background: C.bg, border: `1px solid ${C.teal}44`, borderRadius: 14, padding: '14px', marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center' }}>
-                {createdMockupUrl && (
-                  <img src={createdMockupUrl} alt="Product" style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0 }} />
+              {/* Product preview — real mockup if available */}
+              <div style={{ background: C.bg, border: `1px solid ${C.teal}44`, borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
+                {mockupStatus === 'generating' ? (
+                  <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <img src={hostedImageUrl} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>✦ Product Created</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{title}</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ display: 'inline-flex', gap: 3 }}>
+                            {[0,1,2].map(i => <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: C.accent, display: 'inline-block', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+                          </span>
+                          Generating product preview...
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <img src={previewImage} alt="Product preview"
+                      style={{ width: '100%', maxHeight: 240, objectFit: mockupStatus === 'done' ? 'contain' : 'cover', display: 'block', background: mockupStatus === 'done' ? '#fff' : 'transparent' }} />
+                    <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
+                          {mockupStatus === 'done' ? '✦ Preview Ready' : '✦ Product Created'}
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>{selected?.model} · ${parseFloat(price).toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </>
                 )}
-                <div>
-                  <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>✦ Product Created</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{title}</div>
-                  <div style={{ fontSize: 12, color: C.muted }}>{selected?.model} · ${parseFloat(price).toFixed(2)}</div>
-                </div>
               </div>
 
               <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Share to a Channel</div>
@@ -326,7 +463,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
               </div>
 
               <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Choose Channel</label>
-              {channelsLoading ? <Spinner /> : (
+              {channelsLoading ? <Spinner label="Loading channels..." /> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {channels.map(ch => (
                     <div key={ch.id} onClick={() => setSelectedChannel(ch)}
@@ -353,18 +490,18 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   ))}
                 </div>
               )}
-
               {shareError && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', marginTop: 14, fontSize: 13, color: '#ff6b6b' }}>{shareError}</div>}
             </div>
           )}
 
-          {/* Step 5: All done */}
+          {/* Step 5: Done */}
           {step === 5 && (
             <div style={{ padding: '48px 32px', textAlign: 'center' }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 20px' }}>✦</div>
               <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8 }}>You're live!</h3>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>
-                Your product is in the marketplace{selectedChannel ? <> and your post is in <strong style={{ color: C.accent }}>#{selectedChannel.display_name}</strong></> : ''}. Printful will generate mockup images shortly.
+                Your product is in the marketplace{selectedChannel ? <> and posted in <strong style={{ color: C.accent }}>#{selectedChannel.display_name}</strong></> : ''}.
+                {mockupStatus !== 'done' && ' Printful is generating your product preview and will update automatically.'}
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 {selectedChannel && (
