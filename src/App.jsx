@@ -85,7 +85,18 @@ function useMeta({ title, description, image } = {}) {
   }, [title, description, image])
 }
 
-// ── Spinner ───────────────────────────────────────────────────
+// ── GA4 Page View Tracking ────────────────────────────────────
+function usePageTracking() {
+  const location = useLocation()
+  useEffect(() => {
+    if (typeof window.gtag !== 'function') return
+    window.gtag('event', 'page_view', {
+      page_path: location.pathname + location.search,
+    })
+  }, [location])
+}
+
+
 function Spinner() {
   return (
     <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
@@ -1177,6 +1188,7 @@ function SuccessPage() {
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
+  usePageTracking()
   const { user, profile, setProfile, signOut, loading } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
