@@ -409,64 +409,468 @@ function ArtworkGrid({ artworks, loading }) {
   )
 }
 
-// ── Own Profile Page (/profile) ───────────────────────────────
-function ProfilePage({ user, profile }) {
-  useMeta({ title: `@${profile?.username || 'Profile'}`, description: profile?.bio })
+// ── Edit Profile Modal ────────────────────────────────────────
+function EditProfileModal({ user, profile, onClose, onSave }) {
+  const [displayName, setDisplayName] = useState(profile?.display_name || '')
+  const [bio, setBio] = useState(profile?.bio || '')
+  const [location, setLocation] = useState(profile?.location || '')
+  const [website, setWebsite] = useState(profile?.website || '')
+  const [artistStatement, setArtistStatement] = useState(profile?.artist_statement || '')
+  const [styleTags, setStyleTags] = useState((profile?.style_tags || []).join(', '))
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || null)
+  const [bannerFile, setBannerFile] = useState(null)
+  const [bannerPreview, setBannerPreview] = useState(profile?.banner_url || null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [activeSection, setActiveSection] = useState('basic')
+  const avatarRef = useRef(null)
+  const bannerRef = useRef(null)
+
+  const handleImageSelect = (file, type) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      if (type === 'avatar') { setAvatarPreview(e.target.result); setAvatarFile(file) }
+      else { setBannerPreview(e.target.result); setBannerFile(file) }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const uploadImage = async (file, bucket, path) => {
+    const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type })
+    if (error) throw error
+    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+    return publicUrl
+  }
+
+  const handleSave = async () => {
+    setSaving(true); setError('')
+    try {
+      let avatarUrl = profile?.avatar_url || null
+      let bannerUrl = profile?.banner_url || null
+
+      if (avatarFile) avatarUrl = await uploadImage(avatarFile, 'avatars', `${user.id}/avatar`)
+      if (bannerFile) bannerUrl = await uploadImage(bannerFile, 'banners', `${user.id}/banner`)
+
+      const tags = styleTags.split(',').map(t => t.trim()).filter(Boolean)
+      const updates = {
+        id: user.id,
+        display_name: displayName.trim() || null,
+        bio: bio.trim() || null,
+        location: location.trim() || null,
+        website: website.trim() || null,
+        artist_statement: artistStatement.trim() || null,
+        style_tags: tags,
+        avatar_url: avatarUrl,
+        banner_url: bannerUrl,
+        updated_at: new Date().toISOString(),
+      }
+      const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
+      if (upsertErr) throw upsertErr
+      onSave(updates)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Something went wrong.')
+    }
+    setSaving(false)
+  }
+
+  const sections = [['basic', '👤 Basic'], ['artist', '🎨 Artist'], ['images', '🖼 Images']]
+
+  const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+  const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>Edit Profile</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        {/* Section tabs */}
+        <div style={{ display: 'flex', gap: 4, padding: '12px 24px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          {sections.map(([id, label]) => (
+            <button key={id} onClick={() => setActiveSection(id)}
+              style={{ background: activeSection === id ? `${C.accent}20` : 'none', border: `1px solid ${activeSection === id ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '6px 14px', color: activeSection === id ? C.accent : C.muted, fontSize: 12, fontWeight: activeSection === id ? 700 : 400, cursor: 'pointer' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: '20px 24px', flex: 1 }}>
+          {activeSection === 'basic' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Display Name</label>
+                <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name or artist name" maxLength={60} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Bio <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(160 chars)</span></label>
+                <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="A short intro about you..." maxLength={160} rows={3} style={{ ...inputStyle, resize: 'none' }} />
+                <div style={{ fontSize: 11, color: C.muted, textAlign: 'right', marginTop: 4 }}>{bio.length}/160</div>
+              </div>
+              <div>
+                <label style={labelStyle}>Location</label>
+                <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" maxLength={80} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Website / Social Link</label>
+                <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://yoursite.com" maxLength={200} style={inputStyle} />
+              </div>
+            </div>
+          )}
+          {activeSection === 'artist' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Artist Statement</label>
+                <textarea value={artistStatement} onChange={e => setArtistStatement(e.target.value)} placeholder="Tell the world about your work, your inspiration, your process..." maxLength={600} rows={6} style={{ ...inputStyle, resize: 'none' }} />
+                <div style={{ fontSize: 11, color: C.muted, textAlign: 'right', marginTop: 4 }}>{artistStatement.length}/600</div>
+              </div>
+              <div>
+                <label style={labelStyle}>Style Tags <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(comma separated)</span></label>
+                <input value={styleTags} onChange={e => setStyleTags(e.target.value)} placeholder="Surrealism, Abstract, Digital, Dark Fantasy..." style={inputStyle} />
+                {styleTags && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                    {styleTags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
+                      <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {activeSection === 'images' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Avatar */}
+              <div>
+                <label style={labelStyle}>Profile Picture</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div onClick={() => avatarRef.current?.click()} style={{ width: 80, height: 80, borderRadius: '50%', background: avatarPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                    {avatarPreview ? <img src={avatarPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 28, color: '#fff' }}>{profile?.username?.[0]?.toUpperCase() || '?'}</span>}
+                  </div>
+                  <div>
+                    <button onClick={() => avatarRef.current?.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px 16px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'block', marginBottom: 6 }}>Upload Photo</button>
+                    <div style={{ fontSize: 11, color: C.muted }}>JPG, PNG or WebP. Square works best.</div>
+                  </div>
+                </div>
+                <input ref={avatarRef} type="file" accept="image/*" onChange={e => handleImageSelect(e.target.files?.[0], 'avatar')} style={{ display: 'none' }} />
+              </div>
+              {/* Banner */}
+              <div>
+                <label style={labelStyle}>Banner Image</label>
+                <div onClick={() => bannerRef.current?.click()} style={{ width: '100%', height: 120, borderRadius: 12, background: bannerPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}20, ${C.teal}20)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                  {bannerPreview ? <img src={bannerPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>🖼</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>Click to upload banner</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Recommended: 1500×500px</div>
+                    </div>
+                  )}
+                </div>
+                <input ref={bannerRef} type="file" accept="image/*" onChange={e => handleImageSelect(e.target.files?.[0], 'banner')} style={{ display: 'none' }} />
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Footer */}
+        {error && <div style={{ margin: '0 24px', background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b', flexShrink: 0 }}>{error}</div>}
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : 'Save Profile ✦'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Profile Header (shared by ProfilePage + ArtistProfilePage) ─
+function ProfileHeader({ profile, artworkCount, followerCount, followingCount, salesCount, isOwnProfile, viewerUser, onEdit, onFollow, followLoading, isFollowing }) {
+  const navigate = useNavigate()
+  const avatarLetter = profile?.username?.[0]?.toUpperCase() || '?'
+  const tags = profile?.style_tags || []
+  const joinedDate = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : null
+
+  return (
+    <div style={{ marginBottom: 0 }}>
+      {/* Banner */}
+      <div style={{ width: '100%', height: 180, borderRadius: '16px 16px 0 0', background: profile?.banner_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}30, ${C.teal}20, #FF6B9D18)`, overflow: 'hidden', position: 'relative' }}>
+        {profile?.banner_url && <img src={profile.banner_url} alt="Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+        {isOwnProfile && (
+          <button onClick={onEdit} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.7)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.text, fontSize: 12, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>✏️ Edit Profile</button>
+        )}
+      </div>
+
+      {/* Profile card */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '0 24px 24px' }}>
+        {/* Avatar row */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ width: 88, height: 88, borderRadius: '50%', background: profile?.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `3px solid ${C.card}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: '#fff', overflow: 'hidden', marginTop: -44, flexShrink: 0 }}>
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarLetter}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {isOwnProfile && (
+              <button onClick={onEdit} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 18px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit Profile</button>
+            )}
+            {!isOwnProfile && viewerUser && (
+              <button onClick={onFollow} disabled={followLoading} style={{ background: isFollowing ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${isFollowing ? C.border : 'transparent'}`, borderRadius: 10, padding: '8px 20px', color: isFollowing ? C.muted : '#fff', fontSize: 13, fontWeight: 600, cursor: followLoading ? 'not-allowed' : 'pointer' }}>
+                {followLoading ? '...' : isFollowing ? 'Following ✓' : '+ Follow'}
+              </button>
+            )}
+            {!isOwnProfile && !viewerUser && (
+              <button onClick={() => navigate('/')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 20px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Follow</button>
+            )}
+          </div>
+        </div>
+
+        {/* Name + username + meta */}
+        <div style={{ marginBottom: 12 }}>
+          {profile?.display_name && <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 2 }}>{profile.display_name}</div>}
+          <div style={{ fontSize: 14, color: C.muted, marginBottom: 8 }}>@{profile?.username}</div>
+          {profile?.bio && <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, marginBottom: 10, maxWidth: 560 }}>{profile.bio}</p>}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: C.muted }}>
+            {profile?.location && <span>📍 {profile.location}</span>}
+            {profile?.website && <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" style={{ color: C.accent, textDecoration: 'none' }}>🔗 {profile.website.replace(/^https?:\/\//, '')}</a>}
+            {joinedDate && <span>📅 Joined {joinedDate}</span>}
+          </div>
+        </div>
+
+        {/* Style tags */}
+        {tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {tags.map(tag => (
+              <span key={tag} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+          {[[artworkCount, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following'], [salesCount, 'Sales']].map(([count, label]) => (
+            <div key={label}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{count ?? '—'}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Profile Tabs ──────────────────────────────────────────────
+function ProfileTabs({ tab, setTab, tabs }) {
+  return (
+    <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 24 }}>
+      {tabs.map(([id, label]) => (
+        <button key={id} onClick={() => setTab(id)}
+          style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`, padding: '10px 18px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1, transition: 'all 0.15s' }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Mini Product Card (for Shop tab) ─────────────────────────
+function ShopCard({ product }) {
+  const [buying, setBuying] = useState(false)
+  const navigate = useNavigate()
+
+  const handleBuy = async () => {
+    setBuying(true)
+    try {
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+    } catch { alert('Checkout failed.') }
+    setBuying(false)
+  }
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s', cursor: 'pointer' }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
+      onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+      <div style={{ aspectRatio: '1', background: `linear-gradient(135deg, ${C.accent}18, ${C.teal}18)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        {product.mockup_url ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 40 }}>🎨</span>}
+      </div>
+      <div style={{ padding: '12px 14px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{product.title}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{product.product_type}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>${parseFloat(product.price || 0).toFixed(2)}</span>
+          <button onClick={handleBuy} disabled={buying} style={{ background: buying ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: buying ? 'not-allowed' : 'pointer' }}>
+            {buying ? '...' : 'Buy'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── My Profile Page (/profile) ────────────────────────────────
+function ProfilePage({ user, profile: initialProfile }) {
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState(initialProfile)
   const [artworks, setArtworks] = useState([])
-  const [loadingArt, setLoadingArt] = useState(true)
+  const [products, setProducts] = useState([])
   const [feedArtworks, setFeedArtworks] = useState([])
+  const [featuredArtworks, setFeaturedArtworks] = useState([])
+  const [loadingArt, setLoadingArt] = useState(true)
   const [loadingFeed, setLoadingFeed] = useState(true)
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
-  const [tab, setTab] = useState('artworks')
+  const [salesCount, setSalesCount] = useState(0)
+  const [tab, setTab] = useState('artwork')
+  const [showEdit, setShowEdit] = useState(false)
+
+  useMeta({ title: `@${profile?.username || 'Profile'}`, description: profile?.bio })
 
   useEffect(() => {
     if (!user) return
-    supabase.from('artwork').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
-      .then(({ data }) => { setArtworks(data || []); setLoadingArt(false) })
-    supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', user.id)
-      .then(({ count }) => setFollowerCount(count || 0))
-    supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id)
-      .then(({ count }) => setFollowingCount(count || 0))
-    loadFeed()
+    loadAll()
   }, [user])
 
-  const loadFeed = async () => {
+  const loadAll = async () => {
+    const [
+      { data: art },
+      { data: prods },
+      { count: followers },
+      { count: following },
+      { count: sales },
+    ] = await Promise.all([
+      supabase.from('artwork').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('products').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', user.id),
+      supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id),
+      supabase.from('orders').select('id', { count: 'exact' }).eq('user_id', user.id),
+    ])
+    setArtworks(art || [])
+    setProducts(prods || [])
+    setFollowerCount(followers || 0)
+    setFollowingCount(following || 0)
+    setSalesCount(sales || 0)
+    setLoadingArt(false)
+
+    // Load featured artworks
+    const featuredIds = profile?.featured_artwork_ids || []
+    if (featuredIds.length && art?.length) {
+      setFeaturedArtworks(art.filter(a => featuredIds.includes(a.id)))
+    }
+
+    // Load following feed
     setLoadingFeed(true)
     const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
-    if (!followRows?.length) { setFeedArtworks([]); setLoadingFeed(false); return }
-    const ids = followRows.map(r => r.following_id)
-    const { data } = await supabase.from('artwork').select('*, profiles(username)').in('user_id', ids).order('created_at', { ascending: false }).limit(40)
-    setFeedArtworks(data || [])
+    if (followRows?.length) {
+      const ids = followRows.map(r => r.following_id)
+      const { data: feedArt } = await supabase.from('artwork').select('*, profiles(username, avatar_url)').in('user_id', ids).order('created_at', { ascending: false }).limit(40)
+      setFeedArtworks(feedArt || [])
+    }
     setLoadingFeed(false)
   }
 
-  const avatarLetter = profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()
-  const tabs = [['artworks', `Artworks (${loadingArt ? '…' : artworks.length})`], ['feed', 'Following Feed']]
+  const handleSaveProfile = (updates) => {
+    setProfile(prev => ({ ...prev, ...updates }))
+  }
+
+  const tabs = [
+    ['artwork', `🎨 Artwork (${loadingArt ? '…' : artworks.length})`],
+    ['shop', `🛍 Shop (${products.length})`],
+    ['about', '✦ About'],
+    ['feed', '👥 Following Feed'],
+  ]
 
   return (
-    <div style={{ padding: '40px 16px', maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 28, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarLetter}</div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 4 }}>@{profile?.username || user.email?.split('@')[0]}</h1>
-          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{profile?.bio || 'No bio yet.'}</p>
-          <div style={{ display: 'flex', gap: 24 }}>
-            {[[loadingArt ? '—' : artworks.length, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following']].map(([count, label]) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{count}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+    <div style={{ padding: '32px 16px', maxWidth: 960, margin: '0 auto' }}>
+      <ProfileHeader
+        profile={profile}
+        artworkCount={artworks.length}
+        followerCount={followerCount}
+        followingCount={followingCount}
+        salesCount={salesCount}
+        isOwnProfile={true}
+        viewerUser={user}
+        onEdit={() => setShowEdit(true)}
+      />
+
+      <div style={{ height: 28 }} />
+      <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
+
+      {tab === 'artwork' && (
+        <>
+          {featuredArtworks.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>⭐ Featured</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+                {featuredArtworks.map(art => (
+                  <div key={art.id} style={{ background: C.card, border: `1px solid ${C.accent}44`, borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ height: 140, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 36 }}>🎨</span>}
+                    </div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{art.title}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
+            </div>
+          )}
+          <ArtworkGrid artworks={artworks} loading={loadingArt} />
+        </>
+      )}
+
+      {tab === 'shop' && (
+        products.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🛍</div>
+            <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>You haven't listed any products yet.</p>
+            <button onClick={() => navigate('/create')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Create a Product ✦</button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+            {products.map(p => <ShopCard key={p.id} product={p} />)}
+          </div>
+        )
+      )}
+
+      {tab === 'about' && (
+        <div style={{ maxWidth: 640 }}>
+          {profile?.artist_statement ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 32px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Artist Statement</div>
+              <p style={{ color: C.text, fontSize: 15, lineHeight: 1.8 }}>{profile.artist_statement}</p>
+            </div>
+          ) : (
+            <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 16, padding: '32px', textAlign: 'center', marginBottom: 20 }}>
+              <p style={{ color: C.muted, fontSize: 14, marginBottom: 16 }}>No artist statement yet.</p>
+              <button onClick={() => setShowEdit(true)} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '8px 18px', color: C.accent, fontSize: 13, cursor: 'pointer' }}>Add Statement ✦</button>
+            </div>
+          )}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Details</div>
+            {[
+              ['Username', `@${profile?.username}`],
+              ['Display Name', profile?.display_name],
+              ['Location', profile?.location],
+              ['Website', profile?.website],
+              ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null],
+            ].filter(([, v]) => v).map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 14 }}>
+                <span style={{ color: C.muted, minWidth: 110 }}>{label}</span>
+                <span style={{ color: C.text }}>{value}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}` }}>
-        {tabs.map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`, padding: '8px 16px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1 }}>{label}</button>
-        ))}
-      </div>
-      {tab === 'artworks' && <ArtworkGrid artworks={artworks} loading={loadingArt} />}
+      )}
+
       {tab === 'feed' && (
         followingCount === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -474,6 +878,15 @@ function ProfilePage({ user, profile }) {
             <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>You're not following anyone yet. Find artists in <Link to="/channels" style={{ color: C.accent }}>Channels</Link>.</p>
           </div>
         ) : <ArtworkGrid artworks={feedArtworks} loading={loadingFeed} />
+      )}
+
+      {showEdit && (
+        <EditProfileModal
+          user={user}
+          profile={profile}
+          onClose={() => setShowEdit(false)}
+          onSave={handleSaveProfile}
+        />
       )}
     </div>
   )
@@ -485,11 +898,14 @@ function ArtistProfilePage({ viewerUser }) {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [artworks, setArtworks] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [followerCount, setFollowerCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
+  const [salesCount, setSalesCount] = useState(0)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [tab, setTab] = useState('artwork')
 
   useMeta({ title: `@${username}`, description: profile?.bio || `View ${username}'s artwork on Dreamscape` })
 
@@ -500,12 +916,14 @@ function ArtistProfilePage({ viewerUser }) {
     const { data: prof } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
     if (!prof) { setLoading(false); return }
     setProfile(prof)
-    const [{ data: art }, { count: followers }, { count: following }] = await Promise.all([
+    const [{ data: art }, { data: prods }, { count: followers }, { count: following }] = await Promise.all([
       supabase.from('artwork').select('*').eq('user_id', prof.id).order('created_at', { ascending: false }),
+      supabase.from('products').select('*').eq('user_id', prof.id).order('created_at', { ascending: false }),
       supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', prof.id),
       supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', prof.id),
     ])
     setArtworks(art || [])
+    setProducts(prods || [])
     setFollowerCount(followers || 0)
     setFollowingCount(following || 0)
     if (viewerUser) {
@@ -537,36 +955,76 @@ function ArtistProfilePage({ viewerUser }) {
   )
 
   const isOwnProfile = viewerUser?.id === profile.id
-  const avatarLetter = profile.username?.[0]?.toUpperCase() || '?'
+  const tabs = [
+    ['artwork', `🎨 Artwork (${artworks.length})`],
+    ['shop', `🛍 Shop (${products.length})`],
+    ['about', '✦ About'],
+  ]
 
   return (
-    <div style={{ padding: '40px 16px', maxWidth: 900, margin: '0 auto' }}>
-      <button onClick={() => navigate(-1)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer', marginBottom: 24 }}>← Back</button>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '28px 24px', marginBottom: 28, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarLetter}</div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 4 }}>@{profile.username}</h1>
-          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 12 }}>{profile.bio || 'No bio yet.'}</p>
-          <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-            {[[artworks.length, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following']].map(([count, label]) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.text }}>{count}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+    <div style={{ padding: '32px 16px', maxWidth: 960, margin: '0 auto' }}>
+      <button onClick={() => navigate(-1)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer', marginBottom: 20 }}>← Back</button>
+      <ProfileHeader
+        profile={profile}
+        artworkCount={artworks.length}
+        followerCount={followerCount}
+        followingCount={followingCount}
+        salesCount={salesCount}
+        isOwnProfile={isOwnProfile}
+        viewerUser={viewerUser}
+        onEdit={null}
+        onFollow={toggleFollow}
+        followLoading={followLoading}
+        isFollowing={isFollowing}
+      />
+
+      <div style={{ height: 28 }} />
+      <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
+
+      {tab === 'artwork' && <ArtworkGrid artworks={artworks} loading={false} />}
+
+      {tab === 'shop' && (
+        products.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🛍</div>
+            <p style={{ color: C.muted, fontSize: 14 }}>This artist hasn't listed any products yet.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+            {products.map(p => <ShopCard key={p.id} product={p} />)}
+          </div>
+        )
+      )}
+
+      {tab === 'about' && (
+        <div style={{ maxWidth: 640 }}>
+          {profile?.artist_statement && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 32px', marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Artist Statement</div>
+              <p style={{ color: C.text, fontSize: 15, lineHeight: 1.8 }}>{profile.artist_statement}</p>
+            </div>
+          )}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Details</div>
+            {[
+              ['Username', `@${profile?.username}`],
+              ['Display Name', profile?.display_name],
+              ['Location', profile?.location],
+              ['Website', profile?.website],
+              ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null],
+            ].filter(([, v]) => v).map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 14 }}>
+                <span style={{ color: C.muted, minWidth: 110 }}>{label}</span>
+                <span style={{ color: C.text }}>{value}</span>
               </div>
             ))}
-            {!isOwnProfile && viewerUser && (
-              <button onClick={toggleFollow} disabled={followLoading} style={{ marginLeft: 'auto', background: isFollowing ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${isFollowing ? C.border : 'transparent'}`, borderRadius: 10, padding: '8px 20px', color: isFollowing ? C.muted : '#fff', fontSize: 13, fontWeight: 600, cursor: followLoading ? 'not-allowed' : 'pointer' }}>
-                {followLoading ? '...' : isFollowing ? 'Following ✓' : '+ Follow'}
-              </button>
-            )}
           </div>
         </div>
-      </div>
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 16 }}>Artworks</h2>
-      <ArtworkGrid artworks={artworks} loading={false} />
+      )}
     </div>
   )
 }
+
 
 // ── Discover Page (/) ─────────────────────────────────────────
 function DiscoverPage({ user, onSignIn }) {
