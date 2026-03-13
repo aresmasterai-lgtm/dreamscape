@@ -86,7 +86,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         body: JSON.stringify({ title, description, variantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message || data.error || 'Printful error')
+      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || JSON.stringify(data) || 'Printful error')
       const printfulId = data.id || data.sync_product?.id || ''
       await supabase.from('products').insert({
         user_id: user.id,
@@ -106,7 +106,21 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     setCreating(false)
   }
 
-  const filtered = catalog.filter(p =>
+  const [variantLoading, setVariantLoading] = useState(false)
+
+  const selectProduct = async (p) => {
+    setSelected(p)
+    if (!p.variants || p.variants.length === 0) {
+      setVariantLoading(true)
+      try {
+        const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`)
+        const data = await res.json()
+        const variants = data.variants || []
+        setSelected({ ...p, variants })
+      } catch {}
+      setVariantLoading(false)
+    }
+  }
     !search || p.model.toLowerCase().includes(search.toLowerCase()) || p.type.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -164,7 +178,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
               {catalogLoading ? <Spinner /> : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
                   {filtered.slice(0, 60).map(p => (
-                    <div key={p.id} onClick={() => setSelected(p)}
+                    <div key={p.id} onClick={() => selectProduct(p)}
                       style={{ background: selected?.id === p.id ? `${C.accent}20` : C.bg, border: `1px solid ${selected?.id === p.id ? C.accent : C.border}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
                       onMouseEnter={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.accent + '55' }}
                       onMouseLeave={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.border }}>
@@ -245,8 +259,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </button>
             {step === 2 && (
               <button onClick={() => { if (!selected) return setError('Please select a product type.'); setError(''); setStep(3) }}
-                style={{ flex: 2, background: selected ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: selected ? 'pointer' : 'not-allowed' }}>
-                Next: Product Details →
+                disabled={variantLoading}
+                style={{ flex: 2, background: selected && !variantLoading ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: selected && !variantLoading ? 'pointer' : 'not-allowed' }}>
+                {variantLoading ? '⏳ Loading variants...' : 'Next: Product Details →'}
               </button>
             )}
             {step === 3 && (

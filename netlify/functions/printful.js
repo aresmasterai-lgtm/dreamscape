@@ -11,6 +11,7 @@ export default async (req) => {
   const authHeaders = {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
+    'X-PF-Store-Id': process.env.PRINTFUL_STORE_ID || '',
   }
 
   const BASE = 'https://api.printful.com'
@@ -80,6 +81,17 @@ export default async (req) => {
     if (req.method === 'GET' && action === 'product') {
       const productId = url.searchParams.get('id')
       const res = await fetch(`${BASE}/store/products/${productId}`, { headers: authHeaders })
+      const data = await res.json()
+      return new Response(JSON.stringify(data.result || data), {
+        status: res.ok ? 200 : res.status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    // GET single catalog product with variants (v1)
+    if (req.method === 'GET' && action === 'catalogProduct') {
+      const productId = url.searchParams.get('id')
+      const res = await fetch(`${BASE}/products/${productId}`, { headers: authHeaders })
       const data = await res.json()
       return new Response(JSON.stringify(data.result || data), {
         status: res.ok ? 200 : res.status,
