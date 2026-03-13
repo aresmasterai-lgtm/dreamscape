@@ -599,6 +599,23 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   )
 }
 
+// ── Share Button ──────────────────────────────────────────────
+function ShareButton({ username }) {
+  const [copied, setCopied] = useState(false)
+  const url = `https://trydreamscape.com/u/${username}`
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button onClick={handleCopy}
+      style={{ background: copied ? `${C.teal}20` : 'none', border: `1px solid ${copied ? C.teal + '55' : C.border}`, borderRadius: 10, padding: '8px 16px', color: copied ? C.teal : C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+      {copied ? '✅ Copied!' : '🔗 Share Profile'}
+    </button>
+  )
+}
+
 // ── Profile Header (shared by ProfilePage + ArtistProfilePage) ─
 function ProfileHeader({ profile, artworkCount, followerCount, followingCount, salesCount, isOwnProfile, viewerUser, onEdit, onFollow, followLoading, isFollowing }) {
   const navigate = useNavigate()
@@ -620,7 +637,7 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '0 24px 24px' }}>
         {/* Avatar row */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ width: 88, height: 88, borderRadius: '50%', background: profile?.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `3px solid ${C.card}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: '#fff', overflow: 'hidden', marginTop: -44, flexShrink: 0, position: 'relative', zIndex: 2 }}>
+          <div style={{ width: 92, height: 92, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `3px solid ${C.bg}`, outline: `2px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: '#fff', overflow: 'hidden', marginTop: -46, flexShrink: 0, position: 'relative', zIndex: 2 }}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarLetter}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -635,6 +652,7 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
             {!isOwnProfile && !viewerUser && (
               <button onClick={() => navigate('/')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 20px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Follow</button>
             )}
+            <ShareButton username={profile?.username} />
           </div>
         </div>
 
@@ -1120,9 +1138,9 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           {user ? (
             <>
               <Link to="/profile" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : 'transparent'}`, borderRadius: 20, padding: '3px 10px 3px 3px' }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
                   {profile?.avatar_url
-                    ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
                 </div>
               </Link>
