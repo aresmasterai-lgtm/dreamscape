@@ -1096,7 +1096,60 @@ function ArtistProfilePage({ viewerUser }) {
 }
 
 
-// ── Discover Page (/) ─────────────────────────────────────────
+// ── Reset Password Page (/reset-password) ────────────────────
+function ResetPasswordPage() {
+  const navigate = useNavigate()
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  const handleReset = async () => {
+    if (!password) return setError('Please enter a new password.')
+    if (password.length < 6) return setError('Password must be at least 6 characters.')
+    if (password !== confirm) return setError('Passwords do not match.')
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) setError(error.message)
+    else setDone(true)
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '40px 36px', maxWidth: 420, width: '100%', textAlign: 'center' }}>
+        {done ? (
+          <>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 12 }}>Password updated!</h2>
+            <p style={{ color: C.muted, fontSize: 14, marginBottom: 24 }}>Your password has been changed successfully.</p>
+            <button onClick={() => navigate('/')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '12px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Go to Dreamscape ✦</button>
+          </>
+        ) : (
+          <>
+            <div style={{ width: 52, height: 52, borderRadius: 14, margin: '0 auto 16px', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: '#fff' }}>🔑</div>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 8 }}>Set New Password</h2>
+            <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Choose a strong password for your account.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, textAlign: 'left' }}>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="New password"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+                placeholder="Confirm new password" onKeyDown={e => e.key === 'Enter' && handleReset()}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            {error && <div style={{ fontSize: 12, color: '#FF5E5E', marginBottom: 14, padding: '10px 12px', background: '#FF5E5E18', borderRadius: 8 }}>{error}</div>}
+            <button onClick={handleReset} disabled={loading}
+              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: loading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+              {loading ? 'Updating...' : 'Update Password ✦'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 function DiscoverPage({ user, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
   const navigate = useNavigate()
@@ -1290,6 +1343,7 @@ export default function App() {
             <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
             <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/admin" element={<Admin user={user} profile={profile} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
