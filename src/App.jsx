@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
@@ -149,15 +149,43 @@ function DreamChat({ user, onSignIn }) {
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const [bottomEl, setBottomEl] = useState(null)
+  const [referenceImage, setReferenceImage] = useState(null) // { dataUrl, mimeType, name }
+  const fileInputRef = useRef(null)
 
   useEffect(() => { bottomEl?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setReferenceImage({ dataUrl: ev.target.result, mimeType: file.type, name: file.name })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = '' // reset so same file can be re-selected
+  }
+
   const send = async () => {
     if (!input.trim() || loading) return
-    const userMsg = { role: 'user', content: input.trim() }
-    const history = [...messages.filter((_, i) => i > 0), userMsg]
+
+    // Build user message — with image if attached
+    let userContent
+    if (referenceImage) {
+      const base64 = referenceImage.dataUrl.split(',')[1]
+      userContent = [
+        { type: 'image', source: { type: 'base64', media_type: referenceImage.mimeType, data: base64 } },
+        { type: 'text', text: input.trim() },
+      ]
+    } else {
+      userContent = input.trim()
+    }
+
+    const userMsg = { role: 'user', content: userContent, _refImage: referenceImage?.dataUrl }
+    const history = [...messages.filter((_, i) => i > 0), { role: 'user', content: userContent }]
     setMessages(prev => [...prev, userMsg])
-    setInput(''); setLoading(true)
+    setInput('')
+    setReferenceImage(null)
+    setLoading(true)
     try {
       const res = await fetch('/api/dream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) })
       const data = await res.json()
@@ -178,8 +206,17 @@ function DreamChat({ user, onSignIn }) {
 
   const generateImage = async (prompt, index) => {
     setGeneratingIndex(index)
+    // Find the most recent user reference image to use as generation reference
+    const lastUserWithImage = [...messages].reverse().find(m => m._refImage)
     try {
-      const res = await fetch('/api/generate-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, resolution: '1K' }) })
+      const res = await fetch('/api/generate-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          resolution: '1K',
+          referenceImage: lastUserWithImage?._refImage || null,
+        })
+      })
       const data = await res.json()
       if (data.success) setGeneratedImages(prev => ({ ...prev, [index]: `data:${data.mimeType};base64,${data.imageData}` }))
       else alert('Image generation failed: ' + (data.error || 'Unknown'))
@@ -210,13 +247,23 @@ function DreamChat({ user, onSignIn }) {
           </div>
         </div>
         <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 300, maxHeight: '55vh' }}>
-          {messages.map((msg, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.role === 'user' ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.role === 'user' ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: 'pre-wrap' }}>
-                {msg.content}
+          {messages.map((msg, i) => {
+            const isUser = msg.role === 'user'
+            const textContent = typeof msg.content === 'string' ? msg.content : msg.content?.find?.(c => c.type === 'text')?.text || ''
+            return (
+              <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
+                <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 6 }}>
+                  {/* Reference image thumbnail in message */}
+                  {isUser && msg._refImage && (
+                    <img src={msg._refImage} alt="Reference" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accent}55` }} />
+                  )}
+                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: 'pre-wrap' }}>
+                    {textContent}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           {loading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: '12px 12px 12px 4px', padding: '10px 16px', display: 'flex', gap: 4 }}>
@@ -261,11 +308,30 @@ function DreamChat({ user, onSignIn }) {
             )}
           </div>
         )}
-        <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-            placeholder="Describe your vision or ask Dream anything..."
-            style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-          <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
+        <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+          {/* Reference image preview */}
+          {referenceImage && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: C.bg, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 12px' }}>
+              <img src={referenceImage.dataUrl} alt="Reference" style={{ width: 40, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.accent }}>Reference image attached</div>
+                <div style={{ fontSize: 10, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{referenceImage.name}</div>
+              </div>
+              <button onClick={() => setReferenceImage(null)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+            <button onClick={() => fileInputRef.current?.click()}
+              title="Attach reference image"
+              style={{ background: referenceImage ? `${C.accent}22` : 'none', border: `1px solid ${referenceImage ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '10px 12px', color: referenceImage ? C.accent : C.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
+              🖼
+            </button>
+            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+              placeholder="Describe your vision or ask Dream anything..."
+              style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+            <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
+          </div>
         </div>
       </div>
       {saveTarget && <SaveModal prompt={saveTarget.prompt} imageUrl={saveTarget.imageUrl} onSave={handleSave} onClose={() => setSaveTarget(null)} />}
