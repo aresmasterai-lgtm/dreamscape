@@ -719,6 +719,9 @@ function ShopCard({ product }) {
 function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(initialProfile)
+
+  // Sync if auth context loads profile after component mounts
+  useEffect(() => { if (initialProfile) setProfile(initialProfile) }, [initialProfile])
   const [artworks, setArtworks] = useState([])
   const [products, setProducts] = useState([])
   const [feedArtworks, setFeedArtworks] = useState([])
