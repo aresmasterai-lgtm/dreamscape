@@ -12,6 +12,9 @@ import OrderHistory from './components/OrderHistory'
 import Pricing from './components/Pricing'
 import Admin from './components/Admin'
 import Privacy from './components/Privacy'
+import Sitemap from './components/Sitemap'
+import Blog from './components/Blog'
+import BlogPost from './components/BlogPost'
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -1207,7 +1210,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
   const [mobileMenu, setMobileMenu] = useState(false)
   const nav = location.pathname
-  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/pricing', 'Pricing']]
+  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/blog', 'Blog'], ['/pricing', 'Pricing']]
   const isActive = (path) => path === '/' ? nav === '/' : nav.startsWith(path)
 
   return (
@@ -1344,6 +1347,9 @@ export default function App() {
             <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
             <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="/sitemap" element={<Sitemap />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/admin" element={<Admin user={user} profile={profile} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
@@ -1356,9 +1362,12 @@ export default function App() {
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
+            <Link to="/blog" style={{ color: C.muted, textDecoration: 'none' }}>Blog</Link>
             <Link to="/privacy" style={{ color: C.muted, textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/sitemap" style={{ color: C.muted, textDecoration: 'none' }}>Sitemap</Link>
             <Link to="/pricing" style={{ color: C.muted, textDecoration: 'none' }}>Pricing</Link>
-            <a href="mailto:privacy@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Contact</a>
+            <a href="mailto:support@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Support</a>
+            <a href="mailto:hello@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Contact</a>
             <span>© {new Date().getFullYear()} Dreamscape. All rights reserved.</span>
           </div>
         </div>

@@ -275,6 +275,176 @@ function ContentTab() {
   )
 }
 
+// ── Blog Tab ──────────────────────────────────────────────────
+function BlogTab() {
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [confirm, setConfirm] = useState(null)
+
+  const CATEGORIES = ['Prompting Guides', 'Dream AI Tips & Tricks', 'Artist Spotlights', 'Merch & Product Guides', 'Platform Updates & News']
+
+  useEffect(() => { loadPosts() }, [])
+
+  const loadPosts = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false })
+    setPosts(data || [])
+    setLoading(false)
+  }
+
+  const togglePublish = async (post) => {
+    const newStatus = post.status === 'published' ? 'draft' : 'published'
+    const updates = { status: newStatus }
+    if (newStatus === 'published' && !post.published_at) updates.published_at = new Date().toISOString()
+    await supabase.from('blog_posts').update(updates).eq('id', post.id)
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, ...updates } : p))
+  }
+
+  const toggleFeatured = async (post) => {
+    // Unfeatured all others first
+    if (!post.featured) await supabase.from('blog_posts').update({ featured: false }).neq('id', post.id)
+    await supabase.from('blog_posts').update({ featured: !post.featured }).eq('id', post.id)
+    loadPosts()
+  }
+
+  const deletePost = async (id) => {
+    await supabase.from('blog_posts').delete().eq('id', id)
+    setPosts(prev => prev.filter(p => p.id !== id))
+    setConfirm(null)
+  }
+
+  const savePost = async () => {
+    if (!editing.title || !editing.slug) return
+    setSaving(true)
+    if (editing.id) {
+      await supabase.from('blog_posts').update({ ...editing, updated_at: new Date().toISOString() }).eq('id', editing.id)
+    } else {
+      await supabase.from('blog_posts').insert({ ...editing })
+    }
+    setSaving(false)
+    setEditing(null)
+    loadPosts()
+  }
+
+  const newPost = () => setEditing({
+    title: '', slug: '', excerpt: '', content: '', category: CATEGORIES[0],
+    cover_image: '', author: 'Dreamscape Team', status: 'draft', featured: false,
+  })
+
+  const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
+
+  if (editing !== null) return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
+        <button onClick={() => setEditing(null)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label>
+          <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={inputStyle} placeholder="Post title..." />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Slug</label>
+          <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value }))} style={inputStyle} placeholder="post-url-slug" />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
+            <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
+            <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} placeholder="Dreamscape Team" />
+          </div>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
+          <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Excerpt</label>
+          <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in post cards..." />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Content</label>
+          <textarea value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))} rows={16} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="Write your post content here. Use double line breaks for paragraphs..." />
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={() => setEditing(null)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => { savePost(); setEditing(prev => ({ ...prev, status: 'draft' })) }} disabled={saving}
+            style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Save Draft
+          </button>
+          <button onClick={() => { setEditing(prev => ({ ...prev, status: 'published' })); savePost() }} disabled={saving}
+            style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {saving ? 'Saving...' : 'Publish ✦'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ fontSize: 13, color: C.muted }}>{posts.length} post{posts.length !== 1 ? 's' : ''} · {posts.filter(p => p.status === 'published').length} published</div>
+        <button onClick={newPost} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Post</button>
+      </div>
+      {loading ? <Spinner /> : posts.length === 0 ? (
+        <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 16, padding: '48px', textAlign: 'center' }}>
+          <p style={{ color: C.muted, fontSize: 14, marginBottom: 16 }}>No blog posts yet. Create your first one or let Ares draft one!</p>
+          <button onClick={newPost} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Post</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {posts.map(post => (
+            <div key={post.id} style={{ background: C.card, border: `1px solid ${post.status === 'published' ? C.accent + '33' : C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              {post.cover_image
+                ? <img src={post.cover_image} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                : <div style={{ width: 52, height: 52, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✦</div>
+              }
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>{post.title}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{post.category} · {new Date(post.created_at).toLocaleDateString()}</div>
+              </div>
+              {post.featured && <span style={{ fontSize: 10, background: `${C.gold}20`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '2px 8px', color: C.gold, fontWeight: 700 }}>⭐ Featured</span>}
+              <span style={{ fontSize: 11, background: post.status === 'published' ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${post.status === 'published' ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: post.status === 'published' ? C.teal : C.muted, fontWeight: 600 }}>
+                {post.status === 'published' ? '● Live' : '○ Draft'}
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setEditing(post)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Edit</button>
+                <button onClick={() => togglePublish(post)} style={{ background: post.status === 'published' ? 'none' : `${C.teal}20`, border: `1px solid ${post.status === 'published' ? C.border : C.teal + '55'}`, borderRadius: 8, padding: '5px 12px', color: post.status === 'published' ? C.muted : C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {post.status === 'published' ? 'Unpublish' : 'Publish'}
+                </button>
+                <button onClick={() => toggleFeatured(post)} style={{ background: post.featured ? `${C.gold}20` : 'none', border: `1px solid ${post.featured ? C.gold + '55' : C.border}`, borderRadius: 8, padding: '5px 12px', color: post.featured ? C.gold : C.muted, fontSize: 12, cursor: 'pointer' }}>⭐</button>
+                <button onClick={() => setConfirm(post.id)} style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '5px 12px', color: C.red, fontSize: 12, cursor: 'pointer' }}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {confirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 16 }}>🗑️</div>
+            <h3 style={{ color: C.text, marginBottom: 8, fontFamily: 'Playfair Display, serif' }}>Delete this post?</h3>
+            <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirm(null)} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deletePost(confirm)} style={{ flex: 1, background: `linear-gradient(135deg, ${C.red}, #CC0000)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Dashboard ───────────────────────────────────────────
 export default function Admin({ user, profile }) {
   const navigate = useNavigate()
@@ -304,7 +474,7 @@ export default function Admin({ user, profile }) {
 
   if (!profile?.is_admin) return null
 
-  const tabs = [['users', '👥 Users'], ['orders', '📦 Orders'], ['content', '🎨 Content']]
+  const tabs = [['users', '👥 Users'], ['orders', '📦 Orders'], ['content', '🎨 Content'], ['blog', '✍️ Blog']]
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1000, margin: '0 auto' }}>
@@ -338,6 +508,7 @@ export default function Admin({ user, profile }) {
       {tab === 'users' && <UsersTab />}
       {tab === 'orders' && <OrdersTab />}
       {tab === 'content' && <ContentTab />}
+      {tab === 'blog' && <BlogTab />}
     </div>
   )
 }
