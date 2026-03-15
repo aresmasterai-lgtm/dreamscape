@@ -200,6 +200,11 @@ function usePageTracking() {
       page_path: location.pathname + location.search,
     })
   }, [location])
+  // Always ensure body can scroll on navigation — guards against splash overflow leak
+  useEffect(() => {
+    document.body.style.overflow = ''
+    document.body.classList.add('app-ready')
+  }, [location])
 }
 
 
