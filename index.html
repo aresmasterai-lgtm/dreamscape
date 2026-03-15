@@ -211,11 +211,11 @@
       }
 
       /* App hidden until splash dismissed — opacity only, never display:none so crawlers see content */
-      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; overflow: visible; }
-      #root.visible { opacity: 1; overflow: visible; }
+      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; }
+      #root.visible { opacity: 1; }
       /* Always allow scroll once app is ready */
-      body { overflow: hidden; }
-      body.app-ready { overflow: auto !important; }
+      /* body overflow managed by JS only, never in CSS */
+      body.app-ready { overflow: auto; }
     </style>
   </head>
   <body>

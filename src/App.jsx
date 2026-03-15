@@ -200,10 +200,19 @@ function usePageTracking() {
       page_path: location.pathname + location.search,
     })
   }, [location])
-  // Always ensure body can scroll on navigation — guards against splash overflow leak
+  // Aggressively fix overflow on every navigation — prevents blank page bug
   useEffect(() => {
     document.body.style.overflow = ''
+    document.body.style.height = ''
+    document.documentElement.style.overflow = ''
+    document.documentElement.style.height = ''
     document.body.classList.add('app-ready')
+    // Double-check after a tick in case something re-sets it
+    const t = setTimeout(() => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }, 50)
+    return () => clearTimeout(t)
   }, [location])
 }
 
@@ -1974,6 +1983,26 @@ function Navbar({ user, profile, signOut, onSignIn }) {
                 <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
               )}
               <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
+
+              {/* Subscription tier badge */}
+              {(() => {
+                const tier = profile?.subscription_tier || 'free'
+                const tierConfig = {
+                  free:    { label: 'Free',    color: C.muted,   bg: C.muted + '20' },
+                  starter: { label: 'Starter', color: C.teal,    bg: C.teal + '20' },
+                  pro:     { label: 'Pro',     color: C.accent,  bg: C.accent + '20' },
+                  studio:  { label: 'Studio',  color: C.gold,    bg: C.gold + '20' },
+                }
+                const t = tierConfig[tier] || tierConfig.free
+                if (tier === 'free') return null
+                return (
+                  <Link to="/profile" style={{ textDecoration: 'none' }}>
+                    <span style={{ background: t.bg, border: `1px solid ${t.color}44`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 0.3 }}>
+                      ✦ {t.label}
+                    </span>
+                  </Link>
+                )
+              })()}
               <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : C.border}`, borderRadius: 24, padding: '4px 12px 4px 4px' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
                   {profile?.avatar_url ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
@@ -2314,7 +2343,7 @@ export default function App() {
   )
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
+    <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
@@ -2330,7 +2359,7 @@ export default function App() {
 
       <StarField />
 
-      <div style={{ position: 'relative', zIndex: 1, isolation: 'isolate' }}>
+      <div style={{ position: 'relative', zIndex: 1, isolation: 'isolate', minHeight: '100vh', overflowX: 'hidden' }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
         <div style={{ paddingTop: 72 }}>
           <Routes>
