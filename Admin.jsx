@@ -412,6 +412,53 @@ function BlogTab() {
 
   const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
 
+  // ── SEO Analysis ──────────────────────────────────────────────
+  const getSeoScore = (post) => {
+    if (!post) return { score: 0, checks: [] }
+    const title = post.title || ''
+    const slug = post.slug || ''
+    const excerpt = post.excerpt || ''
+    const content = post.content || ''
+    const wordCount = content.split(/\s+/).filter(Boolean).length
+    const hasH2 = content.includes('## ')
+    const hasPromptBox = content.includes('[PROMPT]')
+    const hasTip = content.includes('> [!TIP]')
+
+    const checks = [
+      { label: 'Title length (50-60 chars)', pass: title.length >= 30 && title.length <= 70, value: `${title.length} chars` },
+      { label: 'Slug is set', pass: slug.length > 0, value: slug || 'missing' },
+      { label: 'Excerpt filled in', pass: excerpt.length >= 50, value: excerpt.length ? `${excerpt.length} chars` : 'missing' },
+      { label: 'Word count 1000+', pass: wordCount >= 1000, value: `${wordCount} words` },
+      { label: 'Has H2 section headers', pass: hasH2, value: hasH2 ? 'yes' : 'missing' },
+      { label: 'Has prompt example box', pass: hasPromptBox, value: hasPromptBox ? 'yes' : 'missing' },
+      { label: 'Has tip callout', pass: hasTip, value: hasTip ? 'yes' : 'missing' },
+      { label: 'Cover image set', pass: !!(post.cover_image), value: post.cover_image ? 'set' : 'missing' },
+    ]
+    const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 100)
+    return { score, checks, wordCount, readTime: Math.max(1, Math.ceil(wordCount / 200)) }
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!editing?.id || !editing?.title) return
+    const timer = setTimeout(async () => {
+      await supabase.from('blog_posts').update({ ...editing, updated_at: new Date().toISOString() }).eq('id', editing.id)
+    }, 30000) // auto-save after 30s of inactivity
+    return () => clearTimeout(timer)
+  }, [editing])
+
+  // ── Markdown toolbar insert ───────────────────────────────────
+  const insertMarkdown = (before, after = '', placeholder = '') => {
+    const textarea = document.getElementById('blog-content-editor')
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = editing.content.substring(start, end) || placeholder
+    const newContent = editing.content.substring(0, start) + before + selected + after + editing.content.substring(end)
+    setEditing(prev => ({ ...prev, content: newContent }))
+    setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + before.length, start + before.length + selected.length) }, 0)
+  }
+
   // ── Preview Modal ─────────────────────────────────────────────
   if (previewing) return (
     <div>
@@ -448,98 +495,180 @@ function BlogTab() {
   )
 
   // ── Edit View ─────────────────────────────────────────────────
-  if (editing !== null) return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
-          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
-        </div>
-        {/* Edit / Preview / Split toggle */}
-        <div style={{ display: 'flex', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3, gap: 2 }}>
-          {[['edit', '✏️ Edit'], ['preview', '👁 Preview'], ['split', '⊞ Split']].map(([mode, label]) => (
-            <button key={mode} onClick={() => setEditMode(mode)}
-              style={{ background: editMode === mode ? `${C.accent}20` : 'none', border: `1px solid ${editMode === mode ? C.accent + '55' : 'transparent'}`, borderRadius: 6, padding: '5px 12px', color: editMode === mode ? C.accent : C.muted, fontSize: 12, fontWeight: editMode === mode ? 700 : 400, cursor: 'pointer' }}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+  if (editing !== null) {
+    const seo = getSeoScore(editing)
+    const wordCount = (editing.content || '').split(/\s+/).filter(Boolean).length
+    const readTime = Math.max(1, Math.ceil(wordCount / 200))
+    const titleLen = (editing.title || '').length
+    const slugValid = /^[a-z0-9-]+$/.test(editing.slug || '')
 
-      {/* Fields — hidden in preview mode */}
-      {editMode !== 'preview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label>
-              <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={inputStyle} placeholder="Post title..." />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Slug</label>
-              <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value }))} style={inputStyle} placeholder="post-url-slug" />
-            </div>
+    const TOOLBAR = [
+      { label: 'B', title: 'Bold', before: '**', after: '**', placeholder: 'bold text' },
+      { label: 'I', title: 'Italic', before: '*', after: '*', placeholder: 'italic text' },
+      { label: 'H2', title: 'Heading', before: '\n## ', after: '', placeholder: 'Section heading' },
+      { label: 'H3', title: 'Subheading', before: '\n### ', after: '', placeholder: 'Subheading' },
+      { label: '`code`', title: 'Inline code', before: '`', after: '`', placeholder: 'code' },
+      { label: '— list', title: 'List item', before: '\n- ', after: '', placeholder: 'List item' },
+      { label: '1. list', title: 'Numbered list', before: '\n1. ', after: '', placeholder: 'List item' },
+      { label: '> quote', title: 'Blockquote', before: '\n> ', after: '', placeholder: 'Quote text' },
+      { label: '💡 Tip', title: 'Tip callout', before: '\n> [!TIP]\n> ', after: '', placeholder: 'Your tip here' },
+      { label: '✦ Prompt', title: 'Prompt box', before: '\n[PROMPT]\n', after: '\n[/PROMPT]', placeholder: 'Your example prompt here' },
+      { label: '---', title: 'Divider', before: '\n---\n', after: '', placeholder: '' },
+    ]
+
+    return (
+      <div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
+            {editing.id && <span style={{ fontSize: 10, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '2px 8px' }}>Auto-saves every 30s</span>}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
-              <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* SEO Score badge */}
+            <div style={{ background: seo.score >= 80 ? `${C.teal}20` : seo.score >= 50 ? `${C.gold}20` : `${C.red}20`, border: `1px solid ${seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red}44`, borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red }}>
+              SEO {seo.score}%
             </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
-              <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} />
+            {/* Word count */}
+            <div style={{ fontSize: 12, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 12px' }}>
+              {wordCount} words · {readTime} min read
             </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
-              <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
+            {/* Edit / Preview / Split */}
+            <div style={{ display: 'flex', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3, gap: 2 }}>
+              {[['edit', '✏️'], ['preview', '👁'], ['split', '⊞']].map(([mode, label]) => (
+                <button key={mode} onClick={() => setEditMode(mode)} title={mode}
+                  style={{ background: editMode === mode ? `${C.accent}20` : 'none', border: `1px solid ${editMode === mode ? C.accent + '55' : 'transparent'}`, borderRadius: 6, padding: '5px 10px', color: editMode === mode ? C.accent : C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  {label}
+                </button>
+              ))}
             </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Excerpt</label>
-            <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in post cards..." />
           </div>
         </div>
-      )}
 
-      {/* Content area — edit / preview / split */}
-      <div style={{ display: editMode === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Fields */}
         {editMode !== 'preview' && (
-          <div>
-            {editMode === 'split' && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Editor</div>}
-            <textarea value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))}
-              rows={editMode === 'split' ? 24 : 20}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, fontFamily: 'monospace', fontSize: 13 }}
-              placeholder="Write your post content here using markdown..." />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  Title
+                  <span style={{ color: titleLen > 70 ? C.red : titleLen >= 30 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{titleLen}/60</span>
+                </label>
+                <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={{ ...inputStyle, borderColor: titleLen > 70 ? C.red + '88' : C.border }} placeholder="Post title..." />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  Slug
+                  <span style={{ color: slugValid && editing.slug ? C.teal : C.red, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{slugValid && editing.slug ? '✓ valid' : '✗ invalid'}</span>
+                </label>
+                <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} style={{ ...inputStyle, borderColor: !slugValid && editing.slug ? C.red + '88' : C.border }} placeholder="post-url-slug" />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
+                <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
+                <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
+                <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                Excerpt (meta description)
+                <span style={{ color: (editing.excerpt || '').length >= 120 && (editing.excerpt || '').length <= 160 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{(editing.excerpt || '').length}/160</span>
+              </label>
+              <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in search results and post cards (120-160 chars ideal)..." />
+            </div>
           </div>
         )}
-        {editMode !== 'edit' && (
-          <div>
-            {editMode === 'split' && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Preview</div>}
+
+        {/* Google search preview */}
+        {editMode !== 'preview' && editing.title && (
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>🔍 Google Preview</div>
+            <div style={{ fontSize: 15, color: '#4A90E2', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{editing.title.slice(0, 60)}{editing.title.length > 60 ? '...' : ''}</div>
+            <div style={{ fontSize: 12, color: C.teal, marginBottom: 4 }}>trydreamscape.com/blog/{editing.slug || 'your-slug-here'}</div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{(editing.excerpt || 'Add an excerpt to show here...').slice(0, 160)}</div>
+          </div>
+        )}
+
+        {/* Markdown toolbar */}
+        {editMode !== 'preview' && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8, padding: '8px 10px', background: C.panel, border: `1px solid ${C.border}`, borderRadius: '10px 10px 0 0' }}>
+            {TOOLBAR.map(tool => (
+              <button key={tool.label} onClick={() => insertMarkdown(tool.before, tool.after, tool.placeholder)} title={tool.title}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: tool.label === '`code`' ? 'monospace' : 'inherit' }}>
+                {tool.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content area */}
+        <div style={{ display: editMode === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {editMode !== 'preview' && (
+            <textarea id="blog-content-editor" value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))}
+              rows={editMode === 'split' ? 22 : 18}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, fontFamily: 'monospace', fontSize: 13, borderRadius: editMode !== 'split' ? '0 0 10px 10px' : 10 }}
+              placeholder="Write your post content here using markdown..." />
+          )}
+          {editMode !== 'edit' && (
             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', minHeight: 400, maxHeight: editMode === 'split' ? 520 : '70vh', overflowY: 'auto' }}>
-              {editing.title && <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, fontWeight: 900, color: C.text, marginBottom: 12 }}>{editing.title}</h1>}
-              {editing.excerpt && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 16, borderLeft: `3px solid ${C.accent}`, paddingLeft: 14, fontStyle: 'italic' }}>{editing.excerpt}</p>}
-              {editing.excerpt && <div style={{ height: 1, background: C.border, marginBottom: 16 }} />}
+              {editing.title && <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 10 }}>{editing.title}</h1>}
+              {editing.excerpt && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 14, borderLeft: `3px solid ${C.accent}`, paddingLeft: 14, fontStyle: 'italic' }}>{editing.excerpt}</p>}
+              {editing.excerpt && <div style={{ height: 1, background: C.border, marginBottom: 14 }} />}
               {renderMarkdownPreview(editing.content)}
               {!editing.content && <p style={{ color: C.muted, fontSize: 13 }}>Start writing to see preview...</p>}
             </div>
+          )}
+        </div>
+
+        {/* SEO Checklist */}
+        {editMode !== 'preview' && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Publishing Checklist — {seo.score}% ready
+              <span style={{ display: 'inline-block', marginLeft: 10, width: 100, height: 4, background: C.border, borderRadius: 2, verticalAlign: 'middle', position: 'relative', overflow: 'hidden' }}>
+                <span style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${seo.score}%`, background: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red, borderRadius: 2 }} />
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 6 }}>
+              {seo.checks.map(check => (
+                <div key={check.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  <span style={{ color: check.pass ? C.teal : C.red, flexShrink: 0 }}>{check.pass ? '✓' : '✗'}</span>
+                  <span style={{ color: check.pass ? C.text : C.muted }}>{check.label}</span>
+                  <span style={{ color: C.muted, fontSize: 10, marginLeft: 'auto' }}>{check.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
-        <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-        <button onClick={() => savePost('draft')} disabled={saving}
-          style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          {saving ? 'Saving...' : '💾 Save Draft'}
-        </button>
-        <button onClick={() => savePost('published')} disabled={saving}
-          style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-          {saving ? 'Publishing...' : '✦ Publish'}
-        </button>
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+          <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => savePost('draft')} disabled={saving}
+            style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            {saving ? 'Saving...' : '💾 Save Draft'}
+          </button>
+          <button onClick={() => savePost('published')} disabled={saving || seo.score < 60}
+            title={seo.score < 60 ? 'Complete the checklist before publishing' : 'Publish'}
+            style={{ background: seo.score < 60 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: seo.score < 60 ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Publishing...' : seo.score < 60 ? '⚠️ Not Ready' : '✦ Publish'}
+          </button>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ── Posts List ────────────────────────────────────────────────
   return (
