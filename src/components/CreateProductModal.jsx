@@ -2,6 +2,23 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+const TIER_LIMITS = {
+  free:    { gens: 10,  products: 3  },
+  starter: { gens: 50,  products: 15 },
+  pro:     { gens: 200, products: 50 },
+  studio:  { gens: Infinity, products: Infinity },
+}
+
+async function checkProductLimit(userId, tier) {
+  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  const limit = TIER_LIMITS[tier]?.products || 3
+  const { count } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return { allowed: (count || 0) < limit, used: count || 0, limit }
+}
+
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
@@ -197,6 +214,16 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     if (!selected) return setError('Please select a product type.')
     setError(''); setCreating(true)
     try {
+      // Check product limit before proceeding
+      const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+      const tier = prof?.subscription_tier || 'free'
+      const limitCheck = await checkProductLimit(user.id, tier)
+      if (!limitCheck.allowed) {
+        const tierName = tier.charAt(0).toUpperCase() + tier.slice(1)
+        setError(`You've reached your ${limitCheck.limit} product limit on the ${tierName} plan. Delete a product or upgrade your plan to list more.`)
+        setCreating(false)
+        return
+      }
       const allVariantIds = (selected.variants || []).map(v => v.id)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

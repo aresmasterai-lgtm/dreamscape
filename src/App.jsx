@@ -24,6 +24,38 @@ const C = {
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
 }
 
+
+// ── Tier Limits ───────────────────────────────────────────────
+const TIER_LIMITS = {
+  free:    { gens: 10,  products: 3  },
+  starter: { gens: 50,  products: 15 },
+  pro:     { gens: 200, products: 50 },
+  studio:  { gens: Infinity, products: Infinity },
+}
+
+async function checkGenerationLimit(userId, tier) {
+  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  const limit = TIER_LIMITS[tier]?.gens || 10
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0)
+  const { count } = await supabase
+    .from('artwork')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', startOfMonth.toISOString())
+  return { allowed: (count || 0) < limit, used: count || 0, limit }
+}
+
+async function checkProductLimit(userId, tier) {
+  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  const limit = TIER_LIMITS[tier]?.products || 3
+  const { count } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return { allowed: (count || 0) < limit, used: count || 0, limit }
+}
+
 // ── Starfield Background ──────────────────────────────────────
 // Stars generated once at module load — never regenerate on re-render
 const STARS = (() => {
@@ -289,6 +321,42 @@ function SaveModal({ prompt, imageUrl, onSave, onClose }) {
   )
 }
 
+// ── Generation Usage Counter ──────────────────────────────────
+function GenUsageCounter({ user }) {
+  const [usage, setUsage] = useState(null)
+  const [tier, setTier] = useState('free')
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+      const t = prof?.subscription_tier || 'free'
+      setTier(t)
+      if (t === 'studio') { setUsage({ used: '∞', limit: '∞' }); return }
+      const check = await checkGenerationLimit(user.id, t)
+      setUsage({ used: check.used, limit: check.limit })
+    }
+    load()
+  }, [user])
+
+  if (!usage) return null
+  if (tier === 'studio') return (
+    <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, background: C.gold + '18', border: `1px solid ${C.gold}33`, borderRadius: 10, padding: '3px 9px' }}>∞ Studio</span>
+  )
+
+  const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0
+  const color = pct >= 90 ? '#FF4D4D' : pct >= 70 ? C.gold : C.teal
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.muted }}>
+      <div style={{ width: 48, height: 4, background: C.border, borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+      </div>
+      <span style={{ color, fontWeight: 600 }}>{usage.used}/{usage.limit}</span>
+    </div>
+  )
+}
+
 // ── Dream AI Chat ─────────────────────────────────────────────
 const DREAM_STORAGE_KEY = 'dreamscape_dream_session'
 const INITIAL_MESSAGE = { role: 'assistant', content: "✨ Hey! I'm Dream. What are we creating today?" }
@@ -440,6 +508,22 @@ function DreamChat({ user, onSignIn }) {
   }
 
   const generateImage = async (prompt, index, refImage = null) => {
+    // Check generation limit before proceeding
+    if (user) {
+      const tier = (await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()).data?.subscription_tier || 'free'
+      const check = await checkGenerationLimit(user.id, tier)
+      if (!check.allowed) {
+        const tierName = tier.charAt(0).toUpperCase() + tier.slice(1)
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `⚠️ You've used all ${check.limit} generations for this month on the ${tierName} plan. Upgrade your plan to get more generations — or wait until next month.`,
+          isError: false,
+          isLimit: true,
+          tier,
+        }])
+        return
+      }
+    }
     setGeneratingIndex(index)
     try {
       const lastUserWithImage = refImage || [...messages].reverse().find(m => m._refImage)?._refImage || null
@@ -537,6 +621,7 @@ function DreamChat({ user, onSignIn }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
             <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
+          {user && <GenUsageCounter user={user} />}
           {messages.length > 1 && (
             <button onClick={resetChat}
               title="Start a new prompt"
@@ -558,8 +643,11 @@ function DreamChat({ user, onSignIn }) {
                   {isUser && msg._refImage && (
                     <img src={msg._refImage} alt="Reference" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accent}55` }} />
                   )}
-                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.isError ? `${C.red}18` : isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.isError ? `1px solid ${C.red}44` : isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: msg.isError ? '#FF6B6B' : C.text, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.isError ? `${C.red}18` : msg.isLimit ? `${C.gold}12` : isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.isError ? `1px solid ${C.red}44` : msg.isLimit ? `1px solid ${C.gold}44` : isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: msg.isError ? '#FF6B6B' : msg.isLimit ? C.gold : C.text, whiteSpace: 'pre-wrap' }}>
                     {textContent}
+                    {msg.isLimit && (
+                      <a href="/pricing" style={{ display: 'inline-block', marginTop: 8, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>⬆ Upgrade Plan</a>
+                    )}
                     {msg.isError && (
                       <button onClick={() => { setMessages(prev => prev.filter((_, idx) => idx !== i)); send() }}
                         style={{ display: 'block', marginTop: 6, background: 'none', border: `1px solid ${C.red}44`, borderRadius: 6, padding: '3px 10px', color: '#FF6B6B', fontSize: 11, cursor: 'pointer' }}>
