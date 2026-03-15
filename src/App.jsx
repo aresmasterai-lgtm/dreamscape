@@ -14,6 +14,8 @@ import Admin from './components/Admin'
 import Privacy from './components/Privacy'
 import Sitemap from './components/Sitemap'
 import Blog from './components/Blog'
+import Terms from './components/Terms'
+import Contact from './components/Contact'
 import BlogPost from './components/BlogPost'
 
 const C = {
@@ -1657,6 +1659,8 @@ export default function App() {
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/sitemap" element={<Sitemap />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/admin" element={<Admin user={user} profile={profile} />} />
             <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/success" element={<SuccessPage />} />
@@ -1669,11 +1673,12 @@ export default function App() {
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
             <Link to="/blog" style={{ color: C.muted, textDecoration: 'none' }}>Blog</Link>
-            <Link to="/privacy" style={{ color: C.muted, textDecoration: 'none' }}>Privacy Policy</Link>
-            <Link to="/sitemap" style={{ color: C.muted, textDecoration: 'none' }}>Sitemap</Link>
+            <Link to="/marketplace" style={{ color: C.muted, textDecoration: 'none' }}>Marketplace</Link>
             <Link to="/pricing" style={{ color: C.muted, textDecoration: 'none' }}>Pricing</Link>
-            <a href="mailto:support@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Support</a>
-            <a href="mailto:hello@trydreamscape.com" style={{ color: C.muted, textDecoration: 'none' }}>Contact</a>
+            <Link to="/privacy" style={{ color: C.muted, textDecoration: 'none' }}>Privacy Policy</Link>
+            <Link to="/terms" style={{ color: C.muted, textDecoration: 'none' }}>Terms of Service</Link>
+            <Link to="/contact" style={{ color: C.muted, textDecoration: 'none' }}>Contact</Link>
+            <Link to="/sitemap" style={{ color: C.muted, textDecoration: 'none' }}>Sitemap</Link>
             <span>© {new Date().getFullYear()} Dreamscape. All rights reserved.</span>
           </div>
         </div>
