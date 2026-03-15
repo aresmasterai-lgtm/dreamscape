@@ -259,7 +259,7 @@ function SaveModal({ prompt, imageUrl, onSave, onClose }) {
 
 // ── Dream AI Chat ─────────────────────────────────────────────
 const DREAM_STORAGE_KEY = 'dreamscape_dream_session'
-const INITIAL_MESSAGE = { role: 'assistant', content: "✦ Hey, I'm Dream — your AI creative companion. Describe what you want to create and I'll help you bring it to life with a perfect prompt. What are we making today?" }
+const INITIAL_MESSAGE = { role: 'assistant', content: "✨ Hey! I'm Dream. What are we creating today?" }
 
 function DreamChat({ user, onSignIn }) {
   const [messages, setMessages] = useState([INITIAL_MESSAGE])
@@ -374,8 +374,8 @@ function DreamChat({ user, onSignIn }) {
       }
 
       setMessages(prev => {
-        const newMessages = [...prev, { role: 'assistant', content: data.reply || "Here's your prompt — generating now..." }]
-        // Auto-generate using the index of the new AI message
+        const newMessages = [...prev, { role: 'assistant', content: data.reply || "Tell me more about what you're imagining..." }]
+        // Only auto-generate if Dream explicitly produced a prompt AND user asked to generate
         if (data.generationPrompt) {
           const newIndex = newMessages.length - 1
           setTimeout(() => generateImage(data.generationPrompt, newIndex, currentRef), 300)
@@ -551,13 +551,13 @@ function DreamChat({ user, onSignIn }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Happy with this prompt?</span>
+                <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Prompt ready — happy with it?</span>
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
-                  style={{ background: generatingIndex !== null ? C.border : `${C.teal}22`, border: `1px solid ${generatingIndex !== null ? C.border : C.teal + '66'}`, borderRadius: 8, padding: '7px 14px', color: generatingIndex !== null ? C.muted : C.teal, fontSize: 12, fontWeight: 600, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
+                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
                   {generatingIndex !== null ? '⏳ Generating...' : '✦ Generate Image'}
                 </button>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
-                  style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '7px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
+                  style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '8px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
                   {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save Prompt'}
                 </button>
               </div>
@@ -2060,6 +2060,221 @@ function SuccessPage() {
   )
 }
 
+
+// ── Floating Dream Widget ─────────────────────────────────────
+function DreamWidget({ user, onSignIn }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: "✨ Hey! I'm Dream. What's sparking your imagination right now?" }
+  ])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [pulse, setPulse] = useState(true)
+  const [unread, setUnread] = useState(0)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Don't show on /create — full Dream is already there
+  if (location.pathname === '/create') return null
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  useEffect(() => {
+    if (open) {
+      setUnread(0)
+      setPulse(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }, [open])
+
+  // Pulse again after 30s if closed and no unread
+  useEffect(() => {
+    if (!open) {
+      const t = setTimeout(() => setPulse(true), 30000)
+      return () => clearTimeout(t)
+    }
+  }, [open, messages])
+
+  const send = async () => {
+    if (!input.trim() || loading) return
+    const userMsg = { role: 'user', content: input.trim() }
+    const history = [...messages, userMsg]
+    setMessages(history)
+    setInput('')
+    setLoading(true)
+
+    try {
+      const res = await fetch('/api/dream-widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history.slice(-8) }) // last 8 msgs for context
+      })
+      const data = await res.json()
+      const reply = { role: 'assistant', content: data.reply || "Tell me more ✨", nav: data.nav }
+      setMessages(prev => [...prev, reply])
+      if (!open) { setUnread(u => u + 1); setPulse(true) }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "Oops, something went wrong. Try again!" }])
+    }
+    setLoading(false)
+  }
+
+  const handleNav = (path) => {
+    navigate(path)
+    setOpen(false)
+  }
+
+  const NAV_LABELS = {
+    '/create': '✦ Open Dream AI',
+    '/gallery': '🎨 Visit Gallery',
+    '/marketplace': '🛍 Browse Marketplace',
+    '/pricing': '⭐ View Plans',
+    '/blog': '📖 Read the Blog',
+    '/profile': '👤 Your Profile',
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes dreamPulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.5), 0 4px 24px rgba(124,92,252,0.4); }
+          50% { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 4px 32px rgba(124,92,252,0.6); }
+        }
+        @keyframes widgetIn {
+          from { opacity: 0; transform: translateY(16px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes msgIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Chat window */}
+      {open && (
+        <div style={{
+          position: 'fixed', bottom: 90, right: 20, zIndex: 9000,
+          width: 340, maxHeight: 500,
+          background: C.card, border: `1px solid ${C.accent}55`,
+          borderRadius: 20, display: 'flex', flexDirection: 'column',
+          boxShadow: `0 8px 60px rgba(124,92,252,0.3), 0 2px 20px rgba(0,0,0,0.5)`,
+          animation: 'widgetIn 0.3s cubic-bezier(0.16,1,0.3,1)',
+          overflow: 'hidden',
+        }}>
+
+          {/* Header */}
+          <div style={{ padding: '14px 16px', background: `linear-gradient(135deg, ${C.accent}22, ${C.panel})`, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
+              <div style={{ fontSize: 11, color: C.teal }}>● always on</div>
+            </div>
+            <button onClick={() => handleNav('/create')}
+              title="Open full Dream AI"
+              style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 7, padding: '4px 10px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+              Full ↗
+            </button>
+            <button onClick={() => setOpen(false)}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 200, maxHeight: 340 }}>
+            {messages.map((msg, i) => {
+              const isUser = msg.role === 'user'
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', animation: 'msgIn 0.25s ease' }}>
+                  <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 6, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+                    <div style={{
+                      padding: '9px 13px',
+                      borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                      background: isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel,
+                      border: isUser ? 'none' : `1px solid ${C.border}`,
+                      fontSize: 13, lineHeight: 1.6, color: C.text,
+                    }}>
+                      {msg.content}
+                    </div>
+                    {/* Navigation suggestion */}
+                    {msg.nav && msg.nav.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%' }}>
+                        {msg.nav.map(path => (
+                          <button key={path} onClick={() => handleNav(path)}
+                            style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 14px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
+                            {NAV_LABELS[path] || path}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {loading && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: '14px 14px 14px 4px', padding: '10px 14px', display: 'flex', gap: 4 }}>
+                  {[0,1,2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, background: C.panel }}>
+            {!user ? (
+              <button onClick={() => { onSignIn(); setOpen(false) }}
+                style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Sign In to Chat with Dream ✦
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                  placeholder="Ask Dream anything..."
+                  style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+                <button onClick={send} disabled={loading || !input.trim()}
+                  style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 14px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>
+                  ✦
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating button */}
+      <button onClick={() => setOpen(o => !o)}
+        style={{
+          position: 'fixed', bottom: 20, right: 20, zIndex: 9001,
+          width: 56, height: 56, borderRadius: '50%',
+          background: open ? C.panel : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+          border: open ? `2px solid ${C.accent}55` : 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, color: '#fff', cursor: 'pointer',
+          animation: pulse && !open ? 'dreamPulse 2s ease-in-out infinite' : 'none',
+          transition: 'all 0.2s ease',
+          boxShadow: open ? 'none' : '0 4px 24px rgba(124,92,252,0.4)',
+        }}>
+        {open ? '✕' : '✦'}
+        {/* Unread badge */}
+        {!open && unread > 0 && (
+          <div style={{
+            position: 'absolute', top: -2, right: -2,
+            width: 18, height: 18, borderRadius: '50%',
+            background: C.teal, border: `2px solid ${C.bg}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, fontWeight: 900, color: C.bg,
+          }}>{unread}</div>
+        )}
+      </button>
+    </>
+  )
+}
+
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
   usePageTracking()
@@ -2118,6 +2333,7 @@ export default function App() {
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
+        <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
