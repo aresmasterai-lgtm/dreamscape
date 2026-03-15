@@ -860,6 +860,272 @@ function BlogTab() {
   )
 }
 
+
+// ── DevTools Tab ──────────────────────────────────────────────
+function DevToolsTab() {
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all') // all | new | investigating | resolved
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState(null)
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => { loadLogs() }, [filter, typeFilter])
+
+  const loadLogs = async () => {
+    setLoading(true)
+    try {
+      let q = supabase
+        .from('error_logs')
+        .select('*, profiles(username)')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (filter !== 'all') q = q.eq('status', filter)
+      if (typeFilter !== 'all') q = q.eq('type', typeFilter)
+      const { data } = await q
+      setLogs(data || [])
+
+      // Stats
+      const [
+        { count: total },
+        { count: newCount },
+        { count: investigating },
+      ] = await Promise.all([
+        supabase.from('error_logs').select('id', { count: 'exact', head: true }),
+        supabase.from('error_logs').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+        supabase.from('error_logs').select('id', { count: 'exact', head: true }).eq('status', 'investigating'),
+      ])
+      setStats({ total: total || 0, new: newCount || 0, investigating: investigating || 0 })
+    } catch {}
+    setLoading(false)
+  }
+
+  const updateStatus = async (id, status) => {
+    await supabase.from('error_logs').update({ status, resolved_at: status === 'resolved' ? new Date().toISOString() : null }).eq('id', id)
+    setLogs(prev => prev.map(l => l.id === id ? { ...l, status } : l))
+    if (selected?.id === id) setSelected(prev => ({ ...prev, status }))
+  }
+
+  const deleteLog = async (id) => {
+    await supabase.from('error_logs').delete().eq('id', id)
+    setLogs(prev => prev.filter(l => l.id !== id))
+    if (selected?.id === id) setSelected(null)
+  }
+
+  const clearResolved = async () => {
+    await supabase.from('error_logs').delete().eq('status', 'resolved')
+    setLogs(prev => prev.filter(l => l.status !== 'resolved'))
+  }
+
+  const STATUS_COLORS = {
+    new: C.red,
+    investigating: C.gold,
+    resolved: C.teal,
+    ignored: C.muted,
+  }
+
+  const TYPE_COLORS = {
+    react_crash: C.red,
+    uncaught_error: '#FF6B35',
+    unhandled_rejection: C.gold,
+    api_error: C.accent,
+  }
+
+  const TYPE_LABELS = {
+    react_crash: '💥 React Crash',
+    uncaught_error: '⚠️ JS Error',
+    unhandled_rejection: '🔴 Promise Rejection',
+    api_error: '🌐 API Error',
+  }
+
+  const filtered = logs.filter(l =>
+    !search ||
+    l.message?.toLowerCase().includes(search.toLowerCase()) ||
+    l.page?.toLowerCase().includes(search.toLowerCase()) ||
+    l.profiles?.username?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const uniqueTypes = [...new Set(logs.map(l => l.type))]
+
+  return (
+    <div style={{ display: 'flex', gap: 16, height: '70vh', minHeight: 500 }}>
+      {/* Left panel — log list */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+        {/* Stats row */}
+        {stats && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+            {[
+              ['Total Errors', stats.total, C.muted],
+              ['New', stats.new, C.red],
+              ['Investigating', stats.investigating, C.gold],
+            ].map(([label, val, color]) => (
+              <div key={label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 900, fontFamily: 'Playfair Display, serif', color }}>{val}</div>
+                <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search errors, pages, users..."
+            style={{ flex: 1, minWidth: 160, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 12px', color: C.text, fontSize: 12, outline: 'none' }} />
+          <button onClick={clearResolved} style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '7px 12px', color: C.teal, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Clear Resolved</button>
+          <button onClick={loadLogs} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: '7px 12px', color: C.accent, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>↻ Refresh</button>
+        </div>
+
+        {/* Status filter */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          {['all', 'new', 'investigating', 'resolved', 'ignored'].map(s => (
+            <button key={s} onClick={() => setFilter(s)}
+              style={{ background: filter === s ? `${STATUS_COLORS[s] || C.accent}20` : 'none', border: `1px solid ${filter === s ? (STATUS_COLORS[s] || C.accent) + '55' : C.border}`, borderRadius: 20, padding: '3px 12px', color: filter === s ? (STATUS_COLORS[s] || C.accent) : C.muted, fontSize: 11, fontWeight: filter === s ? 700 : 400, cursor: 'pointer' }}>
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Type filter */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => setTypeFilter('all')}
+            style={{ background: typeFilter === 'all' ? `${C.accent}20` : 'none', border: `1px solid ${typeFilter === 'all' ? C.accent + '55' : C.border}`, borderRadius: 20, padding: '3px 12px', color: typeFilter === 'all' ? C.accent : C.muted, fontSize: 11, cursor: 'pointer' }}>
+            All Types
+          </button>
+          {uniqueTypes.map(t => (
+            <button key={t} onClick={() => setTypeFilter(t)}
+              style={{ background: typeFilter === t ? `${TYPE_COLORS[t] || C.muted}20` : 'none', border: `1px solid ${typeFilter === t ? (TYPE_COLORS[t] || C.muted) + '55' : C.border}`, borderRadius: 20, padding: '3px 12px', color: typeFilter === t ? (TYPE_COLORS[t] || C.muted) : C.muted, fontSize: 11, cursor: 'pointer' }}>
+              {TYPE_LABELS[t] || t}
+            </button>
+          ))}
+        </div>
+
+        {/* Log list */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {loading ? <Spinner /> : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: C.muted, fontSize: 14 }}>
+              {logs.length === 0 ? '✅ No errors logged — all clear!' : 'No errors match your filters'}
+            </div>
+          ) : filtered.map(log => (
+            <div key={log.id} onClick={() => setSelected(log)}
+              style={{ background: selected?.id === log.id ? `${C.accent}15` : C.card, border: `1px solid ${selected?.id === log.id ? C.accent + '55' : log.status === 'new' ? C.red + '33' : C.border}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => { if (selected?.id !== log.id) e.currentTarget.style.borderColor = C.accent + '44' }}
+              onMouseLeave={e => { if (selected?.id !== log.id) e.currentTarget.style.borderColor = log.status === 'new' ? C.red + '33' : C.border }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 10, background: (STATUS_COLORS[log.status] || C.muted) + '20', border: `1px solid ${(STATUS_COLORS[log.status] || C.muted)}44`, borderRadius: 10, padding: '1px 7px', color: STATUS_COLORS[log.status] || C.muted, fontWeight: 700, textTransform: 'uppercase', flexShrink: 0 }}>
+                  {log.status}
+                </span>
+                <span style={{ fontSize: 10, color: TYPE_COLORS[log.type] || C.muted, fontWeight: 600 }}>{TYPE_LABELS[log.type] || log.type}</span>
+                <span style={{ fontSize: 10, color: C.muted, marginLeft: 'auto', flexShrink: 0 }}>
+                  {new Date(log.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {log.message || 'No message'}
+              </div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 11, color: C.muted }}>
+                <span>📍 {log.page || '/'}</span>
+                {log.profiles?.username && <span>👤 @{log.profiles.username}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right panel — error detail */}
+      {selected ? (
+        <div style={{ width: 340, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Error Detail</h3>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
+
+          {/* Type + Status */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, background: (TYPE_COLORS[selected.type] || C.muted) + '20', border: `1px solid ${(TYPE_COLORS[selected.type] || C.muted)}44`, borderRadius: 20, padding: '3px 10px', color: TYPE_COLORS[selected.type] || C.muted, fontWeight: 700 }}>
+              {TYPE_LABELS[selected.type] || selected.type}
+            </span>
+            <span style={{ fontSize: 11, background: (STATUS_COLORS[selected.status] || C.muted) + '20', border: `1px solid ${(STATUS_COLORS[selected.status] || C.muted)}44`, borderRadius: 20, padding: '3px 10px', color: STATUS_COLORS[selected.status] || C.muted, fontWeight: 700 }}>
+              {selected.status}
+            </span>
+          </div>
+
+          {/* Message */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Message</div>
+            <div style={{ background: C.bg, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: C.red, fontFamily: 'monospace', lineHeight: 1.6, wordBreak: 'break-word' }}>
+              {selected.message || 'No message'}
+            </div>
+          </div>
+
+          {/* Page + User */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.muted }}>Page</span>
+              <span style={{ color: C.accent, fontWeight: 600 }}>{selected.page || '/'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.muted }}>User</span>
+              <span style={{ color: C.text }}>
+                {selected.profiles?.username ? `@${selected.profiles.username}` : selected.user_id ? 'Logged in' : 'Anonymous'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: C.muted }}>Time</span>
+              <span style={{ color: C.text }}>{new Date(selected.created_at).toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Stack trace */}
+          {selected.stack && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Stack Trace</div>
+              <div style={{ background: C.bg, borderRadius: 8, padding: '10px 12px', fontSize: 10, color: C.muted, fontFamily: 'monospace', lineHeight: 1.7, maxHeight: 180, overflowY: 'auto', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                {selected.stack}
+              </div>
+            </div>
+          )}
+
+          {/* Metadata */}
+          {selected.metadata && Object.keys(selected.metadata).length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Metadata</div>
+              <div style={{ background: C.bg, borderRadius: 8, padding: '10px 12px', fontSize: 10, color: C.muted, fontFamily: 'monospace', lineHeight: 1.7, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                {JSON.stringify(selected.metadata, null, 2)}
+              </div>
+            </div>
+          )}
+
+          {/* Status actions */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Update Status</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {['new', 'investigating', 'resolved', 'ignored'].map(s => (
+                <button key={s} onClick={() => updateStatus(selected.id, s)}
+                  disabled={selected.status === s}
+                  style={{ background: selected.status === s ? (STATUS_COLORS[s] || C.muted) + '30' : 'none', border: `1px solid ${(STATUS_COLORS[s] || C.muted)}${selected.status === s ? '88' : '44'}`, borderRadius: 8, padding: '7px', color: STATUS_COLORS[s] || C.muted, fontSize: 11, fontWeight: selected.status === s ? 700 : 400, cursor: selected.status === s ? 'default' : 'pointer', textTransform: 'capitalize' }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={() => deleteLog(selected.id)}
+            style={{ background: `${C.red}15`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '8px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            🗑 Delete Log
+          </button>
+        </div>
+      ) : (
+        <div style={{ width: 340, flexShrink: 0, background: C.card, border: `1px dashed ${C.border}`, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, color: C.muted }}>
+          <span style={{ fontSize: 32 }}>🔍</span>
+          <span style={{ fontSize: 13 }}>Click an error to inspect it</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Dashboard ───────────────────────────────────────────
 export default function Admin({ user, profile }) {
   const navigate = useNavigate()
@@ -889,7 +1155,7 @@ export default function Admin({ user, profile }) {
 
   if (!profile?.is_admin) return null
 
-  const tabs = [['users', '👥 Users'], ['orders', '📦 Orders'], ['content', '🎨 Content'], ['blog', '✍️ Blog']]
+  const tabs = [['users', '👥 Users'], ['orders', '📦 Orders'], ['content', '🎨 Content'], ['blog', '✍️ Blog'], ['devtools', '🛠 DevTools']]
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1000, margin: '0 auto' }}>
@@ -924,6 +1190,7 @@ export default function Admin({ user, profile }) {
       {tab === 'orders' && <OrdersTab />}
       {tab === 'content' && <ContentTab />}
       {tab === 'blog' && <BlogTab />}
+      {tab === 'devtools' && <DevToolsTab />}
     </div>
   )
 }
