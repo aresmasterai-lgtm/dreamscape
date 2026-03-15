@@ -434,8 +434,19 @@ function DreamChat({ user, onSignIn }) {
   const [createProductImage, setCreateProductImage] = useState(null)
   const [bottomEl, setBottomEl] = useState(null)
   const [referenceImage, setReferenceImage] = useState(null)
-  const [sessionPrompt, setSessionPrompt] = useState(null) // 'restore' | null
+  const [sessionPrompt, setSessionPrompt] = useState(null)
   const fileInputRef = useRef(null)
+  const mountedRef = useRef(true)
+  const genTimeoutRef = useRef(null)
+
+  // Track mounted state — prevent setState after unmount
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current)
+    }
+  }, [])
 
   // On mount — check for saved session — fully wrapped in try/catch
   useEffect(() => {
@@ -564,25 +575,34 @@ function DreamChat({ user, onSignIn }) {
       const res = await fetch('/api/dream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) })
       const data = await res.json()
 
+      if (!mountedRef.current) return
       if (data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
         setLoading(false)
         return
       }
 
-      setMessages(prev => {
-        const newMessages = [...prev, { role: 'assistant', content: data.reply || "Tell me more about what you're imagining..." }]
-        // Only auto-generate if Dream explicitly produced a prompt AND user asked to generate
-        if (data.generationPrompt) {
-          const newIndex = newMessages.length - 1
-          setTimeout(() => generateImage(data.generationPrompt, newIndex, currentRef), 300)
-        }
-        return newMessages
-      })
+      if (!mountedRef.current) return
+      const replyMsg = { role: 'assistant', content: data.reply || "Tell me more about what you're imagining..." }
+      setMessages(prev => [...prev, replyMsg])
       setLoading(false)
+      // Schedule generation OUTSIDE setState — safe async trigger
+      if (data.generationPrompt && mountedRef.current) {
+        genTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            setMessages(prev => {
+              const newIndex = prev.length - 1
+              generateImage(data.generationPrompt, newIndex, currentRef)
+              return prev
+            })
+          }
+        }, 300)
+      }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.', isError: true }])
-      setLoading(false)
+      if (mountedRef.current) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.', isError: true }])
+        setLoading(false)
+      }
     }
   }
 
@@ -596,26 +616,28 @@ function DreamChat({ user, onSignIn }) {
   }
 
   const generateImage = async (prompt, index, refImage = null) => {
-    if (!prompt || typeof prompt !== 'string') {
-      console.warn('generateImage called with invalid prompt:', prompt)
-      return
-    }
-    // Check generation limit before proceeding
+    if (!prompt || typeof prompt !== 'string') return
+    if (!mountedRef.current) return
+    // Check generation limit
     if (user) {
-      const tier = (await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()).data?.subscription_tier || 'free'
-      const check = await checkGenerationLimit(user.id, tier)
-      if (!check.allowed) {
-        const tierName = tier.charAt(0).toUpperCase() + tier.slice(1)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `⚠️ You've used all ${check.limit} generations for this month on the ${tierName} plan. Upgrade your plan to get more generations — or wait until next month.`,
-          isError: false,
-          isLimit: true,
-          tier,
-        }])
-        return
-      }
+      try {
+        const { data: profData } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+        if (!mountedRef.current) return
+        const tier = profData?.subscription_tier || 'free'
+        const check = await checkGenerationLimit(user.id, tier)
+        if (!mountedRef.current) return
+        if (!check.allowed) {
+          const tierName = tier.charAt(0).toUpperCase() + tier.slice(1)
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `⚠️ You've used all ${check.limit} generations this month on the ${tierName} plan.`,
+            isLimit: true,
+          }])
+          return
+        }
+      } catch {}
     }
+    if (!mountedRef.current) return
     setGeneratingIndex(index)
     try {
       const lastUserWithImage = refImage || [...messages].reverse().find(m => m._refImage)?._refImage || null
@@ -623,17 +645,21 @@ function DreamChat({ user, onSignIn }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, referenceImage: lastUserWithImage })
       })
+      if (!mountedRef.current) return
       const data = await res.json()
+      if (!mountedRef.current) return
       if (data.success) {
         setGeneratedImages(prev => ({ ...prev, [index]: `data:${data.mimeType};base64,${data.imageData}` }))
       } else {
-        // Show error in chat instead of alert
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error || 'Image generation failed.'} Try describing your idea differently or click Generate Image to try again.` }])
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error || 'Image generation failed.'} Try rephrasing or click Generate again.` }])
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Connection error during image generation. Please try again.' }])
+      if (mountedRef.current) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Connection error during generation. Please try again.' }])
+      }
+    } finally {
+      if (mountedRef.current) setGeneratingIndex(null)
     }
-    finally { setGeneratingIndex(null) }
   }
 
   const ERROR_MSGS = ['Connection error. Please try again.', 'Sorry, something went wrong. Please try again.']
