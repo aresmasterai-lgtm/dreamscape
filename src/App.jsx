@@ -26,16 +26,37 @@ const C = {
 
 // ── Starfield Background ──────────────────────────────────────
 function StarField() {
-  const stars = Array.from({ length: 60 }, (_, i) => ({
-    id: i,
-    top: Math.random() * 100,
-    left: Math.random() * 100,
-    size: Math.random() * 18 + 8,
-    duration: Math.random() * 6 + 4,
-    delay: Math.random() * 8,
-    opacity: Math.random() * 0.25 + 0.05,
-    grow: Math.random() * 1.8 + 1.2,
-  }))
+  // Generate stars only in the peripheral zones — edges and corners
+  // Avoid the center 60% wide x 70% tall where content lives
+  const generatePeripheral = (count) => {
+    const stars = []
+    let attempts = 0
+    while (stars.length < count && attempts < 500) {
+      attempts++
+      const top = Math.random() * 100
+      const left = Math.random() * 100
+      // Keep stars in peripheral zones: top strip, bottom strip, left strip, right strip
+      const inTopStrip = top < 18
+      const inBottomStrip = top > 82
+      const inLeftStrip = left < 12
+      const inRightStrip = left > 88
+      const inCorner = (top < 30 && left < 20) || (top < 30 && left > 80) || (top > 70 && left < 20) || (top > 70 && left > 80)
+      if (inTopStrip || inBottomStrip || inLeftStrip || inRightStrip || inCorner) {
+        stars.push({
+          id: stars.length,
+          top, left,
+          size: Math.random() * 16 + 6,
+          duration: Math.random() * 6 + 4,
+          delay: Math.random() * 8,
+          opacity: Math.random() * 0.2 + 0.04,
+          grow: Math.random() * 1.6 + 1.2,
+        })
+      }
+    }
+    return stars
+  }
+
+  const stars = generatePeripheral(40)
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
       <style>{`
