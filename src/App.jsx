@@ -344,6 +344,15 @@ function DreamChat({ user, onSignIn }) {
   const send = async () => {
     if (!input.trim() || loading) return
 
+    // If user says yes/go after a prompt is ready — just generate immediately
+    const YES_TRIGGERS = ['yes', 'yeah', 'yep', 'go', 'do it', 'make it', 'generate', 'create it', "let's go", 'yes please', 'go ahead', 'absolutely', 'sure', 'perfect', 'love it']
+    if (YES_TRIGGERS.includes(input.trim().toLowerCase()) && lastAiIndex >= 0 && !generatedImages[lastAiIndex]) {
+      setMessages(prev => [...prev, { role: 'user', content: input.trim() }])
+      setInput('')
+      generateImage(messages[lastAiIndex].content, lastAiIndex)
+      return
+    }
+
     let userContent
     if (referenceImage) {
       const base64 = referenceImage.dataUrl.split(',')[1]
@@ -562,8 +571,9 @@ function DreamChat({ user, onSignIn }) {
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Prompt ready — happy with it?</span>
+                <style>{`@keyframes generatePulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.5)} 50%{box-shadow:0 0 0 8px rgba(0,212,170,0)} }`}</style>
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
-                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
+                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer', animation: generatingIndex === null ? 'generatePulse 2s ease-in-out infinite' : 'none' }}>
                   {generatingIndex !== null ? '⏳ Generating...' : '✦ Generate Image'}
                 </button>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}

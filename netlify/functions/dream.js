@@ -79,9 +79,14 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     // Clean display text
     const displayText = replyText.replace(/<prompt>[\s\S]*?<\/prompt>/g, '').trim()
 
+    // If Dream produced a prompt, append a friendly nudge
+    const finalReply = extractedPrompt
+      ? `${displayText}\n\nWant me to generate this right now? Hit the ✦ Generate Image button or just say "yes" and I'll bring it to life! 🎨`
+      : displayText || replyText
+
     return new Response(
       JSON.stringify({
-        reply: displayText || replyText,
+        reply: finalReply,
         generationPrompt: extractedPrompt,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
