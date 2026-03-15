@@ -432,7 +432,7 @@ function DreamChat({ user, onSignIn }) {
   const [generatedImages, setGeneratedImages] = useState({})
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
-  const [bottomEl, setBottomEl] = useState(null)
+  const bottomRef = useRef(null)
   const [referenceImage, setReferenceImage] = useState(null)
   const [sessionPrompt, setSessionPrompt] = useState(null)
   const fileInputRef = useRef(null)
@@ -501,7 +501,7 @@ function DreamChat({ user, onSignIn }) {
     return () => clearTimeout(timer)
   }, [messages, user?.id])
 
-  useEffect(() => { bottomEl?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
   const restoreSession = () => {
     if (!sessionPrompt) return
@@ -786,7 +786,7 @@ function DreamChat({ user, onSignIn }) {
               </div>
             </div>
           )}
-          <div ref={el => setBottomEl(el)} />
+          <div ref={bottomRef} />
         </div>
         {lastAiIndex >= 0 && !loading && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
@@ -2127,6 +2127,14 @@ function DiscoverPage({ user, onSignIn }) {
 }
 
 // ── Create Page (/create) ─────────────────────────────────────
+// ── Isolated Create Page — remounts cleanly every visit ─────
+function IsolatedCreatePage({ user, onSignIn }) {
+  const { pathname } = useLocation()
+  // key forces full remount each time user navigates to /create
+  // this clears any stale state from previous visits
+  return <CreatePage key={`create-${user?.id || 'guest'}`} user={user} onSignIn={onSignIn} />
+}
+
 function CreatePage({ user, onSignIn }) {
   useMeta({ title: 'Create with Dream AI', description: 'Generate AI art with Dream AI — describe your vision and create stunning artwork.' })
   return (
@@ -2615,7 +2623,7 @@ export default function App() {
               <Route path="/channels/:channelName" element={<Navigate to="/marketplace" replace />} />
               <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
-              <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/create" element={<IsolatedCreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
               <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
