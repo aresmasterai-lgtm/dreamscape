@@ -31,16 +31,18 @@
     </script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #080B14; font-family: 'DM Sans', sans-serif; overflow: hidden; }
+      body { background: #080B14; font-family: 'DM Sans', sans-serif; }
 
       #splash {
         position: fixed; inset: 0; z-index: 9999;
         background: #080B14;
-        display: flex; flex-direction: column;
+        display: none;
+        flex-direction: column;
         align-items: center; justify-content: center;
         text-align: center; padding: 20px;
         transition: opacity 0.9s cubic-bezier(0.4,0,0.2,1), transform 0.9s cubic-bezier(0.4,0,0.2,1);
       }
+      #splash.visible { display: flex; }
       #splash.fade-out { opacity: 0; transform: scale(1.05); pointer-events: none; }
 
       .nebula {
@@ -211,8 +213,7 @@
       }
 
       /* App hidden until splash dismissed — opacity only, never display:none so crawlers see content */
-      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; }
-      #root.visible { opacity: 1; }
+      #root { opacity: 1; min-height: 100vh; }
       /* Always allow scroll once app is ready */
       /* body overflow managed by JS only, never in CSS */
       body.app-ready { overflow: auto; }
@@ -254,27 +255,25 @@
         const SPLASH_KEY = 'ds_last_splash'
         const FIFTEEN_MINS = 15 * 60 * 1000
         const splash = document.getElementById('splash')
-        const root = document.getElementById('root')
 
-        function skipSplash() {
-          splash.style.display = 'none'
-          root.classList.add('visible')
-          root.style.opacity = '1'
-          document.body.style.overflow = ''
-          document.body.classList.add('app-ready')
-        }
+        // Check if we should show splash BEFORE making it visible
+        // This prevents any flash — splash stays hidden (display:none) until we decide
 
         // Always skip for bots
         const bots = /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|msnbot|crawler|spider|bot|prerender/i
-        if (bots.test(navigator.userAgent)) { skipSplash(); return }
+        if (bots.test(navigator.userAgent)) return
 
-        // Skip if visited within last 2 hours
+        // Skip if visited within last 15 minutes
         try {
           const last = localStorage.getItem(SPLASH_KEY)
-          if (last && (Date.now() - parseInt(last)) < FIFTEEN_MINS) { skipSplash(); return }
+          if (last && (Date.now() - parseInt(last)) < FIFTEEN_MINS) return
         } catch(e) {}
 
-        // Show splash — generate stars
+        // Decision: show splash — lock scroll and make it visible
+        document.body.style.overflow = 'hidden'
+        splash.classList.add('visible')
+
+        // Generate stars
         const el = document.getElementById('splash-stars')
         for (let i = 0; i < 55; i++) {
           const s = document.createElement('div')
@@ -288,14 +287,10 @@
 
       function enterDreamscape() {
         const splash = document.getElementById('splash')
-        const root = document.getElementById('root')
         splash.classList.add('fade-out')
-        root.classList.add('visible')
         document.body.style.overflow = ''
-        document.body.classList.add('app-ready')
-        // Save timestamp so splash won't show for 2 hours
         try { localStorage.setItem('ds_last_splash', Date.now().toString()) } catch(e) {}
-        setTimeout(() => { splash.style.display = 'none' }, 900)
+        setTimeout(() => { splash.classList.remove('visible'); splash.classList.remove('fade-out') }, 900)
       }
     </script>
   </body>
