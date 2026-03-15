@@ -46,7 +46,83 @@ function StarField() {
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
+        @keyframes nebula1 {
+          0%   { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.13; }
+          25%  { transform: translate(4%, -3%) scale(1.08) rotate(8deg); opacity: 0.18; }
+          50%  { transform: translate(-3%, 5%) scale(0.95) rotate(-5deg); opacity: 0.11; }
+          75%  { transform: translate(5%, 2%) scale(1.05) rotate(12deg); opacity: 0.16; }
+          100% { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.13; }
+        }
+        @keyframes nebula2 {
+          0%   { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.10; }
+          33%  { transform: translate(-5%, 4%) scale(1.1) rotate(-10deg); opacity: 0.15; }
+          66%  { transform: translate(4%, -4%) scale(0.92) rotate(6deg); opacity: 0.08; }
+          100% { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.10; }
+        }
+        @keyframes nebula3 {
+          0%   { transform: translate(0%, 0%) scale(1); opacity: 0.08; }
+          50%  { transform: translate(3%, -5%) scale(1.12); opacity: 0.14; }
+          100% { transform: translate(0%, 0%) scale(1); opacity: 0.08; }
+        }
+        @keyframes colorCycle {
+          0%   { filter: hue-rotate(0deg) saturate(1.2); }
+          25%  { filter: hue-rotate(60deg) saturate(1.5); }
+          50%  { filter: hue-rotate(150deg) saturate(1.3); }
+          75%  { filter: hue-rotate(240deg) saturate(1.4); }
+          100% { filter: hue-rotate(360deg) saturate(1.2); }
+        }
       `}</style>
+
+      {/* Nebula layer */}
+      <div style={{ position: 'absolute', inset: 0, animation: 'colorCycle 30s ease-in-out infinite' }}>
+        {/* Main nebula — top left */}
+        <div style={{
+          position: 'absolute', top: '-10%', left: '-5%',
+          width: '60%', height: '60%',
+          background: 'radial-gradient(ellipse at 40% 40%, rgba(124,92,252,0.5) 0%, rgba(75,47,208,0.3) 30%, rgba(0,212,170,0.15) 60%, transparent 80%)',
+          borderRadius: '60% 40% 50% 50%',
+          filter: 'blur(40px)',
+          animation: 'nebula1 25s ease-in-out infinite',
+        }} />
+        {/* Secondary nebula — bottom right */}
+        <div style={{
+          position: 'absolute', bottom: '-15%', right: '-10%',
+          width: '55%', height: '55%',
+          background: 'radial-gradient(ellipse at 60% 60%, rgba(255,107,157,0.4) 0%, rgba(124,92,252,0.25) 35%, rgba(0,180,216,0.15) 65%, transparent 85%)',
+          borderRadius: '40% 60% 45% 55%',
+          filter: 'blur(50px)',
+          animation: 'nebula2 32s ease-in-out infinite',
+        }} />
+        {/* Accent nebula — center */}
+        <div style={{
+          position: 'absolute', top: '30%', left: '35%',
+          width: '45%', height: '45%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(0,212,170,0.2) 0%, rgba(245,200,66,0.1) 40%, rgba(124,92,252,0.15) 70%, transparent 90%)',
+          borderRadius: '50% 50% 40% 60%',
+          filter: 'blur(60px)',
+          animation: 'nebula3 20s ease-in-out infinite',
+        }} />
+        {/* Top right accent */}
+        <div style={{
+          position: 'absolute', top: '-5%', right: '5%',
+          width: '35%', height: '40%',
+          background: 'radial-gradient(ellipse at 50% 30%, rgba(0,180,216,0.25) 0%, rgba(124,92,252,0.15) 50%, transparent 80%)',
+          borderRadius: '45% 55% 60% 40%',
+          filter: 'blur(45px)',
+          animation: 'nebula1 28s ease-in-out infinite reverse',
+        }} />
+        {/* Bottom left accent */}
+        <div style={{
+          position: 'absolute', bottom: '5%', left: '5%',
+          width: '40%', height: '35%',
+          background: 'radial-gradient(ellipse at 40% 70%, rgba(245,200,66,0.15) 0%, rgba(255,107,157,0.12) 45%, transparent 75%)',
+          borderRadius: '55% 45% 40% 60%',
+          filter: 'blur(55px)',
+          animation: 'nebula2 22s ease-in-out infinite reverse',
+        }} />
+      </div>
+
+      {/* Stars on top */}
       {stars.map(s => (
         <div key={s.id} style={{
           position: 'absolute',
@@ -1365,10 +1441,19 @@ function Navbar({ user, profile, signOut, onSignIn }) {
 
         {/* Logo */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}
-          onMouseDown={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.gold}, #E6A800)`}
-          onMouseUp={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`}
-          onMouseLeave={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`}>
-          <div className="logo-icon" style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#ffffff', transition: 'background 0.2s', flexShrink: 0 }}>✦</div>
+          onMouseDown={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = '#E8EAF0'
+            e.currentTarget.querySelector('.logo-icon').style.color = C.accent
+          }}
+          onMouseUp={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`
+            e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`
+            e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff'
+          }}>
+          <div className="logo-icon" style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#ffffff', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>✦</div>
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20 }}>
             <span style={{ color: '#E8EAF0' }}>Dream</span><span style={{ color: C.accent }}>scape</span>
           </span>
