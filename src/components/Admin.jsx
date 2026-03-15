@@ -276,12 +276,87 @@ function ContentTab() {
 }
 
 // ── Blog Tab ──────────────────────────────────────────────────
+function renderMarkdownPreview(content) {
+  if (!content) return []
+  const lines = content.split('\n')
+  const elements = []
+  let i = 0
+  let k = 0
+  const key = () => k++
+
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.trim() === '') { i++; continue }
+    if (line.startsWith('# ')) { elements.push(<h1 key={key()} style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 900, color: C.text, marginBottom: 12, marginTop: 24 }}>{line.slice(2)}</h1>); i++; continue }
+    if (line.startsWith('## ')) { elements.push(<h2 key={key()} style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 10, marginTop: 28 }}>{line.slice(3)}</h2>); i++; continue }
+    if (line.startsWith('### ')) { elements.push(<h3 key={key()} style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 8, marginTop: 20 }}>{line.slice(4)}</h3>); i++; continue }
+    if (line.startsWith('> [!TIP]')) {
+      const tips = []; i++
+      while (i < lines.length && lines[i].startsWith('> ')) { tips.push(lines[i].slice(2)); i++ }
+      elements.push(<div key={key()} style={{ background: `${C.teal}15`, border: `1px solid ${C.teal}44`, borderLeft: `4px solid ${C.teal}`, borderRadius: '0 10px 10px 0', padding: '14px 18px', marginBottom: 16 }}><div style={{ fontSize: 10, fontWeight: 700, color: C.teal, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>💡 Tip</div><div style={{ color: C.text, fontSize: 13, lineHeight: 1.7 }}>{tips.join(' ')}</div></div>)
+      continue
+    }
+    if (line.startsWith('> [!WARNING]')) {
+      const warns = []; i++
+      while (i < lines.length && lines[i].startsWith('> ')) { warns.push(lines[i].slice(2)); i++ }
+      elements.push(<div key={key()} style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderLeft: `4px solid ${C.gold}`, borderRadius: '0 10px 10px 0', padding: '14px 18px', marginBottom: 16 }}><div style={{ fontSize: 10, fontWeight: 700, color: C.gold, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>⚠️ Note</div><div style={{ color: C.text, fontSize: 13, lineHeight: 1.7 }}>{warns.join(' ')}</div></div>)
+      continue
+    }
+    if (line.startsWith('> ')) {
+      const qs = []; while (i < lines.length && lines[i].startsWith('> ')) { qs.push(lines[i].slice(2)); i++ }
+      elements.push(<blockquote key={key()} style={{ borderLeft: `3px solid ${C.accent}`, paddingLeft: 16, margin: '16px 0', color: C.muted, fontStyle: 'italic', fontSize: 15, lineHeight: 1.7 }}>{qs.join(' ')}</blockquote>)
+      continue
+    }
+    if (line.startsWith('```')) {
+      const code = []; i++
+      while (i < lines.length && !lines[i].startsWith('```')) { code.push(lines[i]); i++ }
+      i++
+      elements.push(<pre key={key()} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16, fontFamily: 'monospace', fontSize: 12, color: C.teal, lineHeight: 1.6, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{code.join('\n')}</pre>)
+      continue
+    }
+    const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+    if (imgMatch) {
+      elements.push(<img key={key()} src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', borderRadius: 10, marginBottom: 16 }} />)
+      i++; continue
+    }
+    if (line.trim() === '[PROMPT]') {
+      const pl = []; i++
+      while (i < lines.length && lines[i].trim() !== '[/PROMPT]') { pl.push(lines[i]); i++ }
+      i++
+      elements.push(<div key={key()} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '16px 20px', margin: '16px 0' }}><div style={{ fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>✦ Example Prompt</div><pre style={{ fontFamily: 'monospace', fontSize: 13, color: C.text, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{pl.join('\n')}</pre></div>)
+      continue
+    }
+    if (line.trim() === '---') { elements.push(<div key={key()} style={{ height: 1, background: C.border, margin: '20px 0' }} />); i++; continue }
+    if (line.match(/^[-*] /)) {
+      const items = []; while (i < lines.length && lines[i].match(/^[-*] /)) { items.push(lines[i].slice(2)); i++ }
+      elements.push(<ul key={key()} style={{ margin: '8px 0 16px', paddingLeft: 0, listStyle: 'none' }}>{items.map((it, idx) => <li key={idx} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 14, color: C.text, lineHeight: 1.6 }}><span style={{ color: C.accent, flexShrink: 0 }}>✦</span><span>{it}</span></li>)}</ul>)
+      continue
+    }
+    if (line.match(/^\d+\. /)) {
+      const items = []; while (i < lines.length && lines[i].match(/^\d+\. /)) { items.push(lines[i].replace(/^\d+\. /, '')); i++ }
+      elements.push(<ol key={key()} style={{ margin: '8px 0 16px', paddingLeft: 0, listStyle: 'none' }}>{items.map((it, idx) => <li key={idx} style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: 14, color: C.text, lineHeight: 1.6 }}><span style={{ background: `${C.accent}20`, borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: C.accent, flexShrink: 0 }}>{idx+1}</span><span>{it}</span></li>)}</ol>)
+      continue
+    }
+    const paraLines = []
+    while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !lines[i].startsWith('```') && !lines[i].match(/^[-*] /) && !lines[i].match(/^\d+\. /) && lines[i].trim() !== '---' && lines[i].trim() !== '[PROMPT]' && !lines[i].match(/^!\[/)) {
+      paraLines.push(lines[i]); i++
+    }
+    if (paraLines.length) {
+      const text = paraLines.join(' ')
+      elements.push(<p key={key()} style={{ fontSize: 14, color: C.text, lineHeight: 1.8, marginBottom: 16 }}>{text}</p>)
+    }
+  }
+  return elements
+}
+
 function BlogTab() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
+  const [previewing, setPreviewing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState(null)
+  const [editMode, setEditMode] = useState('edit') // 'edit' | 'preview' | 'split'
 
   const CATEGORIES = ['Prompting Guides', 'Dream AI Tips & Tricks', 'Artist Spotlights', 'Merch & Product Guides', 'Platform Updates & News']
 
@@ -303,7 +378,6 @@ function BlogTab() {
   }
 
   const toggleFeatured = async (post) => {
-    // Unfeatured all others first
     if (!post.featured) await supabase.from('blog_posts').update({ featured: false }).neq('id', post.id)
     await supabase.from('blog_posts').update({ featured: !post.featured }).eq('id', post.id)
     loadPosts()
@@ -315,86 +389,295 @@ function BlogTab() {
     setConfirm(null)
   }
 
-  const savePost = async () => {
+  const savePost = async (status) => {
     if (!editing.title || !editing.slug) return
     setSaving(true)
+    const updates = { ...editing, status: status || editing.status, updated_at: new Date().toISOString() }
+    if (status === 'published' && !editing.published_at) updates.published_at = new Date().toISOString()
     if (editing.id) {
-      await supabase.from('blog_posts').update({ ...editing, updated_at: new Date().toISOString() }).eq('id', editing.id)
+      await supabase.from('blog_posts').update(updates).eq('id', editing.id)
     } else {
-      await supabase.from('blog_posts').insert({ ...editing })
+      await supabase.from('blog_posts').insert(updates)
     }
     setSaving(false)
     setEditing(null)
+    setEditMode('edit')
     loadPosts()
   }
 
-  const newPost = () => setEditing({
-    title: '', slug: '', excerpt: '', content: '', category: CATEGORIES[0],
-    cover_image: '', author: 'Dreamscape Team', status: 'draft', featured: false,
-  })
+  const newPost = () => {
+    setEditing({ title: '', slug: '', excerpt: '', content: '', category: CATEGORIES[0], cover_image: '', author: 'Dream AI', status: 'draft', featured: false })
+    setEditMode('edit')
+  }
 
   const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
 
-  if (editing !== null) return (
+  // ── SEO Analysis ──────────────────────────────────────────────
+  const getSeoScore = (post) => {
+    if (!post) return { score: 0, checks: [] }
+    const title = post.title || ''
+    const slug = post.slug || ''
+    const excerpt = post.excerpt || ''
+    const content = post.content || ''
+    const wordCount = content.split(/\s+/).filter(Boolean).length
+    const hasH2 = content.includes('## ')
+    const hasPromptBox = content.includes('[PROMPT]')
+    const hasTip = content.includes('> [!TIP]')
+
+    const checks = [
+      { label: 'Title length (50-60 chars)', pass: title.length >= 30 && title.length <= 70, value: `${title.length} chars` },
+      { label: 'Slug is set', pass: slug.length > 0, value: slug || 'missing' },
+      { label: 'Excerpt filled in', pass: excerpt.length >= 50, value: excerpt.length ? `${excerpt.length} chars` : 'missing' },
+      { label: 'Word count 1000+', pass: wordCount >= 1000, value: `${wordCount} words` },
+      { label: 'Has H2 section headers', pass: hasH2, value: hasH2 ? 'yes' : 'missing' },
+      { label: 'Has prompt example box', pass: hasPromptBox, value: hasPromptBox ? 'yes' : 'missing' },
+      { label: 'Has tip callout', pass: hasTip, value: hasTip ? 'yes' : 'missing' },
+      { label: 'Cover image set', pass: !!(post.cover_image), value: post.cover_image ? 'set' : 'missing' },
+    ]
+    const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 100)
+    return { score, checks, wordCount, readTime: Math.max(1, Math.ceil(wordCount / 200)) }
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!editing?.id || !editing?.title) return
+    const timer = setTimeout(async () => {
+      await supabase.from('blog_posts').update({ ...editing, updated_at: new Date().toISOString() }).eq('id', editing.id)
+    }, 30000) // auto-save after 30s of inactivity
+    return () => clearTimeout(timer)
+  }, [editing])
+
+  // ── Markdown toolbar insert ───────────────────────────────────
+  const insertMarkdown = (before, after = '', placeholder = '') => {
+    const textarea = document.getElementById('blog-content-editor')
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = editing.content.substring(start, end) || placeholder
+    const newContent = editing.content.substring(0, start) + before + selected + after + editing.content.substring(end)
+    setEditing(prev => ({ ...prev, content: newContent }))
+    setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + before.length, start + before.length + selected.length) }, 0)
+  }
+
+  // ── Preview Modal ─────────────────────────────────────────────
+  if (previewing) return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
-        <button onClick={() => setEditing(null)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => setPreviewing(null)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
+          <button onClick={() => { setEditing(previewing); setPreviewing(null); setEditMode('edit') }} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit</button>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <span style={{ fontSize: 11, background: previewing.status === 'published' ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${previewing.status === 'published' ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '4px 12px', color: previewing.status === 'published' ? C.teal : C.muted, fontWeight: 600 }}>
+            {previewing.status === 'published' ? '● Live' : '○ Draft'}
+          </span>
+          <button onClick={() => togglePublish(previewing).then(() => setPreviewing(prev => ({ ...prev, status: prev.status === 'published' ? 'draft' : 'published' })))}
+            style={{ background: previewing.status === 'published' ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${previewing.status === 'published' ? C.border : 'transparent'}`, borderRadius: 8, padding: '6px 16px', color: previewing.status === 'published' ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            {previewing.status === 'published' ? 'Unpublish' : '✦ Publish'}
+          </button>
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Title</label>
-          <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={inputStyle} placeholder="Post title..." />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Slug</label>
-          <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value }))} style={inputStyle} placeholder="post-url-slug" />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
-            <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+
+      {/* Preview panel */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', maxHeight: '75vh', overflowY: 'auto' }}>
+        {previewing.cover_image && (
+          <div style={{ width: '100%', height: 240, borderRadius: 12, overflow: 'hidden', marginBottom: 24, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)` }}>
+            <img src={previewing.cover_image} alt={previewing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
-            <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} placeholder="Dreamscape Team" />
-          </div>
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
-          <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Excerpt</label>
-          <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in post cards..." />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Content</label>
-          <textarea value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))} rows={16} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7 }} placeholder="Write your post content here. Use double line breaks for paragraphs..." />
-        </div>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={() => setEditing(null)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => { savePost(); setEditing(prev => ({ ...prev, status: 'draft' })) }} disabled={saving}
-            style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            Save Draft
-          </button>
-          <button onClick={() => { setEditing(prev => ({ ...prev, status: 'published' })); savePost() }} disabled={saving}
-            style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            {saving ? 'Saving...' : 'Publish ✦'}
-          </button>
-        </div>
+        )}
+        {previewing.category && <span style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 600, color: C.accent, display: 'inline-block', marginBottom: 12 }}>{previewing.category}</span>}
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(22px, 4vw, 34px)', fontWeight: 900, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{previewing.title}</h1>
+        {previewing.excerpt && <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.8, marginBottom: 24, borderLeft: `3px solid ${C.accent}`, paddingLeft: 16, fontStyle: 'italic' }}>{previewing.excerpt}</p>}
+        <div style={{ height: 1, background: C.border, marginBottom: 24 }} />
+        <div>{renderMarkdownPreview(previewing.content)}</div>
       </div>
     </div>
   )
 
+  // ── Edit View ─────────────────────────────────────────────────
+  if (editing !== null) {
+    const seo = getSeoScore(editing)
+    const wordCount = (editing.content || '').split(/\s+/).filter(Boolean).length
+    const readTime = Math.max(1, Math.ceil(wordCount / 200))
+    const titleLen = (editing.title || '').length
+    const slugValid = /^[a-z0-9-]+$/.test(editing.slug || '')
+
+    const TOOLBAR = [
+      { label: 'B', title: 'Bold', before: '**', after: '**', placeholder: 'bold text' },
+      { label: 'I', title: 'Italic', before: '*', after: '*', placeholder: 'italic text' },
+      { label: 'H2', title: 'Heading', before: '\n## ', after: '', placeholder: 'Section heading' },
+      { label: 'H3', title: 'Subheading', before: '\n### ', after: '', placeholder: 'Subheading' },
+      { label: '`code`', title: 'Inline code', before: '`', after: '`', placeholder: 'code' },
+      { label: '— list', title: 'List item', before: '\n- ', after: '', placeholder: 'List item' },
+      { label: '1. list', title: 'Numbered list', before: '\n1. ', after: '', placeholder: 'List item' },
+      { label: '> quote', title: 'Blockquote', before: '\n> ', after: '', placeholder: 'Quote text' },
+      { label: '💡 Tip', title: 'Tip callout', before: '\n> [!TIP]\n> ', after: '', placeholder: 'Your tip here' },
+      { label: '✦ Prompt', title: 'Prompt box', before: '\n[PROMPT]\n', after: '\n[/PROMPT]', placeholder: 'Your example prompt here' },
+      { label: '---', title: 'Divider', before: '\n---\n', after: '', placeholder: '' },
+    ]
+
+    return (
+      <div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
+            {editing.id && <span style={{ fontSize: 10, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '2px 8px' }}>Auto-saves every 30s</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* SEO Score badge */}
+            <div style={{ background: seo.score >= 80 ? `${C.teal}20` : seo.score >= 50 ? `${C.gold}20` : `${C.red}20`, border: `1px solid ${seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red}44`, borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red }}>
+              SEO {seo.score}%
+            </div>
+            {/* Word count */}
+            <div style={{ fontSize: 12, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 12px' }}>
+              {wordCount} words · {readTime} min read
+            </div>
+            {/* Edit / Preview / Split */}
+            <div style={{ display: 'flex', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3, gap: 2 }}>
+              {[['edit', '✏️'], ['preview', '👁'], ['split', '⊞']].map(([mode, label]) => (
+                <button key={mode} onClick={() => setEditMode(mode)} title={mode}
+                  style={{ background: editMode === mode ? `${C.accent}20` : 'none', border: `1px solid ${editMode === mode ? C.accent + '55' : 'transparent'}`, borderRadius: 6, padding: '5px 10px', color: editMode === mode ? C.accent : C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Fields */}
+        {editMode !== 'preview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  Title
+                  <span style={{ color: titleLen > 70 ? C.red : titleLen >= 30 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{titleLen}/60</span>
+                </label>
+                <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={{ ...inputStyle, borderColor: titleLen > 70 ? C.red + '88' : C.border }} placeholder="Post title..." />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  Slug
+                  <span style={{ color: slugValid && editing.slug ? C.teal : C.red, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{slugValid && editing.slug ? '✓ valid' : '✗ invalid'}</span>
+                </label>
+                <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} style={{ ...inputStyle, borderColor: !slugValid && editing.slug ? C.red + '88' : C.border }} placeholder="post-url-slug" />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
+                <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
+                <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
+                <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                Excerpt (meta description)
+                <span style={{ color: (editing.excerpt || '').length >= 120 && (editing.excerpt || '').length <= 160 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{(editing.excerpt || '').length}/160</span>
+              </label>
+              <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in search results and post cards (120-160 chars ideal)..." />
+            </div>
+          </div>
+        )}
+
+        {/* Google search preview */}
+        {editMode !== 'preview' && editing.title && (
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>🔍 Google Preview</div>
+            <div style={{ fontSize: 15, color: '#4A90E2', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{editing.title.slice(0, 60)}{editing.title.length > 60 ? '...' : ''}</div>
+            <div style={{ fontSize: 12, color: C.teal, marginBottom: 4 }}>trydreamscape.com/blog/{editing.slug || 'your-slug-here'}</div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{(editing.excerpt || 'Add an excerpt to show here...').slice(0, 160)}</div>
+          </div>
+        )}
+
+        {/* Markdown toolbar */}
+        {editMode !== 'preview' && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8, padding: '8px 10px', background: C.panel, border: `1px solid ${C.border}`, borderRadius: '10px 10px 0 0' }}>
+            {TOOLBAR.map(tool => (
+              <button key={tool.label} onClick={() => insertMarkdown(tool.before, tool.after, tool.placeholder)} title={tool.title}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: tool.label === '`code`' ? 'monospace' : 'inherit' }}>
+                {tool.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content area */}
+        <div style={{ display: editMode === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {editMode !== 'preview' && (
+            <textarea id="blog-content-editor" value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))}
+              rows={editMode === 'split' ? 22 : 18}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, fontFamily: 'monospace', fontSize: 13, borderRadius: editMode !== 'split' ? '0 0 10px 10px' : 10 }}
+              placeholder="Write your post content here using markdown..." />
+          )}
+          {editMode !== 'edit' && (
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', minHeight: 400, maxHeight: editMode === 'split' ? 520 : '70vh', overflowY: 'auto' }}>
+              {editing.title && <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 10 }}>{editing.title}</h1>}
+              {editing.excerpt && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 14, borderLeft: `3px solid ${C.accent}`, paddingLeft: 14, fontStyle: 'italic' }}>{editing.excerpt}</p>}
+              {editing.excerpt && <div style={{ height: 1, background: C.border, marginBottom: 14 }} />}
+              {renderMarkdownPreview(editing.content)}
+              {!editing.content && <p style={{ color: C.muted, fontSize: 13 }}>Start writing to see preview...</p>}
+            </div>
+          )}
+        </div>
+
+        {/* SEO Checklist */}
+        {editMode !== 'preview' && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Publishing Checklist — {seo.score}% ready
+              <span style={{ display: 'inline-block', marginLeft: 10, width: 100, height: 4, background: C.border, borderRadius: 2, verticalAlign: 'middle', position: 'relative', overflow: 'hidden' }}>
+                <span style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${seo.score}%`, background: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red, borderRadius: 2 }} />
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 6 }}>
+              {seo.checks.map(check => (
+                <div key={check.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  <span style={{ color: check.pass ? C.teal : C.red, flexShrink: 0 }}>{check.pass ? '✓' : '✗'}</span>
+                  <span style={{ color: check.pass ? C.text : C.muted }}>{check.label}</span>
+                  <span style={{ color: C.muted, fontSize: 10, marginLeft: 'auto' }}>{check.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+          <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => savePost('draft')} disabled={saving}
+            style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            {saving ? 'Saving...' : '💾 Save Draft'}
+          </button>
+          <button onClick={() => savePost('published')} disabled={saving || seo.score < 60}
+            title={seo.score < 60 ? 'Complete the checklist before publishing' : 'Publish'}
+            style={{ background: seo.score < 60 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: seo.score < 60 ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Publishing...' : seo.score < 60 ? '⚠️ Not Ready' : '✦ Publish'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Posts List ────────────────────────────────────────────────
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: C.muted }}>{posts.length} post{posts.length !== 1 ? 's' : ''} · {posts.filter(p => p.status === 'published').length} published</div>
+        <div style={{ fontSize: 13, color: C.muted }}>{posts.length} post{posts.length !== 1 ? 's' : ''} · {posts.filter(p => p.status === 'published').length} published · {posts.filter(p => p.status === 'draft').length} drafts</div>
         <button onClick={newPost} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Post</button>
       </div>
+
       {loading ? <Spinner /> : posts.length === 0 ? (
         <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 16, padding: '48px', textAlign: 'center' }}>
           <p style={{ color: C.muted, fontSize: 14, marginBottom: 16 }}>No blog posts yet. Create your first one or let Ares draft one!</p>
@@ -417,9 +700,10 @@ function BlogTab() {
                 {post.status === 'published' ? '● Live' : '○ Draft'}
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setEditing(post)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Edit</button>
-                <button onClick={() => togglePublish(post)} style={{ background: post.status === 'published' ? 'none' : `${C.teal}20`, border: `1px solid ${post.status === 'published' ? C.border : C.teal + '55'}`, borderRadius: 8, padding: '5px 12px', color: post.status === 'published' ? C.muted : C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  {post.status === 'published' ? 'Unpublish' : 'Publish'}
+                <button onClick={() => setPreviewing(post)} style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '5px 12px', color: C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>👁 Preview</button>
+                <button onClick={() => { setEditing(post); setEditMode('split') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>✏️ Edit</button>
+                <button onClick={() => togglePublish(post)} style={{ background: post.status === 'published' ? 'none' : `${C.accent}20`, border: `1px solid ${post.status === 'published' ? C.border : C.accent + '55'}`, borderRadius: 8, padding: '5px 12px', color: post.status === 'published' ? C.muted : C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {post.status === 'published' ? 'Unpublish' : '✦ Publish'}
                 </button>
                 <button onClick={() => toggleFeatured(post)} style={{ background: post.featured ? `${C.gold}20` : 'none', border: `1px solid ${post.featured ? C.gold + '55' : C.border}`, borderRadius: 8, padding: '5px 12px', color: post.featured ? C.gold : C.muted, fontSize: 12, cursor: 'pointer' }}>⭐</button>
                 <button onClick={() => setConfirm(post.id)} style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '5px 12px', color: C.red, fontSize: 12, cursor: 'pointer' }}>✕</button>
@@ -428,6 +712,7 @@ function BlogTab() {
           ))}
         </div>
       )}
+
       {confirm && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
