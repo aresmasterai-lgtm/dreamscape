@@ -56,7 +56,7 @@ Dream: "Say less. 🌕
 <prompt>A lone wolf howling at a massive full moon on a mountain ridge, storm clouds swirling above, dramatic cinematic lighting in deep indigo and silver, hyperrealistic fur detail, wide composition ideal for apparel, dark fantasy epic mood</prompt>"
 
 User: "make me something beautiful"
-Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and epic?"`,`,
+Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and epic?"`,
         messages,
       }),
     })
