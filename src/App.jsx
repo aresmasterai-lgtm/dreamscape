@@ -258,10 +258,11 @@ function SaveModal({ prompt, imageUrl, onSave, onClose }) {
 }
 
 // ── Dream AI Chat ─────────────────────────────────────────────
+const DREAM_STORAGE_KEY = 'dreamscape_dream_session'
+const INITIAL_MESSAGE = { role: 'assistant', content: "✦ Hey, I'm Dream — your AI creative companion. Describe what you want to create and I'll help you bring it to life with a perfect prompt. What are we making today?" }
+
 function DreamChat({ user, onSignIn }) {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: "✦ Hey, I'm Dream — your AI creative companion. Describe what you want to create and I'll help you bring it to life with a perfect prompt. What are we making today?" },
-  ])
+  const [messages, setMessages] = useState([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [saveTarget, setSaveTarget] = useState(null)
@@ -272,10 +273,62 @@ function DreamChat({ user, onSignIn }) {
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const [bottomEl, setBottomEl] = useState(null)
-  const [referenceImage, setReferenceImage] = useState(null) // { dataUrl, mimeType, name }
+  const [referenceImage, setReferenceImage] = useState(null)
+  const [sessionPrompt, setSessionPrompt] = useState(null) // 'restore' | null
   const fileInputRef = useRef(null)
 
+  // On mount — check for saved session
+  useEffect(() => {
+    if (!user) return
+    try {
+      const saved = localStorage.getItem(`${DREAM_STORAGE_KEY}_${user.id}`)
+      if (saved) {
+        const { messages: savedMessages, timestamp } = JSON.parse(saved)
+        if (savedMessages?.length > 1) {
+          setSessionPrompt({ messages: savedMessages, timestamp })
+        }
+      }
+    } catch {}
+  }, [user])
+
+  // Auto-save session to localStorage whenever messages change
+  useEffect(() => {
+    if (!user || messages.length <= 1) return
+    try {
+      localStorage.setItem(`${DREAM_STORAGE_KEY}_${user.id}`, JSON.stringify({
+        messages: messages.slice(-20), // save last 20 messages max
+        timestamp: Date.now(),
+      }))
+    } catch {}
+  }, [messages, user])
+
   useEffect(() => { bottomEl?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+  const restoreSession = () => {
+    if (!sessionPrompt) return
+    setMessages(sessionPrompt.messages)
+    setSessionPrompt(null)
+  }
+
+  const startFresh = () => {
+    setMessages([INITIAL_MESSAGE])
+    setSessionPrompt(null)
+    if (user) localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
+  }
+
+  const resetChat = () => {
+    setMessages([INITIAL_MESSAGE])
+    setInput('')
+    setGeneratedImages({})
+    setSavedIndexes(new Set())
+    setSaveTarget(null)
+    setGeneratingIndex(null)
+    setLightboxImage(null)
+    setCreateProductImage(null)
+    setReferenceImage(null)
+    setSaveSuccess(false)
+    if (user) localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
+  }
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
@@ -377,16 +430,77 @@ function DreamChat({ user, onSignIn }) {
     </div>
   )
 
+  // Session restore prompt
+  if (sessionPrompt) {
+    const timeAgo = (() => {
+      const diff = Date.now() - sessionPrompt.timestamp
+      const mins = Math.floor(diff / 60000)
+      const hours = Math.floor(diff / 3600000)
+      const days = Math.floor(diff / 86400000)
+      if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
+      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+      if (mins > 0) return `${mins} minute${mins > 1 ? 's' : ''} ago`
+      return 'just now'
+    })()
+    const lastUserMsg = [...sessionPrompt.messages].reverse().find(m => m.role === 'user')
+    const preview = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : lastUserMsg?.content?.find?.(c => c.type === 'text')?.text || ''
+
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
+            <div style={{ fontSize: 11, color: C.teal }}>● online</div>
+          </div>
+        </div>
+
+        {/* Session restore card */}
+        <div style={{ padding: '40px 32px', textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, border: `1px solid ${C.accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 20px' }}>✦</div>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8 }}>Welcome back!</h3>
+          <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>You have an unfinished Dream session from <strong style={{ color: C.text }}>{timeAgo}</strong>.</p>
+          {preview && (
+            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', margin: '16px auto', maxWidth: 400, fontSize: 12, color: C.muted, lineHeight: 1.5, fontStyle: 'italic' }}>
+              "{preview.slice(0, 120)}{preview.length > 120 ? '...' : ''}"
+            </div>
+          )}
+          <p style={{ color: C.muted, fontSize: 13, marginBottom: 28 }}>Would you like to continue where you left off or start a brand new creation?</p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={restoreSession}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              ✦ Continue Last Session
+            </button>
+            <button onClick={startFresh}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.muted, fontSize: 14, cursor: 'pointer' }}>
+              🆕 Start Fresh
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
             <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
+          {messages.length > 1 && (
+            <button onClick={resetChat}
+              title="Start a new prompt"
+              style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = `${C.accent}30`; e.currentTarget.style.borderColor = C.accent + '88' }}
+              onMouseLeave={e => { e.currentTarget.style.background = `${C.accent}18`; e.currentTarget.style.borderColor = C.accent + '44' }}>
+              ✦ New Prompt
+            </button>
+          )}
         </div>
         <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 300, maxHeight: '55vh' }}>
           {messages.map((msg, i) => {
@@ -1641,7 +1755,7 @@ export default function App() {
 
       <StarField />
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      <div style={{ position: 'relative', zIndex: 1, isolation: 'isolate' }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
         <div style={{ paddingTop: 72 }}>
           <Routes>

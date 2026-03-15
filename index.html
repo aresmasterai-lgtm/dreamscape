@@ -3,23 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://trydreamscape.com" />
     <title>Dreamscape — Artist Social Media & AI Marketplace</title>
     <meta name="description" content="Generate stunning artwork with AI, build your artist profile, and sell merchandise globally through Printful." />
-    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://trydreamscape.com" />
     <meta property="og:title" content="Dreamscape — Where Artists Create & Thrive" />
-    <meta property="og:description" content="AI-powered art creation, artist profiles, community channels, and a global print-on-demand marketplace." />
+    <meta property="og:description" content="AI-powered art creation, artist profiles, and a global print-on-demand marketplace." />
     <meta property="og:image" content="https://trydreamscape.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Dreamscape — Where Artists Create & Thrive" />
-    <meta name="twitter:description" content="AI-powered art creation, artist profiles, community channels, and a global print-on-demand marketplace." />
+    <meta name="twitter:description" content="AI-powered art creation, artist profiles, and a global print-on-demand marketplace." />
     <meta name="twitter:image" content="https://trydreamscape.com/og-image.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Google tag (gtag.js) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-PHQKCR5EF5"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -27,9 +29,260 @@
       gtag('js', new Date());
       gtag('config', 'G-PHQKCR5EF5', { send_page_view: false });
     </script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #080B14; font-family: 'DM Sans', sans-serif; overflow: hidden; }
+
+      #splash {
+        position: fixed; inset: 0; z-index: 9999;
+        background: #080B14;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center; padding: 20px;
+        transition: opacity 0.9s cubic-bezier(0.4,0,0.2,1), transform 0.9s cubic-bezier(0.4,0,0.2,1);
+      }
+      #splash.fade-out { opacity: 0; transform: scale(1.05); pointer-events: none; }
+
+      .nebula {
+        position: fixed; border-radius: 50%;
+        pointer-events: none; z-index: 0;
+      }
+      .n1 { width: 70vw; height: 70vh; top: -20%; left: -15%;
+        background: radial-gradient(ellipse at 45% 45%, rgba(124,92,252,0.6) 0%, rgba(75,47,208,0.38) 30%, transparent 70%);
+        animation: drift1 28s ease-in-out infinite, colorShift 30s ease-in-out infinite, blurPulse 8s ease-in-out infinite; }
+      .n2 { width: 75vw; height: 65vh; bottom: -25%; right: -20%;
+        background: radial-gradient(ellipse at 55% 55%, rgba(255,107,157,0.5) 0%, rgba(124,92,252,0.28) 40%, transparent 70%);
+        animation: drift2 35s ease-in-out infinite, colorShift 30s ease-in-out 5s infinite, blurPulse 10s ease-in-out 2s infinite; }
+      .n3 { width: 55vw; height: 55vh; top: 25%; left: 30%;
+        background: radial-gradient(ellipse at 50% 50%, rgba(0,212,170,0.32) 0%, rgba(0,180,216,0.22) 40%, transparent 75%);
+        animation: drift3 22s ease-in-out infinite, colorShift 30s ease-in-out 10s infinite, blurPulse 12s ease-in-out 4s infinite; }
+      .n4 { width: 45vw; height: 50vh; top: -10%; right: -5%;
+        background: radial-gradient(ellipse at 50% 40%, rgba(0,150,255,0.38) 0%, rgba(124,92,252,0.22) 50%, transparent 80%);
+        animation: drift1 30s ease-in-out infinite reverse, colorShift 30s ease-in-out 15s infinite; }
+      .n5 { width: 50vw; height: 45vh; bottom: -10%; left: -5%;
+        background: radial-gradient(ellipse at 45% 60%, rgba(245,200,66,0.28) 0%, rgba(255,107,157,0.2) 45%, transparent 80%);
+        animation: drift2 26s ease-in-out infinite reverse, colorShift 30s ease-in-out 20s infinite; }
+
+      @keyframes drift1 {
+        0%   { transform: translate(0,0) scale(1); }
+        25%  { transform: translate(30px,-20px) scale(1.06); }
+        50%  { transform: translate(-20px,35px) scale(0.96); }
+        75%  { transform: translate(25px,15px) scale(1.04); }
+        100% { transform: translate(0,0) scale(1); }
+      }
+      @keyframes drift2 {
+        0%   { transform: translate(0,0) scale(1); }
+        33%  { transform: translate(-40px,25px) scale(1.08); }
+        66%  { transform: translate(30px,-30px) scale(0.94); }
+        100% { transform: translate(0,0) scale(1); }
+      }
+      @keyframes drift3 {
+        0%   { transform: translate(0,0) scale(1); }
+        50%  { transform: translate(20px,-40px) scale(1.1); }
+        100% { transform: translate(0,0) scale(1); }
+      }
+      @keyframes colorShift {
+        0%   { filter: blur(70px) hue-rotate(0deg) brightness(1); }
+        25%  { filter: blur(75px) hue-rotate(50deg) brightness(1.15); }
+        50%  { filter: blur(65px) hue-rotate(140deg) brightness(0.95); }
+        75%  { filter: blur(80px) hue-rotate(230deg) brightness(1.1); }
+        100% { filter: blur(70px) hue-rotate(360deg) brightness(1); }
+      }
+      @keyframes blurPulse {
+        0%,100% { opacity: 0.85; }
+        50% { opacity: 1; }
+      }
+
+      .splash-stars { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+      .splash-star {
+        position: absolute; color: #fff;
+        text-shadow: 0 0 8px rgba(124,92,252,0.9);
+        animation: twinkle var(--dur) ease-in-out infinite var(--delay);
+        user-select: none;
+      }
+      @keyframes twinkle {
+        0%,100% { opacity: var(--op); transform: scale(1) rotate(0deg); }
+        50% { opacity: calc(var(--op) * 5); transform: scale(var(--grow)) rotate(20deg); }
+      }
+
+      .splash-content {
+        position: relative; z-index: 10;
+        animation: splashIn 1s cubic-bezier(0.16,1,0.3,1) forwards;
+      }
+      @keyframes splashIn {
+        from { opacity: 0; transform: translateY(28px) scale(0.96); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      .splash-logo {
+        width: 80px; height: 80px; border-radius: 22px;
+        background: linear-gradient(135deg, #7C5CFC, #4B2FD0);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 36px; color: #fff;
+        margin: 0 auto 28px;
+        box-shadow: 0 0 60px rgba(124,92,252,0.6), 0 0 120px rgba(124,92,252,0.25);
+        animation: logoPulse 2.5s ease-in-out infinite;
+      }
+      @keyframes logoPulse {
+        0%,100% { box-shadow: 0 0 60px rgba(124,92,252,0.6), 0 0 120px rgba(124,92,252,0.25); transform: scale(1); }
+        50%      { box-shadow: 0 0 90px rgba(124,92,252,0.9), 0 0 180px rgba(124,92,252,0.4); transform: scale(1.04); }
+      }
+
+      .splash-eyebrow {
+        font-size: 11px; font-weight: 600; color: #7C5CFC;
+        letter-spacing: 4px; text-transform: uppercase; margin-bottom: 12px;
+        opacity: 0; animation: fadeUp 0.6s ease 0.3s forwards;
+      }
+
+      .splash-title {
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(42px, 10vw, 80px);
+        font-weight: 900; color: #E8EAF0;
+        line-height: 1.05; margin-bottom: 18px;
+        opacity: 0; animation: fadeUp 0.7s ease 0.5s forwards;
+      }
+      .splash-title .grad {
+        background: linear-gradient(135deg, #7C5CFC, #00D4AA, #FF6B9D, #F5C842, #7C5CFC);
+        background-size: 300% 300%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gradShift 5s ease infinite;
+      }
+      @keyframes gradShift {
+        0%   { background-position: 0% 50%; }
+        50%  { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      .splash-sub {
+        font-size: clamp(14px, 2vw, 17px); color: #6B7494;
+        max-width: 440px; margin: 0 auto 48px; line-height: 1.8;
+        opacity: 0; animation: fadeUp 0.7s ease 0.7s forwards;
+      }
+
+      .splash-enter { opacity: 0; animation: fadeUp 0.7s ease 1s forwards; }
+
+      .enter-btn {
+        display: inline-flex; align-items: center; gap: 12px;
+        background: linear-gradient(135deg, #7C5CFC, #4B2FD0);
+        border: none; border-radius: 50px;
+        padding: 17px 44px;
+        color: #fff; font-size: 16px; font-weight: 700;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer; letter-spacing: 0.5px;
+        box-shadow: 0 8px 40px rgba(124,92,252,0.45);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        position: relative; overflow: hidden;
+      }
+      .enter-btn::after {
+        content: ''; position: absolute; inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent);
+        opacity: 0; transition: opacity 0.2s;
+      }
+      .enter-btn:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 16px 60px rgba(124,92,252,0.65); }
+      .enter-btn:hover::after { opacity: 1; }
+      .enter-btn:active { transform: scale(0.98); }
+
+      .btn-star { font-size: 18px; animation: btnStar 3s ease-in-out infinite; }
+      .btn-star:last-child { animation-delay: -1.5s; }
+      @keyframes btnStar {
+        0%,100% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+        50% { transform: rotate(180deg) scale(1.3); opacity: 1; }
+      }
+
+      .splash-hint {
+        margin-top: 40px; font-size: 12px; color: rgba(107,116,148,0.7);
+        letter-spacing: 1.5px; text-transform: uppercase;
+        opacity: 0; animation: fadeUp 0.7s ease 1.5s forwards;
+      }
+      .hint-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: #7C5CFC; margin: 10px auto 0;
+        animation: hintBounce 1.6s ease-in-out infinite;
+      }
+      @keyframes hintBounce {
+        0%,100% { transform: translateY(0); opacity: 0.3; }
+        50% { transform: translateY(8px); opacity: 1; }
+      }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* App hidden until splash dismissed — opacity only, never display:none so crawlers see content */
+      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; }
+      #root.visible { opacity: 1; }
+      body.app-ready { overflow: auto; }
+    </style>
   </head>
   <body>
+    <!-- Splash — renders instantly before any JS -->
+    <div id="splash">
+      <div class="nebula n1"></div>
+      <div class="nebula n2"></div>
+      <div class="nebula n3"></div>
+      <div class="nebula n4"></div>
+      <div class="nebula n5"></div>
+      <div class="splash-stars" id="splash-stars"></div>
+      <div class="splash-content">
+        <div class="splash-logo">✦</div>
+        <div class="splash-eyebrow">Welcome to</div>
+        <h1 class="splash-title">Dream<span class="grad">scape</span></h1>
+        <p class="splash-sub">Generate AI artwork, build your artist profile, and sell merchandise to the world.</p>
+        <div class="splash-enter">
+          <button class="enter-btn" onclick="enterDreamscape()">
+            <span class="btn-star">✦</span>
+            Enter Dreamscape
+            <span class="btn-star">✦</span>
+          </button>
+        </div>
+        <div class="splash-hint">
+          Your universe awaits
+          <div class="hint-dot"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <script>
+      // Generate stars immediately
+      ;(function() {
+        const el = document.getElementById('splash-stars')
+        for (let i = 0; i < 55; i++) {
+          const s = document.createElement('div')
+          s.className = 'splash-star'
+          s.textContent = '✦'
+          const op = (Math.random() * 0.18 + 0.04).toFixed(2)
+          s.style.cssText = `top:${Math.random()*100}%;left:${Math.random()*100}%;font-size:${(Math.random()*14+6).toFixed(0)}px;--op:${op};--grow:${(Math.random()*1.6+1.2).toFixed(2)};--dur:${(Math.random()*5+3).toFixed(1)}s;--delay:-${(Math.random()*7).toFixed(1)}s;`
+          el.appendChild(s)
+        }
+      })()
+
+      function enterDreamscape() {
+        const splash = document.getElementById('splash')
+        const root = document.getElementById('root')
+        splash.classList.add('fade-out')
+        root.classList.add('visible')
+        document.body.style.overflow = ''
+        document.body.classList.add('app-ready')
+        setTimeout(() => { splash.style.display = 'none' }, 900)
+      }
+
+      // Skip splash entirely for search engine crawlers and bots
+      ;(function() {
+        const bots = /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|msnbot|crawler|spider|bot|prerender/i
+        if (bots.test(navigator.userAgent)) {
+          document.getElementById('splash').style.display = 'none'
+          const root = document.getElementById('root')
+          root.classList.add('visible')
+          root.style.opacity = '1'
+          document.body.style.overflow = ''
+        document.body.classList.add('app-ready')
+        }
+      })()
+    </script>
   </body>
 </html>
