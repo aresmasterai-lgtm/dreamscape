@@ -619,9 +619,10 @@ function DreamChat({ user, onSignIn }) {
 }
 
 // ── Artwork Grid ──────────────────────────────────────────────
-function ArtworkGrid({ artworks, loading }) {
+function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(null)
+  const [hover, setHover] = useState(null)
   if (loading) return <Spinner />
   if (!artworks.length) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -632,12 +633,27 @@ function ArtworkGrid({ artworks, loading }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
       {artworks.map(art => (
-        <div key={art.id} onClick={() => setExpanded(expanded === art.id ? null : art.id)}
-          style={{ background: C.card, border: `1px solid ${expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
-          onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
-          onMouseLeave={e => e.currentTarget.style.borderColor = expanded === art.id ? C.accent + '88' : C.border}>
-          <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
+        <div key={art.id}
+          style={{ background: C.card, border: `1px solid ${hover === art.id ? C.accent + '88' : expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', transform: hover === art.id ? 'translateY(-2px)' : 'none' }}
+          onMouseEnter={() => setHover(art.id)}
+          onMouseLeave={() => setHover(null)}>
+          <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
+            onClick={() => setExpanded(expanded === art.id ? null : art.id)}>
             {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎨'}
+            {/* Owner quick actions on image hover */}
+            {isOwner && hover === art.id && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                onClick={e => e.stopPropagation()}>
+                <button onClick={() => onSell && onSell(art)}
+                  style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '8px 14px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell
+                </button>
+                <button onClick={() => onReuse && onReuse(art)}
+                  style={{ background: `${C.teal}25`, border: `1px solid ${C.teal}55`, borderRadius: 8, padding: '8px 14px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ↻ Reuse
+                </button>
+              </div>
+            )}
           </div>
           <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{art.title}</div>
@@ -651,7 +667,19 @@ function ArtworkGrid({ artworks, loading }) {
                 {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
               </div>
             )}
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            {isOwner && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
+                  style={{ flex: 1, background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: '6px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell This
+                </button>
+                <button onClick={e => { e.stopPropagation(); onReuse && onReuse(art) }}
+                  style={{ flex: 1, background: `${C.teal}18`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '6px', color: C.teal, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  ↻ Reuse
+                </button>
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
           </div>
         </div>
       ))}
@@ -954,17 +982,184 @@ function ProfileTabs({ tab, setTab, tabs }) {
   )
 }
 
-// ── Mini Product Card (for Shop tab) ─────────────────────────
+// ── Edit Product Modal ────────────────────────────────────────
+function EditProductModal({ product, user, onClose, onSave, onDelete }) {
+  const [title, setTitle] = useState(product.title || '')
+  const [description, setDescription] = useState(product.description || '')
+  const [tags, setTags] = useState((product.tags || []).join(', '))
+  const [price, setPrice] = useState(product.price || '')
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [error, setError] = useState('')
+
+  const STYLE_TAGS = ['Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art', 'Watercolor', 'Geometric', 'Psychedelic', 'Vintage']
+
+  const toggleTag = (tag) => {
+    const current = tags.split(',').map(t => t.trim()).filter(Boolean)
+    const updated = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag]
+    setTags(updated.join(', '))
+  }
+
+  const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean)
+
+  const handleSave = async () => {
+    if (!title.trim()) return setError('Product title is required.')
+    if (!price || isNaN(parseFloat(price))) return setError('Please enter a valid price.')
+    setSaving(true); setError('')
+    try {
+      const updates = {
+        title: title.trim(),
+        description: description.trim() || null,
+        tags: currentTags,
+        price: parseFloat(price),
+        updated_at: new Date().toISOString(),
+      }
+      const { error: err } = await supabase.from('products').update(updates).eq('id', product.id).eq('user_id', user.id)
+      if (err) throw err
+      onSave({ ...product, ...updates })
+      onClose()
+    } catch (e) { setError(e.message || 'Something went wrong.') }
+    setSaving(false)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const { error: err } = await supabase.from('products').delete().eq('id', product.id).eq('user_id', user.id)
+      if (err) throw err
+      onDelete(product.id)
+      onClose()
+    } catch (e) { setError(e.message || 'Failed to delete.') }
+    setDeleting(false)
+  }
+
+  const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 2 }}>Edit Product</h2>
+            <div style={{ fontSize: 11, color: C.muted }}>{product.product_type}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Mockup preview */}
+          {product.mockup_url && (
+            <div style={{ width: '100%', height: 180, borderRadius: 12, overflow: 'hidden', background: `linear-gradient(135deg, ${C.accent}20, ${C.teal}15)` }}>
+              <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          )}
+
+          {/* Title */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              Product Title
+              <span style={{ color: title.length > 80 ? C.red : title.length >= 20 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{title.length}/80</span>
+            </label>
+            <input value={title} onChange={e => setTitle(e.target.value)} style={{ ...inputStyle, borderColor: title.length > 80 ? '#FF4D4D88' : C.border }} placeholder="e.g. Cosmic Eagle All-Over Print T-Shirt" />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>💡 Include the product type and art style for better search visibility.</div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+              placeholder="Describe your product — materials, inspiration, what makes it special..." />
+          </div>
+
+          {/* Price */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Retail Price (USD)</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
+              <input type="number" value={price} onChange={e => setPrice(e.target.value)} min="0" step="0.01"
+                style={{ ...inputStyle, paddingLeft: 28 }} placeholder="29.99" />
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>You keep the difference after Printful's base cost + Stripe fees (~2.9% + $0.30).</div>
+          </div>
+
+          {/* Style tags */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>Style Tags</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {STYLE_TAGS.map(tag => (
+                <button key={tag} onClick={() => toggleTag(tag)}
+                  style={{ background: currentTags.includes(tag) ? `${C.accent}25` : 'none', border: `1px solid ${currentTags.includes(tag) ? C.accent + '66' : C.border}`, borderRadius: 20, padding: '4px 12px', color: currentTags.includes(tag) ? C.accent : C.muted, fontSize: 11, fontWeight: currentTags.includes(tag) ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {currentTags.includes(tag) ? '✓ ' : ''}{tag}
+                </button>
+              ))}
+            </div>
+            <input value={tags} onChange={e => setTags(e.target.value)} style={inputStyle} placeholder="Or type custom tags, comma-separated..." />
+            {currentTags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                {currentTags.map(tag => (
+                  <span key={tag} onClick={() => toggleTag(tag)} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent, cursor: 'pointer' }}>{tag} ✕</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && <div style={{ background: '#FF4D4D18', border: '1px solid #FF4D4D44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#FF4D4D' }}>{error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+          {!confirmDelete ? (
+            <>
+              <button onClick={() => setConfirmDelete(true)}
+                style={{ background: '#FF4D4D18', border: '1px solid #FF4D4D44', borderRadius: 10, padding: '10px 16px', color: '#FF4D4D', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                🗑 Delete
+              </button>
+              <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving ? 'Saving...' : 'Save Changes ✦'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ flex: 1, fontSize: 13, color: C.text, alignSelf: 'center' }}>Delete this product permanently?</div>
+              <button onClick={() => setConfirmDelete(false)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Keep It</button>
+              <button onClick={handleDelete} disabled={deleting}
+                style={{ background: 'linear-gradient(135deg, #FF4D4D, #CC0000)', border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: deleting ? 'not-allowed' : 'pointer' }}>
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Shop Card (public view) ───────────────────────────────────
 function ShopCard({ product }) {
   const [buying, setBuying] = useState(false)
-  const navigate = useNavigate()
 
   const handleBuy = async () => {
     setBuying(true)
     try {
       const res = await fetch('/api/create-checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id }),
+        body: JSON.stringify({
+          productName: product.title,
+          variantName: '',
+          price: product.price || 29.99,
+          imageUrl: product.mockup_url || '',
+          printfulProductId: product.printful_product_id,
+          printfulVariantId: product.printful_variant_ids?.[0] || '',
+          quantity: 1,
+        }),
       })
       const data = await res.json()
       if (data.url) window.location.href = data.url
@@ -973,23 +1168,90 @@ function ShopCard({ product }) {
   }
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s', cursor: 'pointer' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.2s' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
       <div style={{ aspectRatio: '1', background: `linear-gradient(135deg, ${C.accent}18, ${C.teal}18)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         {product.mockup_url ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 40 }}>🎨</span>}
       </div>
       <div style={{ padding: '12px 14px' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4, lineHeight: 1.3 }}>{product.title}</div>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{product.product_type}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3, lineHeight: 1.3 }}>{product.title}</div>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{product.product_type}</div>
+        {product.tags?.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+            {product.tags.slice(0, 2).map(tag => <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '1px 7px', fontSize: 10, color: C.accent }}>{tag}</span>)}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>${parseFloat(product.price || 0).toFixed(2)}</span>
-          <button onClick={handleBuy} disabled={buying} style={{ background: buying ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: buying ? 'not-allowed' : 'pointer' }}>
+          <button onClick={handleBuy} disabled={buying}
+            style={{ background: buying ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: buying ? 'not-allowed' : 'pointer' }}>
             {buying ? '...' : 'Buy'}
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Owner Shop Card (with edit/delete) ────────────────────────
+function OwnerShopCard({ product, user, onEdit, onDelete }) {
+  const [showEdit, setShowEdit] = useState(false)
+  const [currentProduct, setCurrentProduct] = useState(product)
+
+  const handleSave = (updated) => {
+    setCurrentProduct(updated)
+    onEdit(updated)
+  }
+
+  return (
+    <>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.2s', position: 'relative' }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+
+        {/* Edit overlay button on image */}
+        <div style={{ position: 'relative' }}>
+          <div style={{ aspectRatio: '1', background: `linear-gradient(135deg, ${C.accent}18, ${C.teal}18)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {currentProduct.mockup_url ? <img src={currentProduct.mockup_url} alt={currentProduct.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 40 }}>🎨</span>}
+          </div>
+          {/* Edit button overlay */}
+          <button onClick={() => setShowEdit(true)}
+            style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(8,11,20,0.85)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            ✏️ Edit
+          </button>
+        </div>
+
+        <div style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3, lineHeight: 1.3 }}>{currentProduct.title}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{currentProduct.product_type}</div>
+          {currentProduct.tags?.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              {currentProduct.tags.slice(0, 3).map(tag => <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '1px 7px', fontSize: 10, color: C.accent }}>{tag}</span>)}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>${parseFloat(currentProduct.price || 0).toFixed(2)}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => setShowEdit(true)}
+                style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '5px 10px', color: C.accent, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showEdit && (
+        <EditProductModal
+          product={currentProduct}
+          user={user}
+          onClose={() => setShowEdit(false)}
+          onSave={handleSave}
+          onDelete={(id) => { onDelete(id); setShowEdit(false) }}
+        />
+      )}
+    </>
   )
 }
 
@@ -1112,6 +1374,8 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [salesCount, setSalesCount] = useState(0)
   const [tab, setTab] = useState('artwork')
   const [showEdit, setShowEdit] = useState(false)
+  const [sellTarget, setSellTarget] = useState(null)
+  const [reuseTarget, setReuseTarget] = useState(null)
 
   useMeta({ title: `@${profile?.username || 'Profile'}`, description: profile?.bio })
 
@@ -1205,22 +1469,42 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
             </div>
           )}
-          <ArtworkGrid artworks={artworks} loading={loadingArt} />
+          <ArtworkGrid artworks={artworks} loading={loadingArt} isOwner={true} onSell={setSellTarget} onReuse={setReuseTarget} />
         </>
       )}
 
       {tab === 'shop' && (
-        products.length === 0 ? (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🛍</div>
-            <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>You haven't listed any products yet.</p>
-            <button onClick={() => navigate('/create')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Create a Product ✦</button>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{products.length} product{products.length !== 1 ? 's' : ''} listed</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Click ✏️ Edit on any product to update details or remove it</div>
+            </div>
+            <button onClick={() => navigate('/create')}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              + Create Product
+            </button>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
-            {products.map(p => <ShopCard key={p.id} product={p} />)}
-          </div>
-        )
+          {products.length === 0 ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🛍</div>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>You haven't listed any products yet.</p>
+              <button onClick={() => navigate('/create')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Create a Product ✦</button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
+              {products.map(p => (
+                <OwnerShopCard
+                  key={p.id}
+                  product={p}
+                  user={user}
+                  onEdit={(updated) => setProducts(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                  onDelete={(id) => setProducts(prev => prev.filter(x => x.id !== id))}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'about' && (
@@ -1306,6 +1590,57 @@ function ProfilePage({ user, profile: initialProfile }) {
           onClose={() => setShowEdit(false)}
           onSave={handleSaveProfile}
         />
+      )}
+      {sellTarget && (
+        <CreateProductModal
+          user={user}
+          imageUrl={sellTarget.image_url}
+          artworkId={sellTarget.id}
+          title={sellTarget.title}
+          onClose={() => setSellTarget(null)}
+          onSuccess={() => setSellTarget(null)}
+        />
+      )}
+      {reuseTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => e.target === e.currentTarget && setReuseTarget(null)}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, maxWidth: 500, width: '100%', overflow: 'hidden' }}>
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>Reuse This Artwork</h3>
+              <button onClick={() => setReuseTarget(null)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ background: C.bg, maxHeight: 220, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {reuseTarget.image_url && <img src={reuseTarget.image_url} alt={reuseTarget.title} style={{ width: '100%', maxHeight: 220, objectFit: 'contain' }} />}
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{reuseTarget.title}</h4>
+              {reuseTarget.prompt && (
+                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>✦ Original Prompt</div>
+                  <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>{reuseTarget.prompt}</p>
+                </div>
+              )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
+                <button onClick={() => { setSellTarget(reuseTarget); setReuseTarget(null) }}
+                  style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '12px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell This
+                </button>
+                <button onClick={() => { navigate('/create'); setReuseTarget(null) }}
+                  style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '12px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ✦ Remix in Dream
+                </button>
+                <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
+                  ↓ Download
+                </a>
+                <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  🔗 Share
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
