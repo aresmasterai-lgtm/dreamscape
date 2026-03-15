@@ -1,49 +1,173 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const TIER_LIMITS = {
-  free:    { gens: 10,  products: 3  },
-  starter: { gens: 50,  products: 15 },
-  pro:     { gens: 200, products: 50 },
-  studio:  { gens: Infinity, products: Infinity },
+  free:    { products: 3  },
+  starter: { products: 15 },
+  pro:     { products: 50 },
+  studio:  { products: Infinity },
 }
 
 async function checkProductLimit(userId, tier) {
   if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.products || 3
-  const { count } = await supabase
-    .from('products')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
+  const { count } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('user_id', userId)
   return { allowed: (count || 0) < limit, used: count || 0, limit }
 }
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
-  gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
+  gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494', red: '#FF4D4D',
 }
 
 function Spinner({ label }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <style>{`@keyframes cpulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
       <div style={{ display: 'flex', gap: 6 }}>
-        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'cpulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
       {label && <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{label}</p>}
     </div>
   )
 }
 
-const STEPS = ['Upload', 'Product Type', 'Details', 'Share', 'Done']
+// ── Art Placement Editor ──────────────────────────────────────
+function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacementChange }) {
+  const canvasRef = useRef(null)
+  const [artPos, setArtPos] = useState({ x: 25, y: 20, scale: 50 }) // % based
+  const [dragging, setDragging] = useState(false)
+  const [dragStart, setDragStart] = useState(null)
+  const containerRef = useRef(null)
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const W = canvas.width
+    const H = canvas.height
+    ctx.clearRect(0, 0, W, H)
+
+    // Draw product image
+    const prodImg = new Image()
+    prodImg.crossOrigin = 'anonymous'
+    prodImg.onload = () => {
+      ctx.drawImage(prodImg, 0, 0, W, H)
+
+      // Draw artwork on top
+      const artImg = new Image()
+      artImg.crossOrigin = 'anonymous'
+      artImg.onload = () => {
+        const artW = (artPos.scale / 100) * W
+        const artH = artW * (artImg.height / artImg.width)
+        const artX = (artPos.x / 100) * W - artW / 2
+        const artY = (artPos.y / 100) * H - artH / 2
+        ctx.globalAlpha = 0.92
+        ctx.drawImage(artImg, artX, artY, artW, artH)
+        ctx.globalAlpha = 1
+
+        // Draw selection border
+        ctx.strokeStyle = C.accent
+        ctx.lineWidth = 2
+        ctx.setLineDash([4, 4])
+        ctx.strokeRect(artX - 2, artY - 2, artW + 4, artH + 4)
+        ctx.setLineDash([])
+
+        // Draw handle corners
+        const corners = [[artX, artY], [artX + artW, artY], [artX, artY + artH], [artX + artW, artY + artH]]
+        corners.forEach(([cx, cy]) => {
+          ctx.fillStyle = C.accent
+          ctx.fillRect(cx - 5, cy - 5, 10, 10)
+        })
+
+        onPlacementChange?.({ x: artPos.x, y: artPos.y, scale: artPos.scale, artW, artH, artX, artY, canvasW: W, canvasH: H })
+      }
+      artImg.src = artworkUrl
+    }
+    prodImg.src = productImage || '/placeholder-shirt.png'
+  }, [artPos, artworkUrl, productImage])
+
+  useEffect(() => { draw() }, [draw])
+
+  const getRelativePos = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 50, y: 50 }
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    return {
+      x: ((clientX - rect.left) / rect.width) * 100,
+      y: ((clientY - rect.top) / rect.height) * 100,
+    }
+  }
+
+  const handleMouseDown = (e) => {
+    e.preventDefault()
+    const pos = getRelativePos(e)
+    setDragging(true)
+    setDragStart({ mouseX: pos.x, mouseY: pos.y, artX: artPos.x, artY: artPos.y })
+  }
+
+  const handleMouseMove = (e) => {
+    if (!dragging || !dragStart) return
+    e.preventDefault()
+    const pos = getRelativePos(e)
+    const newX = Math.max(5, Math.min(95, dragStart.artX + (pos.x - dragStart.mouseX)))
+    const newY = Math.max(5, Math.min(95, dragStart.artY + (pos.y - dragStart.mouseY)))
+    setArtPos(prev => ({ ...prev, x: newX, y: newY }))
+  }
+
+  const handleMouseUp = () => { setDragging(false); setDragStart(null) }
+
+  return (
+    <div ref={containerRef}>
+      <canvas
+        ref={canvasRef}
+        width={400}
+        height={480}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleMouseDown}
+        onTouchMove={handleMouseMove}
+        onTouchEnd={handleMouseUp}
+        style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', border: `1px solid ${C.border}`, background: '#f5f5f5', display: 'block' }}
+      />
+      {/* Scale slider */}
+      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>Size</span>
+        <input type="range" min="10" max="90" value={artPos.scale}
+          onChange={e => setArtPos(prev => ({ ...prev, scale: parseInt(e.target.value) }))}
+          style={{ flex: 1, accentColor: C.accent }} />
+        <span style={{ fontSize: 11, color: C.text, minWidth: 32 }}>{artPos.scale}%</span>
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {[['Center', 50, 35], ['Top', 50, 20], ['Large', 50, 35]].map(([label, x, y]) => (
+          <button key={label} onClick={() => setArtPos(prev => ({ ...prev, x, y, scale: label === 'Large' ? 70 : 50 }))}
+            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+            {label}
+          </button>
+        ))}
+        <button onClick={() => setArtPos({ x: 50, y: 35, scale: 50 })}
+          style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+          Reset
+        </button>
+      </div>
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Drag your artwork to position it · Use slider to resize</p>
+    </div>
+  )
+}
+
+const STEPS = ['Upload', 'Product', 'Design', 'Colors', 'Details', 'Done']
 
 export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
   const navigate = useNavigate()
-
   const [step, setStep] = useState(1)
   const [hostedImageUrl, setHostedImageUrl] = useState('')
+  const [placement, setPlacement] = useState(null)
 
   // Step 2
   const [catalog, setCatalog] = useState([])
@@ -52,7 +176,15 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [variantLoading, setVariantLoading] = useState(false)
   const [search, setSearch] = useState('')
 
-  // Step 3
+  // Step 4 — colors
+  const [availableColors, setAvailableColors] = useState([])
+  const [selectedColors, setSelectedColors] = useState([])
+  const [previewColor, setPreviewColor] = useState(null)
+  const [mockupStatus, setMockupStatus] = useState('idle')
+  const [mockupUrl, setMockupUrl] = useState('')
+  const mockupPollRef = useRef(null)
+
+  // Step 5 — details
   const [title, setTitle] = useState(defaultTitle || '')
   const [titleTouched, setTitleTouched] = useState(false)
   const [description, setDescription] = useState('')
@@ -61,40 +193,17 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
-  // Mockup generation
-  const [mockupStatus, setMockupStatus] = useState('idle') // idle | generating | done | failed
-  const [mockupUrl, setMockupUrl] = useState('')
-  const mockupPollRef = useRef(null)
-
-  // Step 4 - share
-  const [createdProductId, setCreatedProductId] = useState(null)
-  const [channels, setChannels] = useState([])
-  const [channelsLoading, setChannelsLoading] = useState(false)
-  const [selectedChannel, setSelectedChannel] = useState(null)
-  const [caption, setCaption] = useState('')
-  const [sharing, setSharing] = useState(false)
-  const [shareError, setShareError] = useState('')
-
   useEffect(() => {
     loadCatalog()
-    if (imageUrl?.startsWith('data:')) {
-      uploadDataUrl(imageUrl)
-    } else {
-      setHostedImageUrl(imageUrl || '')
-      setStep(2)
-    }
+    if (imageUrl?.startsWith('data:')) uploadDataUrl(imageUrl)
+    else { setHostedImageUrl(imageUrl || ''); setStep(2) }
     return () => { if (mockupPollRef.current) clearTimeout(mockupPollRef.current) }
   }, [])
 
-  // ── Auto-fill title when product selected ────────────────────
   useEffect(() => {
-    if (selected && !titleTouched) {
-      const base = defaultTitle || 'My Design'
-      setTitle(`${base} ${selected.model}`)
-    }
+    if (selected && !titleTouched) setTitle(`${defaultTitle || 'My Design'} ${selected.model}`)
   }, [selected])
 
-  // ── Upload ────────────────────────────────────────────────────
   const uploadDataUrl = async (dataUrl) => {
     setStep(1)
     try {
@@ -111,24 +220,16 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const { data: { publicUrl } } = supabase.storage.from('artwork').getPublicUrl(up.path)
       setHostedImageUrl(publicUrl)
       setStep(2)
-    } catch (e) {
-      setError('Image upload failed: ' + e.message)
-      setStep(2)
-    }
+    } catch (e) { setError('Upload failed: ' + e.message); setStep(2) }
   }
 
-  // ── Catalog ───────────────────────────────────────────────────
   const loadCatalog = async () => {
     setCatalogLoading(true)
     try {
       const res = await fetch('/api/printful?action=catalog&offset=0')
       const data = await res.json()
-      // Filter out embroidery products (hats, caps, beanies) that require thread colors
-      const EMBROIDERY_KEYWORDS = ['embroidered', 'embroidery', 'structured cap', 'dad hat', 'trucker hat', 'beanie', 'snapback', 'baseball cap', 'bucket hat']
-      const filtered = (data.products || []).filter(p => {
-        const name = (p.title || p.name || p.model || '').toLowerCase()
-        return !EMBROIDERY_KEYWORDS.some(kw => name.includes(kw))
-      })
+      const SKIP = ['embroidered', 'embroidery', 'structured cap', 'dad hat', 'trucker hat', 'beanie', 'snapback', 'baseball cap', 'bucket hat']
+      const filtered = (data.products || []).filter(p => !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw)))
       setCatalog(filtered)
     } catch {}
     setCatalogLoading(false)
@@ -136,50 +237,68 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
 
   const selectProduct = async (p) => {
     setSelected(p)
-    if (!p.variants || p.variants.length === 0) {
-      setVariantLoading(true)
-      try {
-        const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`)
-        const data = await res.json()
-        const full = { ...p, variants: data.variants || [] }
-        setSelected(full)
-      } catch {}
-      setVariantLoading(false)
-    }
+    setAvailableColors([])
+    setSelectedColors([])
+    setPreviewColor(null)
+    setMockupUrl('')
+    setMockupStatus('idle')
+    setVariantLoading(true)
+    try {
+      const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`)
+      const data = await res.json()
+      const variants = data.variants || []
+      const colorMap = {}
+      for (const v of variants) {
+        const name = v.color || 'Default'
+        const hex = v.color_code || '#888'
+        if (!colorMap[name]) colorMap[name] = { name, hex, variantIds: [], image: v.image || p.image || '' }
+        colorMap[name].variantIds.push(v.id)
+        if (v.image && !colorMap[name].image) colorMap[name].image = v.image
+      }
+      const colors = Object.values(colorMap).slice(0, 30)
+      setAvailableColors(colors)
+      const def = colors.find(c => c.name.toLowerCase().includes('white')) || colors[0]
+      if (def) { setSelectedColors([def.name]); setPreviewColor(def) }
+      setSelected({ ...p, variants })
+    } catch {}
+    setVariantLoading(false)
   }
 
-  const filtered = catalog.filter(p =>
-    !search || p.model?.toLowerCase().includes(search.toLowerCase()) || p.type?.toLowerCase().includes(search.toLowerCase())
-  )
+  const toggleColor = (color) => {
+    setSelectedColors(prev => prev.includes(color.name) ? prev.filter(c => c !== color.name) : [...prev, color.name])
+    setPreviewColor(color)
+  }
 
-  // ── Mockup polling ────────────────────────────────────────────
+  const generateMockup = async () => {
+    if (!previewColor || !hostedImageUrl || !selected) return
+    setMockupStatus('generating')
+    try {
+      const variantIds = previewColor.variantIds.slice(0, 3)
+      const res = await fetch('/api/printful?action=mockupCreate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalogProductId: selected.id, variantIds, imageUrl: hostedImageUrl }),
+      })
+      const data = await res.json()
+      if (data.task_key) pollMockup(data.task_key, null, 0)
+      else setMockupStatus('failed')
+    } catch { setMockupStatus('failed') }
+  }
+
   const pollMockup = async (taskKey, productId, attempt = 0) => {
-    if (attempt > 20) { // ~60s max
-      setMockupStatus('failed')
-      return
-    }
+    if (attempt > 20) { setMockupStatus('failed'); return }
     try {
       const res = await fetch(`/api/printful?action=mockupStatus&taskKey=${encodeURIComponent(taskKey)}`)
       const data = await res.json()
-      const status = data.status
-
-      if (status === 'completed') {
-        // Grab first mockup image
+      if (data.status === 'completed') {
         const url = data.mockups?.[0]?.mockup_url || data.mockups?.[0]?.url || ''
         if (url) {
           setMockupUrl(url)
           setMockupStatus('done')
-          // Update Supabase product row
-          if (productId) {
-            await supabase.from('products').update({ mockup_url: url }).eq('id', productId)
-          }
-        } else {
-          setMockupStatus('failed')
-        }
-      } else if (status === 'failed') {
+          if (productId) await supabase.from('products').update({ mockup_url: url }).eq('id', productId)
+        } else setMockupStatus('failed')
+      } else if (data.status === 'failed') {
         setMockupStatus('failed')
       } else {
-        // Still pending — poll again in 3s
         mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
       }
     } catch {
@@ -187,135 +306,75 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     }
   }
 
-  const triggerMockup = async (catalogProductId, variantIds, imageUrl, productId) => {
-    setMockupStatus('generating')
-    try {
-      const res = await fetch('/api/printful?action=mockupCreate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ catalogProductId, variantIds, imageUrl }),
-      })
-      const data = await res.json()
-      const taskKey = data.task_key
-      if (taskKey) {
-        pollMockup(taskKey, productId)
-      } else {
-        setMockupStatus('failed')
-      }
-    } catch {
-      setMockupStatus('failed')
-    }
-  }
-
-  // ── Create product ────────────────────────────────────────────
   const handleCreate = async () => {
     if (!title.trim()) return setError('Product title is required.')
-    if (!hostedImageUrl) return setError('No image URL available.')
+    if (!hostedImageUrl) return setError('No image available.')
     if (!selected) return setError('Please select a product type.')
+    if (selectedColors.length === 0) return setError('Please select at least one color.')
     setError(''); setCreating(true)
     try {
-      // Check product limit before proceeding
       const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
       const tier = prof?.subscription_tier || 'free'
       const limitCheck = await checkProductLimit(user.id, tier)
       if (!limitCheck.allowed) {
-        const tierName = tier.charAt(0).toUpperCase() + tier.slice(1)
-        setError(`You've reached your ${limitCheck.limit} product limit on the ${tierName} plan. Delete a product or upgrade your plan to list more.`)
-        setCreating(false)
-        return
+        setError(`You've reached your ${limitCheck.limit} product limit on the ${tier} plan. Delete a product or upgrade.`)
+        setCreating(false); return
       }
-      const allVariantIds = (selected.variants || []).map(v => v.id)
+      const selectedColorObjs = availableColors.filter(c => selectedColors.includes(c.name))
+      const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || JSON.stringify(data) || 'Printful error')
-
+      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
       const printfulId = data.id || data.sync_product?.id || ''
       const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)
-
       const { data: inserted } = await supabase.from('products').insert({
-        user_id: user.id,
-        artwork_id: artworkId || null,
-        title,
-        description,
-        product_type: selected.type,
+        user_id: user.id, artwork_id: artworkId || null,
+        title, description, product_type: selected.type,
         price: parseFloat(price),
         printful_product_id: String(printfulId),
         printful_variant_ids: allVariantIds.map(String),
-        mockup_url: hostedImageUrl, // Fallback until Printful mockup is ready
+        mockup_url: mockupUrl || hostedImageUrl,
         tags: tagList,
       }).select().single()
-
-      const newProductId = inserted?.id || null
-      setCreatedProductId(newProductId)
-
-      // Kick off mockup generation in background (non-blocking)
-      triggerMockup(selected.id, allVariantIds.slice(0, 3), hostedImageUrl, newProductId)
-
-      // Load channels for share step
-      setChannelsLoading(true)
-      const { data: chData } = await supabase.from('channels').select('*').eq('is_live', true).order('member_count', { ascending: false })
-      setChannels(chData || [])
-      setChannelsLoading(false)
-
-      setStep(4)
-    } catch (e) {
-      setError(e.message)
-    }
+      if (!mockupUrl && selectedColorObjs[0]) {
+        const variantIds = selectedColorObjs[0].variantIds.slice(0, 3)
+        const mRes = await fetch('/api/printful?action=mockupCreate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalogProductId: selected.id, variantIds, imageUrl: hostedImageUrl }),
+        })
+        const mData = await mRes.json()
+        if (mData.task_key) pollMockup(mData.task_key, inserted?.id, 0)
+      }
+      setStep(6)
+    } catch (e) { setError(e.message) }
     setCreating(false)
   }
 
-  // ── Share ─────────────────────────────────────────────────────
-  const handleShare = async () => {
-    if (!selectedChannel) return setShareError('Pick a channel to share to.')
-    setSharing(true); setShareError('')
-    try {
-      const displayMockup = mockupUrl || hostedImageUrl
-      const { error: postErr } = await supabase.from('channel_posts').insert({
-        channel_id: selectedChannel.id,
-        user_id: user.id,
-        content: caption.trim() || `Just dropped: ${title} — available now in the marketplace!`,
-        image_url: displayMockup,
-        product_id: createdProductId,
-        like_count: 0,
-        reply_count: 0,
-      })
-      if (postErr) throw postErr
-      setStep(5)
-    } catch (e) {
-      setShareError(e.message)
-    }
-    setSharing(false)
-  }
-
-  const progressPct = step === 1 ? 0 : step === 2 ? 25 : step === 3 ? 50 : step === 4 ? 75 : 100
-
-  // The best available preview image: real mockup > artwork
-  const previewImage = mockupUrl || hostedImageUrl
+  const progressPct = ((step - 1) / (STEPS.length - 1)) * 100
+  const filtered = catalog.filter(p => !search || (p.model || '').toLowerCase().includes(search.toLowerCase()) || (p.type || '').toLowerCase().includes(search.toLowerCase()))
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, backdropFilter: 'blur(4px)' }}
-      onClick={e => e.target === e.currentTarget && step < 4 && onClose()}>
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, backdropFilter: 'blur(8px)' }}
+      onClick={e => e.target === e.currentTarget && step < 6 && onClose()}>
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '94vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ padding: '18px 24px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, margin: 0 }}>
-              {step === 4 ? '🎉 Share Your Product' : step === 5 ? '✦ All Done!' : 'Create a Product'}
+              {step === 6 ? '✦ Product Created!' : 'Create a Product'}
             </h3>
-            {step < 4 && (
-              <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4 }}>✕</button>
-            )}
+            {step < 6 && <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>}
           </div>
-          <div style={{ height: 3, background: C.border, borderRadius: 3, marginBottom: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${progressPct}%`, background: `linear-gradient(90deg, ${C.accent}, ${C.teal})`, borderRadius: 3, transition: 'width 0.4s ease' }} />
+          <div style={{ height: 3, background: C.border, borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
+            <div style={{ height: '100%', width: `${progressPct}%`, background: `linear-gradient(90deg, ${C.accent}, ${C.teal})`, borderRadius: 3, transition: 'width 0.4s' }} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            {STEPS.slice(0, -1).map((s, i) => (
-              <span key={s} style={{ fontSize: 10, color: step > i + 1 ? C.teal : step === i + 1 ? C.accent : C.muted, fontWeight: step === i + 1 ? 700 : 400 }}>{s}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+            {STEPS.map((s, i) => (
+              <span key={s} style={{ fontSize: 9, color: step > i + 1 ? C.teal : step === i + 1 ? C.accent : C.muted, fontWeight: step === i + 1 ? 700 : 400 }}>{s}</span>
             ))}
           </div>
         </div>
@@ -323,40 +382,33 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
 
-          {/* Step 1: Uploading */}
-          {step === 1 && (
-            <div style={{ padding: '20px 24px' }}>
-              <Spinner label="Uploading your artwork to Dreamscape..." />
-            </div>
-          )}
+          {/* Step 1: Upload */}
+          {step === 1 && <div style={{ padding: '20px 24px' }}><Spinner label="Uploading your artwork..." /></div>}
 
-          {/* Step 2: Pick product type */}
+          {/* Step 2: Product type */}
           {step === 2 && (
             <div style={{ padding: '0 24px 20px' }}>
               {hostedImageUrl && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                  <img src={hostedImageUrl} alt="Artwork" style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.border}` }} />
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 2 }}>Your artwork is ready</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>Select a product to print it on</div>
-                  </div>
+                  <img src={hostedImageUrl} alt="Art" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }} />
+                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Artwork ready — pick a product to print on</div>
                 </div>
               )}
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search t-shirts, hoodies, rugs, mugs..."
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search t-shirts, hoodies, mugs, posters..."
                 style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 }} />
-              {catalogLoading ? <Spinner label="Loading Printful catalog..." /> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+              {catalogLoading ? <Spinner label="Loading catalog..." /> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: 10 }}>
                   {filtered.slice(0, 60).map(p => (
                     <div key={p.id} onClick={() => selectProduct(p)}
-                      style={{ background: selected?.id === p.id ? `${C.accent}20` : C.bg, border: `1px solid ${selected?.id === p.id ? C.accent : C.border}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
-                      onMouseEnter={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.accent + '55' }}
+                      style={{ background: selected?.id === p.id ? `${C.accent}20` : C.bg, border: `2px solid ${selected?.id === p.id ? C.accent : C.border}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
+                      onMouseEnter={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.accent + '66' }}
                       onMouseLeave={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.border }}>
-                      <div style={{ height: 88, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {p.image ? <img src={p.image} alt={p.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 30 }}>🎨</span>}
+                      <div style={{ height: 78, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f8f8f8' }}>
+                        {p.image ? <img src={p.image} alt={p.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 26 }}>🎨</span>}
                       </div>
-                      <div style={{ padding: '7px 9px' }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: selected?.id === p.id ? C.accent : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.model}</div>
-                        <div style={{ fontSize: 10, color: C.muted }}>{p.type}</div>
+                      <div style={{ padding: '6px 8px' }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: selected?.id === p.id ? C.accent : C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.model}</div>
+                        <div style={{ fontSize: 9, color: C.muted }}>{p.type}</div>
                       </div>
                     </div>
                   ))}
@@ -365,191 +417,151 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </div>
           )}
 
-          {/* Step 3: Details */}
-          {step === 3 && (
+          {/* Step 3: Art Placement Editor */}
+          {step === 3 && selected && (
             <div style={{ padding: '0 24px 20px' }}>
-              {/* Product + artwork preview side by side */}
-              {selected && (
-                <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', marginBottom: 18 }}>
-                  {/* Artwork */}
-                  <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                    <img src={hostedImageUrl} alt="Your artwork"
-                      style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />
-                    <div style={{ padding: '6px 10px', fontSize: 10, color: C.muted, textAlign: 'center' }}>Your artwork</div>
-                  </div>
-                  {/* Product blank */}
-                  <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.accent}33`, borderRadius: 12, overflow: 'hidden' }}>
-                    <div style={{ aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      {selected.image
-                        ? <img src={selected.image} alt={selected.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontSize: 40 }}>🎨</span>}
-                    </div>
-                    <div style={{ padding: '6px 10px', fontSize: 10, color: C.accent, textAlign: 'center', fontWeight: 600 }}>{selected.model}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Mockup status banner */}
-              {mockupStatus === 'generating' && (
-                <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {[0,1,2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
-                  </div>
-                  <span style={{ fontSize: 12, color: C.accent }}>Generating product preview — this appears in your listing automatically when ready.</span>
-                </div>
-              )}
-              {mockupStatus === 'done' && mockupUrl && (
-                <div style={{ marginBottom: 14, background: C.bg, border: `1px solid ${C.teal}44`, borderRadius: 12, overflow: 'hidden' }}>
-                  <img src={mockupUrl} alt="Product mockup" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', display: 'block', background: '#fff' }} />
-                  <div style={{ padding: '8px 12px', fontSize: 11, color: C.teal, fontWeight: 600 }}>✦ Product preview ready — buyers will see this in the marketplace</div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Product Title</label>
-                <input
-                  autoFocus
-                  value={title}
-                  onChange={e => { setTitle(e.target.value); setTitleTouched(true) }}
-                  placeholder={`e.g. My Design ${selected?.model || ''}`}
-                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                <p style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
-                  💡 Include the product type so buyers know exactly what they're getting.
-                </p>
+              <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: C.text }}>
+                <strong style={{ color: C.accent }}>✦ Design Editor</strong> — Drag your artwork to position it on the <strong>{selected.model}</strong>. Resize with the slider.
               </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your product..." rows={2}
-                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }} />
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Tags <span style={{ fontWeight: 400, textTransform: 'none' }}>(comma-separated)</span></label>
-                <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surreal, neon, abstract, fantasy"
-                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
-                  <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
-                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                </div>
-                <p style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>You keep the difference after Printful's base cost + Stripe fees (~2.9% + $0.30).</p>
-              </div>
-
-              {error && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#ff6b6b' }}>{error}</div>}
+              <ArtPlacementEditor
+                artworkUrl={hostedImageUrl}
+                productImage={previewColor?.image || selected.image}
+                productName={selected.model}
+                onPlacementChange={setPlacement}
+              />
             </div>
           )}
 
-          {/* Step 4: Share to Channel */}
+          {/* Step 4: Colors */}
           {step === 4 && (
-            <div style={{ padding: '0 24px 24px' }}>
-              {/* Product preview — real mockup if available */}
-              <div style={{ background: C.bg, border: `1px solid ${C.teal}44`, borderRadius: 14, overflow: 'hidden', marginBottom: 20 }}>
-                {mockupStatus === 'generating' ? (
-                  <div style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <img src={hostedImageUrl} alt="" style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.border}`, flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>✦ Product Created</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{title}</div>
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ display: 'inline-flex', gap: 3 }}>
-                            {[0,1,2].map(i => <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: C.accent, display: 'inline-block', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
-                          </span>
-                          Generating product preview...
-                        </span>
-                      </div>
+            <div style={{ padding: '0 24px 20px' }}>
+              {/* Preview */}
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginBottom: 18 }}>
+                <div style={{ minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', background: '#f0f0f0' }}>
+                  {mockupStatus === 'generating' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(8,11,20,0.7)', zIndex: 2 }}>
+                      <Spinner label="Generating preview..." />
                     </div>
+                  )}
+                  {mockupStatus === 'done' && mockupUrl ? (
+                    <img src={mockupUrl} alt="Mockup" style={{ maxHeight: 240, maxWidth: '100%', objectFit: 'contain', display: 'block' }} />
+                  ) : previewColor?.image ? (
+                    <img src={previewColor.image} alt={previewColor.name} style={{ maxHeight: 200, maxWidth: '100%', objectFit: 'contain', opacity: 0.8 }} />
+                  ) : (
+                    <div style={{ padding: 32, textAlign: 'center' }}>
+                      <div style={{ fontSize: 40, marginBottom: 8 }}>🎨</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>Select a color to preview</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    {previewColor && <span style={{ width: 14, height: 14, borderRadius: '50%', background: previewColor.hex, border: '2px solid rgba(255,255,255,0.2)', display: 'inline-block' }} />}
+                    {previewColor?.name || 'Pick a color'}
                   </div>
-                ) : (
-                  <>
-                    <img src={previewImage} alt="Product preview"
-                      style={{ width: '100%', maxHeight: 240, objectFit: mockupStatus === 'done' ? 'contain' : 'cover', display: 'block', background: mockupStatus === 'done' ? '#fff' : 'transparent' }} />
-                    <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
-                          {mockupStatus === 'done' ? '✦ Preview Ready' : '✦ Product Created'}
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{title}</div>
-                        <div style={{ fontSize: 12, color: C.muted }}>{selected?.model} · ${parseFloat(price).toFixed(2)}</div>
-                      </div>
-                    </div>
-                  </>
-                )}
+                  {previewColor && mockupStatus !== 'generating' && (
+                    <button onClick={generateMockup}
+                      style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '5px 12px', color: C.teal, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      {mockupStatus === 'done' ? '↻ Regenerate' : '✦ Generate Preview'}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Share to a Channel</div>
-              <p style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-                Let the community discover your new product. Pick a channel and add an optional caption.
-              </p>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Caption <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
-                <textarea value={caption} onChange={e => setCaption(e.target.value)}
-                  placeholder={`Just dropped: ${title} — available now in the marketplace!`}
-                  rows={2}
-                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }} />
+              {/* Color grid */}
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                Available Colors ({availableColors.length}) — select all you want to offer
               </div>
-
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Choose Channel</label>
-              {channelsLoading ? <Spinner label="Loading channels..." /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {channels.map(ch => (
-                    <div key={ch.id} onClick={() => setSelectedChannel(ch)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        background: selectedChannel?.id === ch.id ? `${C.accent}18` : C.bg,
-                        border: `1px solid ${selectedChannel?.id === ch.id ? C.accent : C.border}`,
-                        borderRadius: 12, padding: '12px 16px', cursor: 'pointer', transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { if (selectedChannel?.id !== ch.id) e.currentTarget.style.borderColor = C.accent + '44' }}
-                      onMouseLeave={e => { if (selectedChannel?.id !== ch.id) e.currentTarget.style.borderColor = C.border }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: ch.color + '25', border: `1px solid ${ch.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{ch.icon}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: selectedChannel?.id === ch.id ? C.accent : C.text }}>#{ch.display_name}</div>
-                        <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.description}</div>
-                      </div>
-                      <div style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>{ch.member_count?.toLocaleString()}</div>
-                      {selectedChannel?.id === ch.id && (
-                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ fontSize: 10, color: '#fff' }}>✓</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              {variantLoading ? <Spinner label="Loading colors..." /> : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {availableColors.map(color => {
+                    const isSel = selectedColors.includes(color.name)
+                    const isPrev = previewColor?.name === color.name
+                    return (
+                      <button key={color.name} onClick={() => toggleColor(color)} title={color.name}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: isSel ? `${C.accent}20` : C.bg, border: `2px solid ${isPrev ? C.teal : isSel ? C.accent : C.border}`, borderRadius: 20, padding: '4px 10px 4px 5px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                        <span style={{ width: 16, height: 16, borderRadius: '50%', background: color.hex, border: '2px solid rgba(255,255,255,0.2)', display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: isSel ? C.accent : C.text, fontWeight: isSel ? 700 : 400, whiteSpace: 'nowrap' }}>{color.name}</span>
+                        {isSel && <span style={{ fontSize: 10, color: C.accent }}>✓</span>}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
-              {shareError && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', marginTop: 14, fontSize: 13, color: '#ff6b6b' }}>{shareError}</div>}
+              {selectedColors.length > 0 && (
+                <div style={{ background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.teal, marginTop: 12 }}>
+                  ✓ {selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}: {selectedColors.join(', ')}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 5: Done */}
+          {/* Step 5: Details */}
           {step === 5 && (
-            <div style={{ padding: '48px 32px', textAlign: 'center' }}>
-              <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 20px' }}>✦</div>
-              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8 }}>You're live!</h3>
-              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>
-                Your product is in the marketplace{selectedChannel ? <> and posted in <strong style={{ color: C.accent }}>#{selectedChannel.display_name}</strong></> : ''}.
-                {mockupStatus !== 'done' && ' Printful is generating your product preview and will update automatically.'}
+            <div style={{ padding: '0 24px 20px' }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 18, alignItems: 'center' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#f0f0f0' }}>
+                  <img src={mockupUrl || hostedImageUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{selected?.model}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}: {selectedColors.slice(0, 3).join(', ')}{selectedColors.length > 3 ? ` +${selectedColors.length - 3}` : ''}</div>
+                  {mockupStatus === 'done' && <span style={{ fontSize: 10, color: C.teal, fontWeight: 600 }}>✦ Preview ready</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Product Title</label>
+                  <input autoFocus value={title} onChange={e => { setTitle(e.target.value); setTitleTouched(true) }}
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>💡 Include the art style and product type for better search visibility.</p>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
+                  <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2}
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Style Tags</label>
+                  <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surreal, neon, abstract, fantasy"
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
+                    <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
+                      style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>You keep the difference after Printful base cost + Stripe fees (~2.9% + $0.30).</p>
+                </div>
+                {error && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b' }}>{error}</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Step 6: Done */}
+          {step === 6 && (
+            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 8 }}>Product Created!</h3>
+              <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+                Your product is live with {selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}.
+                {mockupStatus === 'generating' ? ' Mockup preview is generating.' : mockupStatus === 'done' ? ' Preview is ready.' : ''}
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {selectedChannel && (
-                  <button onClick={() => { onSuccess(); navigate(`/channels/${selectedChannel.name}`) }}
-                    style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '12px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    View in Channel ✦
-                  </button>
-                )}
-                <button onClick={() => { onSuccess(); navigate('/marketplace') }}
-                  style={{ background: selectedChannel ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: selectedChannel ? `1px solid ${C.border}` : 'none', borderRadius: 10, padding: '12px 24px', color: selectedChannel ? C.muted : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  View in Marketplace
+                <button onClick={() => { onSuccess?.(); navigate('/marketplace') }}
+                  style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 View in Marketplace
                 </button>
-                <button onClick={onSuccess}
-                  style={{ background: 'none', border: 'none', padding: '12px 16px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
-                  Done
+                <button onClick={() => { onSuccess?.(); navigate('/profile') }}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 22px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  My Profile
+                </button>
+                <button onClick={onClose}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 22px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  Close
                 </button>
               </div>
             </div>
@@ -557,36 +569,39 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         </div>
 
         {/* Footer */}
-        {(step === 2 || step === 3 || step === 4) && (
-          <div style={{ padding: '14px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
+        {step < 6 && (
+          <div style={{ padding: '14px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0, alignItems: 'center' }}>
+            {step > 1 && (
+              <button onClick={() => setStep(s => s - 1)}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                ← Back
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+
             {step === 2 && (
-              <>
-                <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                <button
-                  onClick={() => { if (!selected) return setError('Please select a product type.'); setError(''); setStep(3) }}
-                  disabled={variantLoading || !selected}
-                  style={{ flex: 2, background: selected && !variantLoading ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: selected && !variantLoading ? 'pointer' : 'not-allowed' }}>
-                  {variantLoading ? '⏳ Loading...' : 'Next: Details →'}
-                </button>
-              </>
+              <button onClick={() => { if (selected && !variantLoading) setStep(3) }} disabled={!selected || variantLoading}
+                style={{ background: !selected || variantLoading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: !selected || variantLoading ? 'not-allowed' : 'pointer' }}>
+                {variantLoading ? 'Loading...' : 'Design It →'}
+              </button>
             )}
             {step === 3 && (
-              <>
-                <button onClick={() => { setStep(2); setError('') }} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>← Back</button>
-                <button onClick={handleCreate} disabled={creating}
-                  style={{ flex: 2, background: creating ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: creating ? 'not-allowed' : 'pointer' }}>
-                  {creating ? '⏳ Creating...' : 'Create Product ✦'}
-                </button>
-              </>
+              <button onClick={() => setStep(4)}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Choose Colors →
+              </button>
             )}
             {step === 4 && (
-              <>
-                <button onClick={() => setStep(5)} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Skip</button>
-                <button onClick={handleShare} disabled={sharing || !selectedChannel}
-                  style={{ flex: 2, background: sharing || !selectedChannel ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: sharing || !selectedChannel ? 'not-allowed' : 'pointer' }}>
-                  {sharing ? '⏳ Posting...' : 'Post to Channel ✦'}
-                </button>
-              </>
+              <button onClick={() => selectedColors.length > 0 && setStep(5)} disabled={selectedColors.length === 0}
+                style={{ background: selectedColors.length === 0 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedColors.length === 0 ? 'not-allowed' : 'pointer' }}>
+                {selectedColors.length === 0 ? 'Select a Color' : `Add Details →`}
+              </button>
+            )}
+            {step === 5 && (
+              <button onClick={handleCreate} disabled={creating}
+                style={{ background: creating ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: creating ? 'not-allowed' : 'pointer' }}>
+                {creating ? '⏳ Creating...' : 'Create Product ✦'}
+              </button>
             )}
           </div>
         )}
