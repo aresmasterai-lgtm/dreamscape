@@ -25,38 +25,35 @@ const C = {
 }
 
 // ── Starfield Background ──────────────────────────────────────
-function StarField() {
-  // Generate stars only in the peripheral zones — edges and corners
-  // Avoid the center 60% wide x 70% tall where content lives
-  const generatePeripheral = (count) => {
-    const stars = []
-    let attempts = 0
-    while (stars.length < count && attempts < 500) {
-      attempts++
-      const top = Math.random() * 100
-      const left = Math.random() * 100
-      // Keep stars in peripheral zones: top strip, bottom strip, left strip, right strip
-      const inTopStrip = top < 18
-      const inBottomStrip = top > 82
-      const inLeftStrip = left < 12
-      const inRightStrip = left > 88
-      const inCorner = (top < 30 && left < 20) || (top < 30 && left > 80) || (top > 70 && left < 20) || (top > 70 && left > 80)
-      if (inTopStrip || inBottomStrip || inLeftStrip || inRightStrip || inCorner) {
-        stars.push({
-          id: stars.length,
-          top, left,
-          size: Math.random() * 16 + 6,
-          duration: Math.random() * 6 + 4,
-          delay: Math.random() * 8,
-          opacity: Math.random() * 0.2 + 0.04,
-          grow: Math.random() * 1.6 + 1.2,
-        })
-      }
+// Stars generated once at module load — never regenerate on re-render
+const STARS = (() => {
+  const stars = []
+  let attempts = 0
+  while (stars.length < 40 && attempts < 500) {
+    attempts++
+    const top = Math.random() * 100
+    const left = Math.random() * 100
+    const inTopStrip = top < 18
+    const inBottomStrip = top > 82
+    const inLeftStrip = left < 12
+    const inRightStrip = left > 88
+    const inCorner = (top < 30 && left < 20) || (top < 30 && left > 80) || (top > 70 && left < 20) || (top > 70 && left > 80)
+    if (inTopStrip || inBottomStrip || inLeftStrip || inRightStrip || inCorner) {
+      stars.push({
+        id: stars.length, top, left,
+        size: Math.random() * 16 + 6,
+        duration: Math.random() * 6 + 4,
+        delay: Math.random() * 8,
+        opacity: Math.random() * 0.2 + 0.04,
+        grow: Math.random() * 1.6 + 1.2,
+      })
     }
-    return stars
   }
+  return stars
+})()
 
-  const stars = generatePeripheral(40)
+function StarField() {
+  const stars = STARS
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
       <style>{`
@@ -1941,6 +1938,17 @@ function CreatePage({ user, onSignIn }) {
   )
 }
 
+// ── Scroll to Top on Route Change ────────────────────────────
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    document.body.style.overflow = ''
+    document.documentElement.style.overflow = ''
+  }, [pathname])
+  return null
+}
+
 // ── Navbar ────────────────────────────────────────────────────
 function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
@@ -2357,11 +2365,8 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
 
-  if (loading) return (
-    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: C.accent, fontSize: 32 }}>✦</div>
-    </div>
-  )
+  // Don't blank screen during auth loading — causes flash on navigation
+  // Just render with user=null until auth resolves
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
@@ -2380,9 +2385,10 @@ export default function App() {
 
       <StarField />
 
-      <div style={{ position: 'relative', zIndex: 1, isolation: 'isolate', minHeight: '100vh', overflowX: 'hidden' }}>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh' }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
         <div style={{ paddingTop: 72 }}>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
