@@ -476,13 +476,14 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const uploadImage = async (file, bucket, pathPrefix) => {
     const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
     const path = `${pathPrefix}.${ext}`
-    // Remove old file first to avoid conflicts
+    console.log(`Uploading to ${bucket}/${path}`, file.type, file.size)
     await supabase.storage.from(bucket).remove([path])
     const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type })
-    if (error) throw error
+    if (error) { console.error('Upload error:', error); throw error }
     const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
-    // Add cache buster so browser shows new image immediately
-    return `${publicUrl}?t=${Date.now()}`
+    const url = `${publicUrl}?t=${Date.now()}`
+    console.log('Upload success, URL:', url)
+    return url
   }
 
   const handleSave = async () => {
@@ -490,14 +491,14 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
     try {
       let avatarUrl = profile?.avatar_url || null
       let bannerUrl = profile?.banner_url || null
-
+      console.log('Saving profile, avatarFile:', avatarFile?.name, 'bannerFile:', bannerFile?.name)
       if (avatarFile) avatarUrl = await uploadImage(avatarFile, 'avatars', `${user.id}/avatar`)
       if (bannerFile) bannerUrl = await uploadImage(bannerFile, 'banners', `${user.id}/banner`)
-
+      console.log('Avatar URL to save:', avatarUrl)
       const tags = styleTags.split(',').map(t => t.trim()).filter(Boolean)
       const updates = {
         id: user.id,
-        username: profile?.username, // preserve existing username — required field
+        username: profile?.username,
         display_name: displayName.trim() || null,
         bio: bio.trim() || null,
         location: location.trim() || null,
@@ -508,11 +509,14 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         banner_url: bannerUrl,
         updated_at: new Date().toISOString(),
       }
+      console.log('Upserting profile:', updates)
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
-      if (upsertErr) throw upsertErr
+      if (upsertErr) { console.error('Upsert error:', upsertErr); throw upsertErr }
+      console.log('Profile saved successfully')
       onSave(updates)
       onClose()
     } catch (err) {
+      console.error('Save error:', err)
       setError(err.message || 'Something went wrong.')
     }
     setSaving(false)
