@@ -24,21 +24,22 @@ const C = {
 
 // ── Starfield Background ──────────────────────────────────────
 function StarField() {
-  const stars = Array.from({ length: 120 }, (_, i) => ({
+  const stars = Array.from({ length: 60 }, (_, i) => ({
     id: i,
     top: Math.random() * 100,
     left: Math.random() * 100,
-    size: Math.random() * 2 + 0.5,
-    duration: Math.random() * 4 + 2,
-    delay: Math.random() * 5,
-    opacity: Math.random() * 0.6 + 0.1,
+    size: Math.random() * 18 + 8,
+    duration: Math.random() * 6 + 4,
+    delay: Math.random() * 8,
+    opacity: Math.random() * 0.25 + 0.05,
+    grow: Math.random() * 1.8 + 1.2,
   }))
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
       <style>{`
         @keyframes twinkle {
-          0%, 100% { opacity: var(--base-opacity); transform: scale(1); }
-          50% { opacity: calc(var(--base-opacity) * 0.15); transform: scale(0.7); }
+          0%, 100% { opacity: var(--base-opacity); transform: scale(1) rotate(0deg); }
+          50% { opacity: calc(var(--base-opacity) * 3); transform: scale(var(--grow)) rotate(20deg); }
         }
         @keyframes gradientShift {
           0% { background-position: 0% 50%; }
@@ -51,15 +52,16 @@ function StarField() {
           position: 'absolute',
           top: `${s.top}%`,
           left: `${s.left}%`,
-          width: s.size,
-          height: s.size,
-          borderRadius: '50%',
-          background: '#fff',
+          fontSize: `${s.size}px`,
+          color: '#7C5CFC',
           '--base-opacity': s.opacity,
+          '--grow': s.grow,
           opacity: s.opacity,
           animation: `twinkle ${s.duration}s ease-in-out infinite`,
           animationDelay: `${s.delay}s`,
-        }} />
+          userSelect: 'none',
+          lineHeight: 1,
+        }}>✦</div>
       ))}
     </div>
   )
