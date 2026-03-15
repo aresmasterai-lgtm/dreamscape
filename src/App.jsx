@@ -366,17 +366,23 @@ function GenUsageCounter({ user }) {
   const [tier, setTier] = useState('free')
 
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
+    let cancelled = false
     const load = async () => {
-      const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
-      const t = prof?.subscription_tier || 'free'
-      setTier(t)
-      if (t === 'studio') { setUsage({ used: '∞', limit: '∞' }); return }
-      const check = await checkGenerationLimit(user.id, t)
-      setUsage({ used: check.used, limit: check.limit })
+      try {
+        const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+        if (cancelled) return
+        const t = prof?.subscription_tier || 'free'
+        setTier(t)
+        if (t === 'studio') { setUsage({ used: '∞', limit: '∞' }); return }
+        const check = await checkGenerationLimit(user.id, t)
+        if (cancelled) return
+        setUsage({ used: check.used, limit: check.limit })
+      } catch {}
     }
     load()
-  }, [user])
+    return () => { cancelled = true }
+  }, [user?.id])
 
   if (!usage) return null
   if (tier === 'studio') return (
@@ -398,6 +404,21 @@ function GenUsageCounter({ user }) {
 
 // ── Dream AI Chat ─────────────────────────────────────────────
 const DREAM_STORAGE_KEY = 'dreamscape_dream_session'
+const DREAM_STORAGE_VERSION = 'v2'
+
+// One-time clear of old/corrupt session data on app load
+;(() => {
+  try {
+    const versionKey = 'ds_storage_version'
+    if (localStorage.getItem(versionKey) !== DREAM_STORAGE_VERSION) {
+      // Clear all dreamscape session keys
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith(DREAM_STORAGE_KEY)) localStorage.removeItem(key)
+      })
+      localStorage.setItem(versionKey, DREAM_STORAGE_VERSION)
+    }
+  } catch {}
+})()
 const INITIAL_MESSAGE = { role: 'assistant', content: "✨ Hey! I'm Dream. What are we creating today?" }
 
 function DreamChat({ user, onSignIn }) {
@@ -416,30 +437,58 @@ function DreamChat({ user, onSignIn }) {
   const [sessionPrompt, setSessionPrompt] = useState(null) // 'restore' | null
   const fileInputRef = useRef(null)
 
-  // On mount — check for saved session
+  // On mount — check for saved session — fully wrapped in try/catch
   useEffect(() => {
-    if (!user) return
+    if (!user?.id) return
+    let mounted = true
     try {
-      const saved = localStorage.getItem(`${DREAM_STORAGE_KEY}_${user.id}`)
-      if (saved) {
-        const { messages: savedMessages, timestamp } = JSON.parse(saved)
-        if (savedMessages?.length > 1) {
-          setSessionPrompt({ messages: savedMessages, timestamp })
-        }
+      const raw = localStorage.getItem(`${DREAM_STORAGE_KEY}_${user.id}`)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!mounted) return
+      // Validate structure strictly before using
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        Array.isArray(parsed.messages) &&
+        parsed.messages.length > 1 &&
+        typeof parsed.timestamp === 'number' &&
+        parsed.messages.every(m => m.role && typeof m.content === 'string')
+      ) {
+        setSessionPrompt({ messages: parsed.messages, timestamp: parsed.timestamp })
+      } else {
+        // Invalid structure — clear it
+        localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
       }
-    } catch {}
-  }, [user])
+    } catch {
+      // Corrupt localStorage — clear it
+      try { localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`) } catch {}
+    }
+    return () => { mounted = false }
+  }, [user?.id])
 
   // Auto-save session to localStorage whenever messages change
   useEffect(() => {
-    if (!user || messages.length <= 1) return
-    try {
-      localStorage.setItem(`${DREAM_STORAGE_KEY}_${user.id}`, JSON.stringify({
-        messages: messages.slice(-20), // save last 20 messages max
-        timestamp: Date.now(),
-      }))
-    } catch {}
-  }, [messages, user])
+    if (!user?.id || messages.length <= 1) return
+    const timer = setTimeout(() => {
+      try {
+        // Only save text messages — strip image data to avoid quota errors
+        const safe = messages.slice(-20).map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : '[image message]',
+          isError: m.isError || false,
+          isLimit: m.isLimit || false,
+        }))
+        localStorage.setItem(`${DREAM_STORAGE_KEY}_${user.id}`, JSON.stringify({
+          messages: safe,
+          timestamp: Date.now(),
+        }))
+      } catch {
+        // localStorage full or unavailable — skip silently
+      }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [messages, user?.id])
 
   useEffect(() => { bottomEl?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
@@ -603,9 +652,10 @@ function DreamChat({ user, onSignIn }) {
   )
 
   // Session restore prompt — only if we have a valid saved session
-  if (sessionPrompt && sessionPrompt.messages?.length > 1) {
+  if (sessionPrompt && Array.isArray(sessionPrompt.messages) && sessionPrompt.messages.length > 1) {
     const timeAgo = (() => {
-      const diff = Date.now() - sessionPrompt.timestamp
+      try {
+      const diff = Date.now() - (sessionPrompt.timestamp || Date.now())
       const mins = Math.floor(diff / 60000)
       const hours = Math.floor(diff / 3600000)
       const days = Math.floor(diff / 86400000)
@@ -613,9 +663,10 @@ function DreamChat({ user, onSignIn }) {
       if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
       if (mins > 0) return `${mins} minute${mins > 1 ? 's' : ''} ago`
       return 'just now'
+      } catch { return 'recently' }
     })()
     const lastUserMsg = [...sessionPrompt.messages].reverse().find(m => m.role === 'user')
-    const preview = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : lastUserMsg?.content?.find?.(c => c.type === 'text')?.text || ''
+    const preview = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.slice(0, 120) : ''
 
     return (
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
@@ -2024,13 +2075,7 @@ function DiscoverPage({ user, onSignIn }) {
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
-      <style>{`
-        @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-      `}</style>
+
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
         Where Artists<br />
@@ -2506,8 +2551,15 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
 
-  // Don't blank screen during auth loading — causes flash on navigation
-  // Just render with user=null until auth resolves
+  if (loading) return (
+    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 52, height: 52, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: '#fff' }}>✦</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+        {[0,1,2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
@@ -2557,7 +2609,6 @@ export default function App() {
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
-        <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
@@ -2572,6 +2623,8 @@ export default function App() {
           </div>
         </div>
       </div>
+      {/* Dream Widget — outside content wrapper to prevent routing interference */}
+      <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
     </div>
   )
 }
