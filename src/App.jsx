@@ -30,14 +30,6 @@ class ErrorBoundary extends Component {
   }
   componentDidCatch(error, info) {
     console.error('Page crashed:', error, info)
-    // Log to Supabase
-    logError({
-      type: 'react_crash',
-      message: error.message,
-      stack: error.stack,
-      page: window.location.pathname,
-      metadata: { componentStack: info.componentStack?.slice(0, 500) },
-    })
   }
   componentDidUpdate(prevProps) {
     // Reset error when route changes
@@ -101,53 +93,6 @@ async function checkProductLimit(userId, tier) {
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
   return { allowed: (count || 0) < limit, used: count || 0, limit }
-}
-
-
-// ── Global Error Logger ───────────────────────────────────────
-// Captures errors and logs them to Supabase error_logs table
-async function logError({ type, message, stack, page, userId, metadata = {} }) {
-  try {
-    await supabase.from('error_logs').insert({
-      type,
-      message: String(message).slice(0, 500),
-      stack: String(stack || '').slice(0, 2000),
-      page: page || window.location.pathname,
-      user_id: userId || null,
-      metadata,
-      status: 'new',
-    })
-  } catch {} // never crash the app trying to log
-}
-
-// Install global error handlers once
-let _errorHandlersInstalled = false
-function installGlobalErrorHandlers(userId) {
-  if (_errorHandlersInstalled) return
-  _errorHandlersInstalled = true
-
-  // Uncaught JS errors
-  window.addEventListener('error', (e) => {
-    logError({
-      type: 'uncaught_error',
-      message: e.message,
-      stack: e.error?.stack,
-      page: window.location.pathname,
-      userId,
-      metadata: { filename: e.filename, lineno: e.lineno, colno: e.colno },
-    })
-  })
-
-  // Unhandled promise rejections
-  window.addEventListener('unhandledrejection', (e) => {
-    logError({
-      type: 'unhandled_rejection',
-      message: String(e.reason?.message || e.reason || 'Unknown rejection'),
-      stack: e.reason?.stack,
-      page: window.location.pathname,
-      userId,
-    })
-  })
 }
 
 // ── Starfield Background ──────────────────────────────────────
@@ -336,7 +281,7 @@ function useMeta({ title, description, image } = {}) {
 }
 
 // ── GA4 Page View Tracking ────────────────────────────────────
-function usePageTracking(userId) {
+function usePageTracking() {
   const location = useLocation()
   useEffect(() => {
     if (typeof window.gtag !== 'function') return
@@ -344,10 +289,6 @@ function usePageTracking(userId) {
       page_path: location.pathname + location.search,
     })
   }, [location])
-  // Install global error handlers with current user id
-  useEffect(() => {
-    installGlobalErrorHandlers(userId)
-  }, [userId])
   // Aggressively fix overflow on every navigation — prevents blank page bug
   useEffect(() => {
     document.body.style.overflow = ''
@@ -2639,7 +2580,7 @@ function RoutedErrorBoundary({ children }) {
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  usePageTracking(user?.id)
+  usePageTracking()
   const { user, profile, setProfile, signOut, loading } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
