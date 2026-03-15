@@ -30,13 +30,83 @@ function Spinner() {
   )
 }
 
+// ── Tier Change Modal ─────────────────────────────────────────
+function TierModal({ confirm, TIERS, TIER_BENEFITS, updating, onUpdate, onClose }) {
+  const [selectedTier, setSelectedTier] = useState(confirm.currentTier)
+  const tierInfo = TIER_BENEFITS[selectedTier]
+  const isUpgrade = TIERS.indexOf(selectedTier) > TIERS.indexOf(confirm.currentTier)
+  const changed = selectedTier !== confirm.currentTier
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '32px', maxWidth: 460, width: '100%' }}>
+        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>Change Plan</h3>
+        <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Updating subscription for <strong style={{ color: C.text }}>@{confirm.username}</strong></p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+          {TIERS.map(t => {
+            const info = TIER_BENEFITS[t]
+            const isCurrent = t === confirm.currentTier
+            const isSelected = t === selectedTier
+            return (
+              <button key={t} onClick={() => setSelectedTier(t)}
+                style={{ background: isSelected ? info.color + '20' : C.panel, border: `2px solid ${isSelected ? info.color : C.border}`, borderRadius: 12, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: isSelected ? info.color : C.text }}>✦ {info.label}</span>
+                    {isCurrent && <span style={{ fontSize: 10, background: C.border, borderRadius: 6, padding: '1px 7px', color: C.muted }}>Current</span>}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? info.color : C.muted }}>{info.price}</span>
+                </div>
+                <div style={{ fontSize: 11, color: C.muted }}>
+                  {info.gens} generations/mo · {info.products} products · {info.commission} commission
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        {changed && (
+          <div style={{ background: isUpgrade ? `${C.teal}12` : `${C.gold}12`, border: `1px solid ${isUpgrade ? C.teal + '44' : C.gold + '44'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
+            <div style={{ fontWeight: 700, color: isUpgrade ? C.teal : C.gold, marginBottom: 4 }}>
+              {isUpgrade ? '⬆ Upgrade' : '⬇ Downgrade'} · {TIER_BENEFITS[confirm.currentTier].label} → {tierInfo.label}
+            </div>
+            <div style={{ color: C.muted, fontSize: 12 }}>
+              {isUpgrade
+                ? `${tierInfo.label} privileges apply immediately — ${tierInfo.gens} gens/mo, ${tierInfo.products} products, ${tierInfo.commission} commission.`
+                : `Access reduced to ${tierInfo.gens} gens/mo, ${tierInfo.products} products. Takes effect immediately.`
+              }
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => changed && onUpdate(confirm.userId, selectedTier)} disabled={!changed || updating === confirm.userId}
+            style={{ flex: 2, background: !changed ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, fontWeight: 700, cursor: !changed ? 'not-allowed' : 'pointer' }}>
+            {updating === confirm.userId ? 'Saving...' : !changed ? 'Select a plan' : `Apply ${tierInfo.label} Plan ✦`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Users Tab ─────────────────────────────────────────────────
 function UsersTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [updating, setUpdating] = useState(null)
-  const [confirm, setConfirm] = useState(null) // { type, userId, username, value }
+  const [confirm, setConfirm] = useState(null)
+  const [success, setSuccess] = useState(null) // { userId, message }
+
+  const TIER_BENEFITS = {
+    free:    { label: 'Free',    color: C.muted,   gens: 10,   products: 3,  commission: '30%', price: '$0' },
+    starter: { label: 'Starter', color: C.teal,    gens: 50,   products: 15, commission: '25%', price: '$9.99/mo' },
+    pro:     { label: 'Pro',     color: C.accent,  gens: 200,  products: 50, commission: '20%', price: '$24.99/mo' },
+    studio:  { label: 'Studio',  color: C.gold,    gens: '∞',  products: '∞',commission: '15%', price: '$59.99/mo' },
+  }
 
   useEffect(() => { loadUsers() }, [])
 
@@ -52,15 +122,37 @@ function UsersTab() {
 
   const updateTier = async (userId, tier) => {
     setUpdating(userId)
-    await supabase.from('profiles').update({ subscription_tier: tier, subscription_status: tier === 'free' ? 'free' : 'active' }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscription_tier: tier } : u))
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        subscription_tier: tier,
+        subscription_status: tier === 'free' ? 'inactive' : 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+
+    if (!error) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscription_tier: tier, subscription_status: tier === 'free' ? 'inactive' : 'active' } : u))
+      const username = users.find(u => u.id === userId)?.username
+      setSuccess({ userId, message: `@${username} upgraded to ${TIER_BENEFITS[tier].label} ✓` })
+      setTimeout(() => setSuccess(null), 4000)
+    }
     setUpdating(null)
+    setConfirm(null)
   }
 
   const toggleSuspend = async (userId, suspended) => {
     setUpdating(userId)
     await supabase.from('profiles').update({ is_suspended: !suspended }).eq('id', userId)
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_suspended: !suspended } : u))
+    setUpdating(null)
+    setConfirm(null)
+  }
+
+  const toggleAdmin = async (userId, isAdmin) => {
+    setUpdating(userId)
+    await supabase.from('profiles').update({ is_admin: !isAdmin }).eq('id', userId)
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_admin: !isAdmin } : u))
     setUpdating(null)
     setConfirm(null)
   }
@@ -72,59 +164,97 @@ function UsersTab() {
 
   return (
     <div>
+      {/* Success banner */}
+      {success && (
+        <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: C.teal, display: 'flex', alignItems: 'center', gap: 8 }}>
+          ✅ {success.message}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..."
           style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', width: 260 }} />
         <div style={{ fontSize: 12, color: C.muted }}>{filtered.length} user{filtered.length !== 1 ? 's' : ''}</div>
       </div>
+
       {loading ? <Spinner /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(u => (
-            <div key={u.id} style={{ background: C.card, border: `1px solid ${u.is_suspended ? C.red + '44' : C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              {/* Avatar letter */}
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                {u.username?.[0]?.toUpperCase() || '?'}
-              </div>
-              {/* User info */}
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
-                  {u.display_name || u.username}
-                  {u.is_admin && <span style={{ marginLeft: 8, fontSize: 10, background: C.gold + '22', border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '2px 8px', color: C.gold }}>ADMIN</span>}
-                  {u.is_suspended && <span style={{ marginLeft: 8, fontSize: 10, background: C.red + '22', border: `1px solid ${C.red}44`, borderRadius: 10, padding: '2px 8px', color: C.red }}>SUSPENDED</span>}
+          {filtered.map(u => {
+            const tier = u.subscription_tier || 'free'
+            const tierInfo = TIER_BENEFITS[tier] || TIER_BENEFITS.free
+            return (
+              <div key={u.id} style={{ background: C.card, border: `1px solid ${u.is_suspended ? '#FF4D4D44' : C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'border-color 0.2s' }}>
+
+                {/* Avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: `linear-gradient(135deg, ${tierInfo.color}, ${tierInfo.color}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  {u.username?.[0]?.toUpperCase() || '?'}
                 </div>
-                <div style={{ fontSize: 12, color: C.muted }}>@{u.username} · Joined {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-              </div>
-              {/* Tier selector */}
-              <select value={u.subscription_tier || 'free'} onChange={e => updateTier(u.id, e.target.value)}
-                disabled={updating === u.id || u.is_admin}
-                style={{ background: C.bg, border: `1px solid ${TIER_COLORS[u.subscription_tier || 'free']}55`, borderRadius: 8, padding: '6px 10px', color: TIER_COLORS[u.subscription_tier || 'free'] || C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', outline: 'none' }}>
-                {TIERS.map(t => <option key={t} value={t} style={{ color: C.text, background: C.bg }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-              </select>
-              {/* Suspend button */}
-              {!u.is_admin && (
-                <button onClick={() => setConfirm({ type: 'suspend', userId: u.id, username: u.username, suspended: u.is_suspended })}
+
+                {/* User info */}
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {u.display_name || u.username}
+                    {u.is_admin && <span style={{ fontSize: 10, background: C.gold + '22', border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '2px 8px', color: C.gold }}>⚡ ADMIN</span>}
+                    {u.is_suspended && <span style={{ fontSize: 10, background: '#FF4D4D22', border: '1px solid #FF4D4D44', borderRadius: 10, padding: '2px 8px', color: '#FF4D4D' }}>🚫 SUSPENDED</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.muted }}>@{u.username} · Joined {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                  <div style={{ fontSize: 11, color: tierInfo.color, marginTop: 2, fontWeight: 600 }}>
+                    {tierInfo.label} · {tierInfo.gens} gens/mo · {tierInfo.products} products · {tierInfo.commission} commission
+                  </div>
+                </div>
+
+                {/* Tier badge */}
+                <span style={{ background: tierInfo.color + '20', border: `1px solid ${tierInfo.color}44`, borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: tierInfo.color, whiteSpace: 'nowrap' }}>
+                  ✦ {tierInfo.label}
+                </span>
+
+                {/* Change tier button */}
+                <button
+                  onClick={() => setConfirm({ type: 'tier', userId: u.id, username: u.username, currentTier: tier })}
                   disabled={updating === u.id}
-                  style={{ background: u.is_suspended ? `${C.teal}20` : `${C.red}18`, border: `1px solid ${u.is_suspended ? C.teal + '44' : C.red + '44'}`, borderRadius: 8, padding: '6px 14px', color: u.is_suspended ? C.teal : C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  {u.is_suspended ? 'Unsuspend' : 'Suspend'}
+                  style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: updating === u.id ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+                  {updating === u.id ? 'Saving...' : '⭐ Change Plan'}
                 </button>
-              )}
-            </div>
-          ))}
+
+                {/* Suspend */}
+                {!u.is_admin && (
+                  <button onClick={() => setConfirm({ type: 'suspend', userId: u.id, username: u.username, suspended: u.is_suspended })}
+                    disabled={updating === u.id}
+                    style={{ background: u.is_suspended ? `${C.teal}20` : '#FF4D4D18', border: `1px solid ${u.is_suspended ? C.teal + '44' : '#FF4D4D44'}`, borderRadius: 8, padding: '6px 14px', color: u.is_suspended ? C.teal : '#FF4D4D', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {u.is_suspended ? 'Unsuspend' : 'Suspend'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
-      {/* Confirm dialog */}
+
+      {/* ── Tier Change Modal ── */}
+      {confirm?.type === 'tier' && (
+        <TierModal
+          confirm={confirm}
+          TIERS={TIERS}
+          TIER_BENEFITS={TIER_BENEFITS}
+          updating={updating}
+          onUpdate={updateTier}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+
+      {/* ── Suspend Confirm ── */}
       {confirm?.type === 'suspend' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', maxWidth: 400, width: '100%', textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 16 }}>{confirm.suspended ? '✅' : '🚫'}</div>
             <h3 style={{ color: C.text, marginBottom: 8, fontFamily: 'Playfair Display, serif' }}>{confirm.suspended ? 'Unsuspend' : 'Suspend'} @{confirm.username}?</h3>
             <p style={{ color: C.muted, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>
-              {confirm.suspended ? 'This will restore their access to Dreamscape.' : 'This will block their access to Dreamscape immediately.'}
+              {confirm.suspended ? 'This will restore full access to Dreamscape immediately.' : 'This will block their access to Dreamscape immediately.'}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirm(null)} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => toggleSuspend(confirm.userId, confirm.suspended)}
-                style={{ flex: 1, background: confirm.suspended ? `linear-gradient(135deg, ${C.teal}, #00A884)` : `linear-gradient(135deg, ${C.red}, #CC0000)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                style={{ flex: 1, background: confirm.suspended ? `linear-gradient(135deg, ${C.teal}, #00A884)` : 'linear-gradient(135deg, #FF4D4D, #CC0000)', border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 Confirm
               </button>
             </div>
