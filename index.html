@@ -211,9 +211,11 @@
       }
 
       /* App hidden until splash dismissed — opacity only, never display:none so crawlers see content */
-      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; }
-      #root.visible { opacity: 1; }
-      body.app-ready { overflow: auto; }
+      #root { opacity: 0; transition: opacity 0.7s ease 0.1s; min-height: 100vh; overflow: visible; }
+      #root.visible { opacity: 1; overflow: visible; }
+      /* Always allow scroll once app is ready */
+      body { overflow: hidden; }
+      body.app-ready { overflow: auto !important; }
     </style>
   </head>
   <body>
@@ -248,8 +250,31 @@
     <script type="module" src="/src/main.jsx"></script>
 
     <script>
-      // Generate stars immediately
       ;(function() {
+        const SPLASH_KEY = 'ds_last_splash'
+        const FIFTEEN_MINS = 15 * 60 * 1000
+        const splash = document.getElementById('splash')
+        const root = document.getElementById('root')
+
+        function skipSplash() {
+          splash.style.display = 'none'
+          root.classList.add('visible')
+          root.style.opacity = '1'
+          document.body.style.overflow = ''
+          document.body.classList.add('app-ready')
+        }
+
+        // Always skip for bots
+        const bots = /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|msnbot|crawler|spider|bot|prerender/i
+        if (bots.test(navigator.userAgent)) { skipSplash(); return }
+
+        // Skip if visited within last 2 hours
+        try {
+          const last = localStorage.getItem(SPLASH_KEY)
+          if (last && (Date.now() - parseInt(last)) < FIFTEEN_MINS) { skipSplash(); return }
+        } catch(e) {}
+
+        // Show splash — generate stars
         const el = document.getElementById('splash-stars')
         for (let i = 0; i < 55; i++) {
           const s = document.createElement('div')
@@ -268,21 +293,10 @@
         root.classList.add('visible')
         document.body.style.overflow = ''
         document.body.classList.add('app-ready')
+        // Save timestamp so splash won't show for 2 hours
+        try { localStorage.setItem('ds_last_splash', Date.now().toString()) } catch(e) {}
         setTimeout(() => { splash.style.display = 'none' }, 900)
       }
-
-      // Skip splash entirely for search engine crawlers and bots
-      ;(function() {
-        const bots = /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|msnbot|crawler|spider|bot|prerender/i
-        if (bots.test(navigator.userAgent)) {
-          document.getElementById('splash').style.display = 'none'
-          const root = document.getElementById('root')
-          root.classList.add('visible')
-          root.style.opacity = '1'
-          document.body.style.overflow = ''
-        document.body.classList.add('app-ready')
-        }
-      })()
     </script>
   </body>
 </html>
