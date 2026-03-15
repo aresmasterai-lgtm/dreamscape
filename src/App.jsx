@@ -459,12 +459,28 @@ function DreamChat({ user, onSignIn }) {
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setReferenceImage({ dataUrl: ev.target.result, mimeType: file.type, name: file.name })
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      const MAX = 800
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        const reader = new FileReader()
+        reader.onload = ev => setReferenceImage({ dataUrl: ev.target.result, mimeType: 'image/jpeg', name: file.name })
+        reader.readAsDataURL(blob)
+      }, 'image/jpeg', 0.75)
     }
-    reader.readAsDataURL(file)
-    e.target.value = '' // reset so same file can be re-selected
+    img.src = objectUrl
+    e.target.value = ''
   }
 
   const send = async () => {
@@ -491,7 +507,18 @@ function DreamChat({ user, onSignIn }) {
     }
 
     const userMsg = { role: 'user', content: userContent, _refImage: referenceImage?.dataUrl }
-    const history = [...messages.filter((_, i) => i > 0), { role: 'user', content: userContent }]
+    // Strip base64 images from history — only the current message carries the image.
+    // Prevents payload from growing with every follow-up message, avoiding Netlify's 6MB body limit.
+    const sanitizedHistory = messages
+      .filter((_, i) => i > 0)
+      .map(msg => {
+        if (Array.isArray(msg.content)) {
+          const textPart = msg.content.find(c => c.type === 'text')
+          return { role: msg.role, content: textPart?.text || '[reference image attached]' }
+        }
+        return { role: msg.role, content: msg.content }
+      })
+    const history = [...sanitizedHistory, { role: 'user', content: userContent }]
     const currentRef = referenceImage?.dataUrl || null
     setMessages(prev => [...prev, userMsg])
     setInput('')
