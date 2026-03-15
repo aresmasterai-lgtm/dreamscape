@@ -157,13 +157,19 @@ function CatalogView({ user, onSignIn }) {
   )
 }
 
-// ── Shop Tab (with Buy buttons) ───────────────────────────────
+// ── Shop View ─────────────────────────────────────────────────
 function ShopView({ user, onSignIn }) {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [buyingId, setBuyingId] = useState(null)
   const [selectedProduct, setSelectedProduct] = useState(null)
+  const [styleFilter, setStyleFilter] = useState('All')
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [search, setSearch] = useState('')
   const navigate = useNavigate()
+
+  const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art']
+  const PRODUCT_TYPES = ['All', 'T-Shirt', 'Hoodie', 'Mug', 'Poster', 'Phone Case', 'Tote Bag', 'Pillow', 'Other']
 
   useEffect(() => { loadProducts() }, [])
 
@@ -173,11 +179,18 @@ function ShopView({ user, onSignIn }) {
         .from('products')
         .select('*, profiles(id, username)')
         .order('created_at', { ascending: false })
-        .limit(60)
+        .limit(100)
       setProducts(data || [])
     } catch {}
     setLoading(false)
   }
+
+  const filtered = products.filter(p => {
+    const matchStyle = styleFilter === 'All' || p.tags?.includes(styleFilter)
+    const matchType = typeFilter === 'All' || (p.product_type || '').toLowerCase().includes(typeFilter.toLowerCase())
+    const matchSearch = !search || p.title?.toLowerCase().includes(search.toLowerCase())
+    return matchStyle && matchType && matchSearch
+  })
 
   const handleBuy = async (product) => {
     if (!user) return onSignIn()
@@ -198,44 +211,82 @@ function ShopView({ user, onSignIn }) {
       const data = await res.json()
       if (data.url) window.location.href = data.url
       else alert('Checkout error: ' + (data.error || 'Unknown'))
-    } catch (e) { alert('Connection error.') }
+    } catch { alert('Connection error.') }
     setBuyingId(null)
   }
 
   if (loading) return <Spinner />
 
-  if (products.length === 0) return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
-      <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>
-        No products listed yet. Go to <strong style={{ color: C.accent }}>Create Products</strong> to publish your first item!
-      </p>
-    </div>
-  )
-
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-        {products.map(product => (
-          <div key={product.id} onClick={() => setSelectedProduct(product)}
-            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
-            <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {product.mockup_url
-                ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: 52 }}>🎨</span>}
-            </div>
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.title}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 13, color: C.teal, fontWeight: 700 }}>${parseFloat(product.price || 29.99).toFixed(2)}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>by @{product.profiles?.username || 'artist'}</div>
+      <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
+          style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', width: 260 }} />
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Style</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {STYLE_TAGS.map(tag => (
+              <button key={tag} onClick={() => setStyleFilter(tag)}
+                style={{ background: styleFilter === tag ? `${C.accent}20` : 'none', border: `1px solid ${styleFilter === tag ? C.accent + '55' : C.border}`, borderRadius: 20, padding: '4px 14px', color: styleFilter === tag ? C.accent : C.muted, fontSize: 12, fontWeight: styleFilter === tag ? 700 : 400, cursor: 'pointer' }}>
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Product Type</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {PRODUCT_TYPES.map(type => (
+              <button key={type} onClick={() => setTypeFilter(type)}
+                style={{ background: typeFilter === type ? `${C.teal}20` : 'none', border: `1px solid ${typeFilter === type ? C.teal + '55' : C.border}`, borderRadius: 20, padding: '4px 14px', color: typeFilter === type ? C.teal : C.muted, fontSize: 12, fontWeight: typeFilter === type ? 700 : 400, cursor: 'pointer' }}>
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: C.muted }}>{filtered.length} product{filtered.length !== 1 ? 's' : ''}</div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
+          <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>
+            {products.length === 0 ? 'No products listed yet. Be the first to sell!' : 'No products match your filters.'}
+          </p>
+          {products.length === 0 && (
+            <button onClick={() => navigate('/create')} style={{ marginTop: 16, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Start Creating ✦</button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+          {filtered.map(product => (
+            <div key={product.id} onClick={() => setSelectedProduct(product)}
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
+              <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {product.mockup_url
+                  ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 52 }}>🎨</span>}
+              </div>
+              <div style={{ padding: '14px 16px' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.title}</div>
+                {product.tags?.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+                    {product.tags.slice(0, 2).map(tag => (
+                      <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '2px 8px', fontSize: 10, color: C.accent }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 15, color: C.teal, fontWeight: 700 }}>${parseFloat(product.price || 29.99).toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>@{product.profiles?.username || 'artist'}</div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {selectedProduct && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,11,20,0.93)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
@@ -249,7 +300,14 @@ function ShopView({ user, onSignIn }) {
             </div>
             <div style={{ padding: '24px 28px' }}>
               <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>{selectedProduct.title}</h3>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>by @{selectedProduct.profiles?.username || 'artist'} · {selectedProduct.product_type}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>by @{selectedProduct.profiles?.username || 'artist'} · {selectedProduct.product_type}</div>
+              {selectedProduct.tags?.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {selectedProduct.tags.map(tag => (
+                    <span key={tag} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+                  ))}
+                </div>
+              )}
               {selectedProduct.description && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>{selectedProduct.description}</p>}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                 <div style={{ fontSize: 26, fontWeight: 800, color: C.teal, fontFamily: 'Playfair Display, serif' }}>${parseFloat(selectedProduct.price || 29.99).toFixed(2)}</div>

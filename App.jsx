@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
 import AuthModal from './components/AuthModal'
@@ -1330,60 +1330,133 @@ function CreatePage({ user, onSignIn }) {
 // ── Navbar ────────────────────────────────────────────────────
 function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const [mobileMenu, setMobileMenu] = useState(false)
   const nav = location.pathname
-  const navItems = [['/', 'Discover'], ['/channels', 'Channels'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/blog', 'Blog'], ['/pricing', 'Pricing']]
   const isActive = (path) => path === '/' ? nav === '/' : nav.startsWith(path)
+
+  // Close menu on navigation
+  useEffect(() => { setMobileMenu(false) }, [location])
+
+  const mainNavItems = [['/', 'Discover'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/blog', 'Blog'], ['/pricing', 'Pricing']]
+  const moreNavItems = [['blog', 'Blog'], ['/pricing', 'Pricing']]
 
   return (
     <>
-      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(8,11,20,0.9)', backdropFilter: 'blur(20px)', borderBottom: `1px solid ${C.border}`, height: 60, display: 'flex', alignItems: 'center', padding: '0 20px', gap: 24 }}>
-        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', flexShrink: 0 }}
+      <style>{`
+        @media (max-width: 900px) { .nav-links-full { display: none !important; } .mobile-menu-btn { display: flex !important; } }
+        @media (min-width: 901px) { .mobile-menu-btn { display: none !important; } }
+        .nav-link:hover { color: #E8EAF0 !important; background: rgba(124,92,252,0.12) !important; }
+        .mobile-menu-overlay { position: fixed; inset: 0; top: 72px; z-index: 98; }
+      `}</style>
+
+      <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(24px)', borderBottom: `1px solid ${C.border}`, height: 72, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 16 }}>
+
+        {/* Logo */}
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}
           onMouseDown={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.gold}, #E6A800)`}
           onMouseUp={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`}
           onMouseLeave={e => e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`}>
-          <div className="logo-icon" style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#ffffff', transition: 'background 0.2s' }}>✦</div>
-          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 17 }}>
+          <div className="logo-icon" style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#ffffff', transition: 'background 0.2s', flexShrink: 0 }}>✦</div>
+          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20 }}>
             <span style={{ color: '#E8EAF0' }}>Dream</span><span style={{ color: C.accent }}>scape</span>
           </span>
         </Link>
-        <div className="nav-links" style={{ display: 'flex', gap: 2, flex: 1 }}>
-          {navItems.map(([path, label]) => (
-            <Link key={path} to={path} style={{ background: isActive(path) ? `${C.accent}20` : 'none', border: `1px solid ${isActive(path) ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: isActive(path) ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none', transition: 'all 0.15s' }}>{label}</Link>
+
+        {/* Desktop nav links */}
+        <div className="nav-links-full" style={{ display: 'flex', gap: 2, flex: 1, alignItems: 'center' }}>
+          {mainNavItems.map(([path, label]) => (
+            <Link key={path} to={path} className="nav-link"
+              style={{ borderRadius: 8, padding: '7px 14px', color: isActive(path) ? C.accent : C.muted, fontSize: 14, fontWeight: isActive(path) ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive(path) ? `${C.accent}20` : 'none', border: `1px solid ${isActive(path) ? C.accent + '55' : 'transparent'}' }}>
+              {label}
+            </Link>
           ))}
+          <Link to="/blog" className="nav-link"
+            style={{ borderRadius: 8, padding: '7px 14px', color: isActive('/blog') ? C.accent : C.muted, fontSize: 14, fontWeight: isActive('/blog') ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive('/blog') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/blog') ? C.accent + '55' : 'transparent'}` }}>
+            Blog
+          </Link>
+          <Link to="/pricing" className="nav-link"
+            style={{ borderRadius: 8, padding: '7px 14px', color: isActive('/pricing') ? C.accent : C.muted, fontSize: 14, fontWeight: isActive('/pricing') ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive('/pricing') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/pricing') ? C.accent + '55' : 'transparent'}` }}>
+            Pricing
+          </Link>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+
+        {/* Desktop right side */}
+        <div className="nav-links-full" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {user ? (
             <>
-              <Link to="/profile" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : 'transparent'}`, borderRadius: 20, padding: '3px 10px 3px 3px' }}>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
-                  {profile?.avatar_url
-                    ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
-                </div>
-              </Link>
-              <Link to="/orders" style={{ background: nav === '/orders' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/orders' ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: nav === '/orders' ? C.accent : C.muted, fontSize: 12, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
               {profile?.is_admin && (
-                <Link to="/admin" style={{ background: nav === '/admin' ? `${C.gold}20` : `${C.gold}10`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '5px 12px', color: C.gold, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
+                <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
               )}
-              <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign Out</button>
+              <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
+              <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : C.border}`, borderRadius: 24, padding: '4px 12px 4px 4px' }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
+                  {profile?.avatar_url ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
+                </div>
+                <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{profile?.display_name || profile?.username || 'Profile'}</span>
+              </Link>
+              <button onClick={signOut} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Sign Out</button>
             </>
           ) : (
             <>
-              <button onClick={onSignIn} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Sign In</button>
-              <button onClick={onSignIn} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Join Free</button>
+              <button onClick={onSignIn} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 16px', color: C.text, fontSize: 14, cursor: 'pointer', fontWeight: 500 }}>Sign In</button>
+              <button onClick={onSignIn} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '8px 18px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Join Free ✦</button>
             </>
           )}
         </div>
-        <button className="mobile-menu-btn" onClick={() => setMobileMenu(!mobileMenu)} style={{ display: 'none', background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, cursor: 'pointer', fontSize: 16, flexShrink: 0 }}>☰</button>
-      </nav>
-      {mobileMenu && (
-        <div style={{ position: 'fixed', top: 60, left: 0, right: 0, zIndex: 99, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {navItems.map(([path, label]) => (
-            <Link key={path} to={path} onClick={() => setMobileMenu(false)} style={{ background: isActive(path) ? `${C.accent}20` : 'none', borderRadius: 8, padding: '10px 14px', color: isActive(path) ? C.accent : C.text, fontSize: 14, textDecoration: 'none' }}>{label}</Link>
-          ))}
-          {user && <Link to="/orders" onClick={() => setMobileMenu(false)} style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', borderRadius: 8, padding: '10px 14px', color: isActive('/orders') ? C.accent : C.text, fontSize: 14, textDecoration: 'none' }}>📦 Orders</Link>}
+
+        {/* Mobile right side — avatar + hamburger */}
+        <div className="mobile-menu-btn" style={{ display: 'none', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+          {user && (
+            <Link to="/profile" style={{ textDecoration: 'none' }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', border: `2px solid ${C.border}` }}>
+                {profile?.avatar_url ? <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : profile?.username?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
+              </div>
+            </Link>
+          )}
+          <button onClick={() => setMobileMenu(!mobileMenu)}
+            style={{ background: mobileMenu ? `${C.accent}20` : 'none', border: `1px solid ${mobileMenu ? C.accent + '55' : C.border}`, borderRadius: 10, padding: '8px 12px', color: mobileMenu ? C.accent : C.text, cursor: 'pointer', fontSize: 20, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {mobileMenu ? '✕' : '☰'}
+          </button>
         </div>
+      </nav>
+
+      {/* Mobile menu */}
+      {mobileMenu && (
+        <>
+          <div className="mobile-menu-overlay" onClick={() => setMobileMenu(false)} />
+          <div style={{ position: 'fixed', top: 72, left: 0, right: 0, zIndex: 99, background: C.panel, borderBottom: `1px solid ${C.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+            {/* Nav links */}
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[...mainNavItems, ['/blog', 'Blog'], ['/pricing', 'Pricing']].map(([path, label]) => (
+                <Link key={path} to={path} onClick={() => setMobileMenu(false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '13px 16px', color: isActive(path) ? C.accent : C.text, fontSize: 16, fontWeight: isActive(path) ? 700 : 400, textDecoration: 'none', background: isActive(path) ? `${C.accent}18` : 'none', transition: 'all 0.15s' }}>
+                  {label}
+                  {isActive(path) && <span style={{ marginLeft: 'auto', color: C.accent, fontSize: 12 }}>●</span>}
+                </Link>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: C.border, margin: '0 16px' }} />
+
+            {/* User section */}
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {user ? (
+                <>
+                  <Link to="/orders" onClick={() => setMobileMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '13px 16px', color: C.text, fontSize: 16, textDecoration: 'none' }}>📦 Orders</Link>
+                  {profile?.is_admin && <Link to="/admin" onClick={() => setMobileMenu(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '13px 16px', color: C.gold, fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>}
+                  <button onClick={() => { signOut(); setMobileMenu(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '13px 16px', color: C.muted, fontSize: 16, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}>Sign Out</button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', gap: 10, padding: '8px 0' }}>
+                  <button onClick={() => { onSignIn(); setMobileMenu(false) }} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px', color: C.text, fontSize: 15, cursor: 'pointer', fontWeight: 500 }}>Sign In</button>
+                  <button onClick={() => { onSignIn(); setMobileMenu(false) }} style={{ flex: 1, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '12px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Join Free ✦</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </>
   )
@@ -1446,7 +1519,9 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #080B14; }
+        body { background: #080B14; font-size: 15px; }
+        a { -webkit-tap-highlight-color: transparent; }
+        button { -webkit-tap-highlight-color: transparent; }
         @media (max-width: 640px) {
           .nav-links { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
@@ -1457,11 +1532,11 @@ export default function App() {
 
       <div style={{ position: 'relative', zIndex: 1 }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
-        <div style={{ paddingTop: 60 }}>
+        <div style={{ paddingTop: 72 }}>
           <Routes>
             <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/channels" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/channels/:channelName" element={<Channels user={user} onSignIn={() => setShowAuth(true)} />} />
+            <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
+            <Route path="/channels/:channelName" element={<Navigate to="/marketplace" replace />} />
             <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
             <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
