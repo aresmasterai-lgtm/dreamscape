@@ -384,7 +384,7 @@ function DreamChat({ user, onSignIn }) {
       })
       setLoading(false)
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.', isError: true }])
       setLoading(false)
     }
   }
@@ -419,7 +419,11 @@ function DreamChat({ user, onSignIn }) {
     finally { setGeneratingIndex(null) }
   }
 
-  const lastAiIndex = messages.reduce((last, msg, i) => msg.role === 'assistant' && i > 0 ? i : last, -1)
+  const ERROR_MSGS = ['Connection error. Please try again.', 'Sorry, something went wrong. Please try again.']
+  const lastAiIndex = messages.reduce((last, msg, i) => {
+    if (msg.role === 'assistant' && i > 0 && !ERROR_MSGS.includes(msg.content)) return i
+    return last
+  }, -1)
 
   if (!user) return (
     <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 16, padding: 32, textAlign: 'center' }}>
@@ -513,8 +517,14 @@ function DreamChat({ user, onSignIn }) {
                   {isUser && msg._refImage && (
                     <img src={msg._refImage} alt="Reference" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accent}55` }} />
                   )}
-                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: C.text, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.isError ? `${C.red}18` : isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.isError ? `1px solid ${C.red}44` : isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: msg.isError ? '#FF6B6B' : C.text, whiteSpace: 'pre-wrap' }}>
                     {textContent}
+                    {msg.isError && (
+                      <button onClick={() => { setMessages(prev => prev.filter((_, idx) => idx !== i)); send() }}
+                        style={{ display: 'block', marginTop: 6, background: 'none', border: `1px solid ${C.red}44`, borderRadius: 6, padding: '3px 10px', color: '#FF6B6B', fontSize: 11, cursor: 'pointer' }}>
+                        ↺ Retry
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
