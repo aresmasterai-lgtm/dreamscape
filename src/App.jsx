@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Component } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
@@ -17,6 +17,45 @@ import Blog from './components/Blog'
 import Terms from './components/Terms'
 import Contact from './components/Contact'
 import BlogPost from './components/BlogPost'
+
+
+// ── Error Boundary ────────────────────────────────────────────
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error, info) {
+    console.error('Page crashed:', error, info)
+  }
+  componentDidUpdate(prevProps) {
+    // Reset error when route changes
+    if (prevProps.routeKey !== this.props.routeKey) {
+      this.setState({ hasError: false, error: null })
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '80px 20px', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: '#E8EAF0', marginBottom: 12 }}>Something went wrong</h2>
+          <p style={{ color: '#6B7494', fontSize: 14, marginBottom: 24, maxWidth: 400 }}>
+            {this.state.error?.message || 'This page encountered an error.'}
+          </p>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
+            style={{ background: 'linear-gradient(135deg, #7C5CFC, #4B2FD0)', border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Reload Page
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -508,6 +547,10 @@ function DreamChat({ user, onSignIn }) {
   }
 
   const generateImage = async (prompt, index, refImage = null) => {
+    if (!prompt || typeof prompt !== 'string') {
+      console.warn('generateImage called with invalid prompt:', prompt)
+      return
+    }
     // Check generation limit before proceeding
     if (user) {
       const tier = (await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()).data?.subscription_tier || 'free'
@@ -559,8 +602,8 @@ function DreamChat({ user, onSignIn }) {
     </div>
   )
 
-  // Session restore prompt
-  if (sessionPrompt) {
+  // Session restore prompt — only if we have a valid saved session
+  if (sessionPrompt && sessionPrompt.messages?.length > 1) {
     const timeAgo = (() => {
       const diff = Date.now() - sessionPrompt.timestamp
       const mins = Math.floor(diff / 60000)
@@ -2446,6 +2489,16 @@ function DreamWidget({ user, onSignIn }) {
   )
 }
 
+// ── Routed Error Boundary ────────────────────────────────────
+function RoutedErrorBoundary({ children }) {
+  const location = useLocation()
+  return (
+    <ErrorBoundary routeKey={location.pathname}>
+      {children}
+    </ErrorBoundary>
+  )
+}
+
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
   usePageTracking()
@@ -2477,28 +2530,30 @@ export default function App() {
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
         <div style={{ paddingTop: 72 }}>
           <ScrollToTop />
-          <Routes>
-            <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
-            <Route path="/channels/:channelName" element={<Navigate to="/marketplace" replace />} />
-            <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
-            <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/:slug" element={<BlogPost />} />
-            <Route path="/sitemap" element={<Sitemap />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/admin" element={<Admin user={user} profile={profile} />} />
-            <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
-            <Route path="/success" element={<SuccessPage />} />
-            <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
-          </Routes>
+          <RoutedErrorBoundary>
+            <Routes>
+              <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
+              <Route path="/channels/:channelName" element={<Navigate to="/marketplace" replace />} />
+              <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/create" element={<CreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
+              <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/:slug" element={<BlogPost />} />
+              <Route path="/sitemap" element={<Sitemap />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/admin" element={<Admin user={user} profile={profile} />} />
+              <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/success" element={<SuccessPage />} />
+              <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+            </Routes>
+          </RoutedErrorBoundary>
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
