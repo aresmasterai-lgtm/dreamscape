@@ -751,6 +751,107 @@ function ShopCard({ product }) {
   )
 }
 
+// ── Payouts Card ──────────────────────────────────────────────
+function PayoutsCard({ user, profile }) {
+  const navigate = useNavigate()
+  const [status, setStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0 })
+
+  const canSell = profile?.subscription_tier && profile.subscription_tier !== 'free'
+
+  useEffect(() => {
+    if (user && canSell) {
+      checkStatus()
+      loadEarnings()
+    } else {
+      setLoading(false)
+    }
+  }, [user, profile])
+
+  const checkStatus = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/connect-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id }) })
+      const data = await res.json()
+      setStatus(data)
+    } catch {}
+    setLoading(false)
+  }
+
+  const loadEarnings = async () => {
+    const { data } = await supabase.from('orders').select('creator_earnings, payout_status').eq('creator_id', user.id)
+    if (data) {
+      const total = data.reduce((sum, o) => sum + (o.creator_earnings || 0), 0)
+      const paid = data.filter(o => o.payout_status === 'paid').reduce((sum, o) => sum + (o.creator_earnings || 0), 0)
+      setEarnings({ total, pending: total - paid, paid })
+    }
+  }
+
+  const handleConnect = async () => {
+    setConnecting(true)
+    try {
+      const res = await fetch('/api/connect-onboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, email: user.email }) })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else alert('Something went wrong: ' + (data.error || 'Unknown'))
+    } catch { alert('Connection error.') }
+    setConnecting(false)
+  }
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Payouts & Earnings</div>
+
+      {!canSell ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>Upgrade to Starter or above to set up payouts and start earning from your sales.</div>
+          <button onClick={() => navigate('/pricing')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⬆ Upgrade</button>
+        </div>
+      ) : loading ? (
+        <div style={{ color: C.muted, fontSize: 13 }}>Checking payout status...</div>
+      ) : !status?.connected ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 4 }}>Connect your bank account</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>Set up your Stripe account to receive payments directly to your bank.</div>
+          </div>
+          <button onClick={handleConnect} disabled={connecting}
+            style={{ background: `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: connecting ? 'not-allowed' : 'pointer' }}>
+            {connecting ? 'Connecting...' : '🏦 Set Up Payouts'}
+          </button>
+        </div>
+      ) : !status?.enabled ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, color: C.gold, fontWeight: 600, marginBottom: 4 }}>⚠️ Payout setup incomplete</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Finish setting up your Stripe account to start receiving payments.</div>
+          </div>
+          <button onClick={handleConnect} disabled={connecting}
+            style={{ background: `${C.gold}22`, border: `1px solid ${C.gold}55`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Complete Setup →
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+            <span style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700, color: C.teal }}>✅ Payouts Active</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {[['Total Earned', earnings.total, C.gold], ['Pending', earnings.pending, C.accent], ['Paid Out', earnings.paid, C.teal]].map(([label, amount, color]) => (
+              <div key={label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color }}>${parseFloat(amount || 0).toFixed(2)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── My Profile Page (/profile) ────────────────────────────────
 function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
@@ -915,6 +1016,9 @@ function ProfilePage({ user, profile: initialProfile }) {
               </div>
             </div>
           </div>
+
+          {/* Payouts card */}
+          <PayoutsCard user={user} profile={profile} />
           {profile?.artist_statement ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 32px', marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.accent, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Artist Statement</div>
