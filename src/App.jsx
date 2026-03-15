@@ -191,7 +191,6 @@ function DreamChat({ user, onSignIn }) {
   const send = async () => {
     if (!input.trim() || loading) return
 
-    // Build user message — with image if attached
     let userContent
     if (referenceImage) {
       const base64 = referenceImage.dataUrl.split(',')[1]
@@ -205,17 +204,35 @@ function DreamChat({ user, onSignIn }) {
 
     const userMsg = { role: 'user', content: userContent, _refImage: referenceImage?.dataUrl }
     const history = [...messages.filter((_, i) => i > 0), { role: 'user', content: userContent }]
+    const currentRef = referenceImage?.dataUrl || null
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setReferenceImage(null)
     setLoading(true)
+
     try {
       const res = await fetch('/api/dream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) })
       const data = await res.json()
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'Something went wrong.' }])
+
+      if (data.error) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+        setLoading(false)
+        return
+      }
+
+      const aiMsgIndex = messages.filter((_, i) => i > 0).length + 2
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'Here\'s your prompt — generating now...' }])
+      setLoading(false)
+
+      // Auto-generate image if Dream returned a prompt
+      if (data.generationPrompt) {
+        const newIndex = aiMsgIndex
+        setTimeout(() => generateImage(data.generationPrompt, newIndex, currentRef), 300)
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
-    } finally { setLoading(false) }
+      setLoading(false)
+    }
   }
 
   const handleSave = async ({ title, prompt, styleTags, imageUrl }) => {
@@ -227,23 +244,24 @@ function DreamChat({ user, onSignIn }) {
     }
   }
 
-  const generateImage = async (prompt, index) => {
+  const generateImage = async (prompt, index, refImage = null) => {
     setGeneratingIndex(index)
-    // Find the most recent user reference image to use as generation reference
-    const lastUserWithImage = [...messages].reverse().find(m => m._refImage)
     try {
+      const lastUserWithImage = refImage || [...messages].reverse().find(m => m._refImage)?._refImage || null
       const res = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          resolution: '1K',
-          referenceImage: lastUserWithImage?._refImage || null,
-        })
+        body: JSON.stringify({ prompt, referenceImage: lastUserWithImage })
       })
       const data = await res.json()
-      if (data.success) setGeneratedImages(prev => ({ ...prev, [index]: `data:${data.mimeType};base64,${data.imageData}` }))
-      else alert('Image generation failed: ' + (data.error || 'Unknown'))
-    } catch { alert('Connection error.') }
+      if (data.success) {
+        setGeneratedImages(prev => ({ ...prev, [index]: `data:${data.mimeType};base64,${data.imageData}` }))
+      } else {
+        // Show error in chat instead of alert
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error || 'Image generation failed.'} Try describing your idea differently or click Generate Image to try again.` }])
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Connection error during image generation. Please try again.' }])
+    }
     finally { setGeneratingIndex(null) }
   }
 
