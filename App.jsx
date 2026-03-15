@@ -220,15 +220,16 @@ function DreamChat({ user, onSignIn }) {
         return
       }
 
-      const aiMsgIndex = messages.filter((_, i) => i > 0).length + 2
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'Here\'s your prompt — generating now...' }])
+      setMessages(prev => {
+        const newMessages = [...prev, { role: 'assistant', content: data.reply || "Here's your prompt — generating now..." }]
+        // Auto-generate using the index of the new AI message
+        if (data.generationPrompt) {
+          const newIndex = newMessages.length - 1
+          setTimeout(() => generateImage(data.generationPrompt, newIndex, currentRef), 300)
+        }
+        return newMessages
+      })
       setLoading(false)
-
-      // Auto-generate image if Dream returned a prompt
-      if (data.generationPrompt) {
-        const newIndex = aiMsgIndex
-        setTimeout(() => generateImage(data.generationPrompt, newIndex, currentRef), 300)
-      }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }])
       setLoading(false)
@@ -1070,7 +1071,7 @@ function ProfilePage({ user, profile: initialProfile }) {
         followingCount === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
-            <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>You're not following anyone yet. Find artists in <Link to="/channels" style={{ color: C.accent }}>Channels</Link>.</p>
+            <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>You're not following anyone yet. Browse artists in the <Link to="/marketplace" style={{ color: C.accent }}>Marketplace</Link>.</p>
           </div>
         ) : <ArtworkGrid artworks={feedArtworks} loading={loadingFeed} />
       )}
@@ -1302,7 +1303,7 @@ function DiscoverPage({ user, onSignIn }) {
         <button onClick={() => navigate('/marketplace')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.text, fontSize: 14, cursor: 'pointer' }}>Explore Marketplace</button>
       </div>
       <div style={{ display: 'flex', gap: 40, marginTop: 56, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {[['10K+', 'Artists'], ['50K+', 'Artworks'], ['120+', 'Channels'], ['150+', 'Countries']].map(([num, label]) => (
+        {[['10K+', 'Artists'], ['50K+', 'Artworks'], ['500+', 'Products'], ['150+', 'Countries']].map(([num, label]) => (
           <div key={label} style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{num}</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{label}</div>
@@ -1339,7 +1340,6 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   useEffect(() => { setMobileMenu(false) }, [location])
 
   const mainNavItems = [['/', 'Discover'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/blog', 'Blog'], ['/pricing', 'Pricing']]
-  const moreNavItems = [['blog', 'Blog'], ['/pricing', 'Pricing']]
 
   return (
     <>
@@ -1367,18 +1367,11 @@ function Navbar({ user, profile, signOut, onSignIn }) {
         <div className="nav-links-full" style={{ display: 'flex', gap: 2, flex: 1, alignItems: 'center' }}>
           {mainNavItems.map(([path, label]) => (
             <Link key={path} to={path} className="nav-link"
-              style={{ borderRadius: 8, padding: '7px 14px', color: isActive(path) ? C.accent : C.muted, fontSize: 14, fontWeight: isActive(path) ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive(path) ? `${C.accent}20` : 'none', border: `1px solid ${isActive(path) ? C.accent + '55' : 'transparent'}' }}>
+              style={{ borderRadius: 8, padding: '7px 14px', color: isActive(path) ? C.accent : C.muted, fontSize: 14, fontWeight: isActive(path) ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive(path) ? `${C.accent}20` : 'none', border: `1px solid ${isActive(path) ? C.accent + '55' : 'transparent'}` }}>
               {label}
             </Link>
           ))}
-          <Link to="/blog" className="nav-link"
-            style={{ borderRadius: 8, padding: '7px 14px', color: isActive('/blog') ? C.accent : C.muted, fontSize: 14, fontWeight: isActive('/blog') ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive('/blog') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/blog') ? C.accent + '55' : 'transparent'}` }}>
-            Blog
-          </Link>
-          <Link to="/pricing" className="nav-link"
-            style={{ borderRadius: 8, padding: '7px 14px', color: isActive('/pricing') ? C.accent : C.muted, fontSize: 14, fontWeight: isActive('/pricing') ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s', background: isActive('/pricing') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/pricing') ? C.accent + '55' : 'transparent'}` }}>
-            Pricing
-          </Link>
+
         </div>
 
         {/* Desktop right side */}
@@ -1428,7 +1421,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           <div style={{ position: 'fixed', top: 72, left: 0, right: 0, zIndex: 99, background: C.panel, borderBottom: `1px solid ${C.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
             {/* Nav links */}
             <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {[...mainNavItems, ['/blog', 'Blog'], ['/pricing', 'Pricing']].map(([path, label]) => (
+              {mainNavItems.map(([path, label]) => (
                 <Link key={path} to={path} onClick={() => setMobileMenu(false)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '13px 16px', color: isActive(path) ? C.accent : C.text, fontSize: 16, fontWeight: isActive(path) ? 700 : 400, textDecoration: 'none', background: isActive(path) ? `${C.accent}18` : 'none', transition: 'all 0.15s' }}>
                   {label}
