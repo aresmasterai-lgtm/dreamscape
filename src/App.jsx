@@ -2239,9 +2239,7 @@ function DreamWidget({ user, onSignIn }) {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
-  // Don't show on /create — full Dream is already there
-  if (location.pathname === '/create') return null
-
+  // ALL hooks must come before any conditional returns
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
@@ -2261,6 +2259,10 @@ function DreamWidget({ user, onSignIn }) {
       return () => clearTimeout(t)
     }
   }, [open, messages])
+
+  // Don't show on /create — full Dream is already there
+  // This return must come AFTER all hooks above
+  if (location.pathname === '/create') return null
 
   const send = async () => {
     if (!input.trim() || loading) return
