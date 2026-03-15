@@ -405,22 +405,6 @@ function GenUsageCounter({ user }) {
 }
 
 // ── Dream AI Chat ─────────────────────────────────────────────
-const DREAM_STORAGE_KEY = 'dreamscape_dream_session'
-const DREAM_STORAGE_VERSION = 'v2'
-
-// One-time clear of old/corrupt session data on app load
-;(() => {
-  try {
-    const versionKey = 'ds_storage_version'
-    if (localStorage.getItem(versionKey) !== DREAM_STORAGE_VERSION) {
-      // Clear all dreamscape session keys
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith(DREAM_STORAGE_KEY)) localStorage.removeItem(key)
-      })
-      localStorage.setItem(versionKey, DREAM_STORAGE_VERSION)
-    }
-  } catch {}
-})()
 const INITIAL_MESSAGE = { role: 'assistant', content: "✨ Hey! I'm Dream. What are we creating today?" }
 
 function DreamChat({ user, onSignIn }) {
@@ -436,7 +420,6 @@ function DreamChat({ user, onSignIn }) {
   const [createProductImage, setCreateProductImage] = useState(null)
   const bottomRef = useRef(null)
   const [referenceImage, setReferenceImage] = useState(null)
-  const [sessionPrompt, setSessionPrompt] = useState(null)
   const fileInputRef = useRef(null)
   const mountedRef = useRef(true)
   const genTimeoutRef = useRef(null)
@@ -450,72 +433,15 @@ function DreamChat({ user, onSignIn }) {
     }
   }, [])
 
-  // On mount — check for saved session — fully wrapped in try/catch
-  useEffect(() => {
-    if (!user?.id) return
-    let mounted = true
-    try {
-      const raw = localStorage.getItem(`${DREAM_STORAGE_KEY}_${user.id}`)
-      if (!raw) return
-      const parsed = JSON.parse(raw)
-      if (!mounted) return
-      // Validate structure strictly before using
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        Array.isArray(parsed.messages) &&
-        parsed.messages.length > 1 &&
-        typeof parsed.timestamp === 'number' &&
-        parsed.messages.every(m => m.role && typeof m.content === 'string')
-      ) {
-        setSessionPrompt({ messages: parsed.messages, timestamp: parsed.timestamp })
-      } else {
-        // Invalid structure — clear it
-        localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
-      }
-    } catch {
-      // Corrupt localStorage — clear it
-      try { localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`) } catch {}
-    }
-    return () => { mounted = false }
-  }, [user?.id])
 
-  // Auto-save session to localStorage whenever messages change
-  useEffect(() => {
-    if (!user?.id || messages.length <= 1) return
-    const timer = setTimeout(() => {
-      try {
-        // Only save text messages — strip image data to avoid quota errors
-        const safe = messages.slice(-20).map(m => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : '[image message]',
-          isError: m.isError || false,
-          isLimit: m.isLimit || false,
-        }))
-        localStorage.setItem(`${DREAM_STORAGE_KEY}_${user.id}`, JSON.stringify({
-          messages: safe,
-          timestamp: Date.now(),
-        }))
-      } catch {
-        // localStorage full or unavailable — skip silently
-      }
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [messages, user?.id])
+
+
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
-  const restoreSession = () => {
-    if (!sessionPrompt) return
-    setMessages(sessionPrompt.messages)
-    setSessionPrompt(null)
-  }
 
-  const startFresh = () => {
-    setMessages([INITIAL_MESSAGE])
-    setSessionPrompt(null)
-    if (user) localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
-  }
+
+
 
   const resetChat = () => {
     setMessages([INITIAL_MESSAGE])
@@ -528,7 +454,6 @@ function DreamChat({ user, onSignIn }) {
     setCreateProductImage(null)
     setReferenceImage(null)
     setSaveSuccess(false)
-    if (user) localStorage.removeItem(`${DREAM_STORAGE_KEY}_${user.id}`)
   }
 
   const handleFileSelect = (e) => {
@@ -679,60 +604,6 @@ function DreamChat({ user, onSignIn }) {
     </div>
   )
 
-  // Session restore prompt — only if we have a valid saved session
-  if (sessionPrompt && Array.isArray(sessionPrompt.messages) && sessionPrompt.messages.length > 1) {
-    const timeAgo = (() => {
-      try {
-      const diff = Date.now() - (sessionPrompt.timestamp || Date.now())
-      const mins = Math.floor(diff / 60000)
-      const hours = Math.floor(diff / 3600000)
-      const days = Math.floor(diff / 86400000)
-      if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
-      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
-      if (mins > 0) return `${mins} minute${mins > 1 ? 's' : ''} ago`
-      return 'just now'
-      } catch { return 'recently' }
-    })()
-    const lastUserMsg = [...sessionPrompt.messages].reverse().find(m => m.role === 'user')
-    const preview = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.slice(0, 120) : ''
-
-    return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
-            <div style={{ fontSize: 11, color: C.teal }}>● online</div>
-          </div>
-        </div>
-
-        {/* Session restore card */}
-        <div style={{ padding: '40px 32px', textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, border: `1px solid ${C.accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 20px' }}>✦</div>
-          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8 }}>Welcome back!</h3>
-          <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>You have an unfinished Dream session from <strong style={{ color: C.text }}>{timeAgo}</strong>.</p>
-          {preview && (
-            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', margin: '16px auto', maxWidth: 400, fontSize: 12, color: C.muted, lineHeight: 1.5, fontStyle: 'italic' }}>
-              "{preview.slice(0, 120)}{preview.length > 120 ? '...' : ''}"
-            </div>
-          )}
-          <p style={{ color: C.muted, fontSize: 13, marginBottom: 28 }}>Would you like to continue where you left off or start a brand new creation?</p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={restoreSession}
-              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              ✦ Continue Last Session
-            </button>
-            <button onClick={startFresh}
-              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.muted, fontSize: 14, cursor: 'pointer' }}>
-              🆕 Start Fresh
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
@@ -743,7 +614,6 @@ function DreamChat({ user, onSignIn }) {
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
             <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
-          {user && <GenUsageCounter user={user} />}
           {messages.length > 1 && (
             <button onClick={resetChat}
               title="Start a new prompt"
@@ -2131,9 +2001,7 @@ function DiscoverPage({ user, onSignIn }) {
 // ── Create Page (/create) ─────────────────────────────────────
 // ── Isolated Create Page — remounts cleanly every visit ─────
 function IsolatedCreatePage({ user, onSignIn }) {
-  const { pathname } = useLocation()
-  // key forces full remount each time user navigates to /create
-  // this clears any stale state from previous visits
+  // key forces full remount each time — clears all stale DreamChat state
   return <CreatePage key={`create-${user?.id || 'guest'}`} user={user} onSignIn={onSignIn} />
 }
 
