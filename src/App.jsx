@@ -46,79 +46,98 @@ function StarField() {
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        @keyframes nebula1 {
-          0%   { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.13; }
-          25%  { transform: translate(4%, -3%) scale(1.08) rotate(8deg); opacity: 0.18; }
-          50%  { transform: translate(-3%, 5%) scale(0.95) rotate(-5deg); opacity: 0.11; }
-          75%  { transform: translate(5%, 2%) scale(1.05) rotate(12deg); opacity: 0.16; }
-          100% { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.13; }
+        @keyframes drift1 {
+          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          25%  { transform: translate(30px, -20px) scale(1.06) rotate(5deg); }
+          50%  { transform: translate(-20px, 35px) scale(0.96) rotate(-4deg); }
+          75%  { transform: translate(25px, 15px) scale(1.04) rotate(8deg); }
+          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
         }
-        @keyframes nebula2 {
-          0%   { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.10; }
-          33%  { transform: translate(-5%, 4%) scale(1.1) rotate(-10deg); opacity: 0.15; }
-          66%  { transform: translate(4%, -4%) scale(0.92) rotate(6deg); opacity: 0.08; }
-          100% { transform: translate(0%, 0%) scale(1) rotate(0deg); opacity: 0.10; }
+        @keyframes drift2 {
+          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          33%  { transform: translate(-40px, 25px) scale(1.08) rotate(-6deg); }
+          66%  { transform: translate(30px, -30px) scale(0.94) rotate(4deg); }
+          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
         }
-        @keyframes nebula3 {
-          0%   { transform: translate(0%, 0%) scale(1); opacity: 0.08; }
-          50%  { transform: translate(3%, -5%) scale(1.12); opacity: 0.14; }
-          100% { transform: translate(0%, 0%) scale(1); opacity: 0.08; }
+        @keyframes drift3 {
+          0%   { transform: translate(0px, 0px) scale(1); }
+          50%  { transform: translate(20px, -40px) scale(1.1); }
+          100% { transform: translate(0px, 0px) scale(1); }
         }
-        @keyframes colorCycle {
-          0%   { filter: hue-rotate(0deg) saturate(1.2); }
-          25%  { filter: hue-rotate(60deg) saturate(1.5); }
-          50%  { filter: hue-rotate(150deg) saturate(1.3); }
-          75%  { filter: hue-rotate(240deg) saturate(1.4); }
-          100% { filter: hue-rotate(360deg) saturate(1.2); }
+        @keyframes colorShift {
+          0%   { filter: hue-rotate(0deg) brightness(1); }
+          20%  { filter: hue-rotate(45deg) brightness(1.2); }
+          40%  { filter: hue-rotate(120deg) brightness(0.9); }
+          60%  { filter: hue-rotate(200deg) brightness(1.1); }
+          80%  { filter: hue-rotate(280deg) brightness(1.3); }
+          100% { filter: hue-rotate(360deg) brightness(1); }
         }
       `}</style>
 
-      {/* Nebula layer */}
-      <div style={{ position: 'absolute', inset: 0, animation: 'colorCycle 30s ease-in-out infinite' }}>
-        {/* Main nebula — top left */}
+      {/* Deep nebula layer — very visible */}
+      <div style={{ position: 'absolute', inset: 0, animation: 'colorShift 25s ease-in-out infinite' }}>
+
+        {/* GIANT nebula cloud — top left, dominant purple */}
         <div style={{
-          position: 'absolute', top: '-10%', left: '-5%',
-          width: '60%', height: '60%',
-          background: 'radial-gradient(ellipse at 40% 40%, rgba(124,92,252,0.5) 0%, rgba(75,47,208,0.3) 30%, rgba(0,212,170,0.15) 60%, transparent 80%)',
-          borderRadius: '60% 40% 50% 50%',
+          position: 'absolute', top: '-20%', left: '-15%',
+          width: '80%', height: '80%',
+          background: 'radial-gradient(ellipse 60% 50% at 45% 45%, rgba(124,92,252,0.7) 0%, rgba(75,47,208,0.5) 25%, rgba(124,92,252,0.3) 50%, rgba(0,212,170,0.15) 70%, transparent 85%)',
+          filter: 'blur(30px)',
+          animation: 'drift1 28s ease-in-out infinite',
+        }} />
+
+        {/* GIANT nebula cloud — bottom right, pink/magenta */}
+        <div style={{
+          position: 'absolute', bottom: '-25%', right: '-20%',
+          width: '85%', height: '75%',
+          background: 'radial-gradient(ellipse 55% 60% at 55% 55%, rgba(255,107,157,0.6) 0%, rgba(200,50,200,0.4) 25%, rgba(124,92,252,0.25) 55%, rgba(0,180,216,0.1) 75%, transparent 90%)',
+          filter: 'blur(35px)',
+          animation: 'drift2 35s ease-in-out infinite',
+        }} />
+
+        {/* Center cosmic cloud — teal/cyan */}
+        <div style={{
+          position: 'absolute', top: '20%', left: '25%',
+          width: '65%', height: '60%',
+          background: 'radial-gradient(ellipse 50% 55% at 50% 50%, rgba(0,212,170,0.35) 0%, rgba(0,180,216,0.25) 30%, rgba(124,92,252,0.2) 60%, transparent 85%)',
           filter: 'blur(40px)',
-          animation: 'nebula1 25s ease-in-out infinite',
+          animation: 'drift3 22s ease-in-out infinite',
         }} />
-        {/* Secondary nebula — bottom right */}
+
+        {/* Top right — electric blue */}
         <div style={{
-          position: 'absolute', bottom: '-15%', right: '-10%',
-          width: '55%', height: '55%',
-          background: 'radial-gradient(ellipse at 60% 60%, rgba(255,107,157,0.4) 0%, rgba(124,92,252,0.25) 35%, rgba(0,180,216,0.15) 65%, transparent 85%)',
-          borderRadius: '40% 60% 45% 55%',
-          filter: 'blur(50px)',
-          animation: 'nebula2 32s ease-in-out infinite',
+          position: 'absolute', top: '-10%', right: '-5%',
+          width: '55%', height: '60%',
+          background: 'radial-gradient(ellipse 60% 50% at 50% 40%, rgba(0,150,255,0.45) 0%, rgba(0,212,170,0.3) 35%, rgba(124,92,252,0.2) 65%, transparent 85%)',
+          filter: 'blur(28px)',
+          animation: 'drift1 30s ease-in-out infinite reverse',
         }} />
-        {/* Accent nebula — center */}
+
+        {/* Bottom left — gold/amber */}
         <div style={{
-          position: 'absolute', top: '30%', left: '35%',
-          width: '45%', height: '45%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(0,212,170,0.2) 0%, rgba(245,200,66,0.1) 40%, rgba(124,92,252,0.15) 70%, transparent 90%)',
-          borderRadius: '50% 50% 40% 60%',
-          filter: 'blur(60px)',
-          animation: 'nebula3 20s ease-in-out infinite',
+          position: 'absolute', bottom: '-10%', left: '-5%',
+          width: '60%', height: '55%',
+          background: 'radial-gradient(ellipse 55% 50% at 45% 60%, rgba(245,200,66,0.35) 0%, rgba(255,140,0,0.25) 30%, rgba(255,107,157,0.2) 60%, transparent 85%)',
+          filter: 'blur(32px)',
+          animation: 'drift2 26s ease-in-out infinite reverse',
         }} />
-        {/* Top right accent */}
+
+        {/* Center-left accent — deep violet */}
         <div style={{
-          position: 'absolute', top: '-5%', right: '5%',
-          width: '35%', height: '40%',
-          background: 'radial-gradient(ellipse at 50% 30%, rgba(0,180,216,0.25) 0%, rgba(124,92,252,0.15) 50%, transparent 80%)',
-          borderRadius: '45% 55% 60% 40%',
-          filter: 'blur(45px)',
-          animation: 'nebula1 28s ease-in-out infinite reverse',
+          position: 'absolute', top: '40%', left: '-5%',
+          width: '45%', height: '50%',
+          background: 'radial-gradient(ellipse 50% 60% at 40% 50%, rgba(150,0,255,0.4) 0%, rgba(124,92,252,0.3) 35%, transparent 75%)',
+          filter: 'blur(36px)',
+          animation: 'drift3 18s ease-in-out infinite reverse',
         }} />
-        {/* Bottom left accent */}
+
+        {/* Bright core glow — center */}
         <div style={{
-          position: 'absolute', bottom: '5%', left: '5%',
-          width: '40%', height: '35%',
-          background: 'radial-gradient(ellipse at 40% 70%, rgba(245,200,66,0.15) 0%, rgba(255,107,157,0.12) 45%, transparent 75%)',
-          borderRadius: '55% 45% 40% 60%',
-          filter: 'blur(55px)',
-          animation: 'nebula2 22s ease-in-out infinite reverse',
+          position: 'absolute', top: '35%', left: '40%',
+          width: '30%', height: '30%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.08) 0%, rgba(124,92,252,0.2) 40%, transparent 70%)',
+          filter: 'blur(20px)',
+          animation: 'drift1 15s ease-in-out infinite',
         }} />
       </div>
 
@@ -129,7 +148,7 @@ function StarField() {
           top: `${s.top}%`,
           left: `${s.left}%`,
           fontSize: `${s.size}px`,
-          color: '#7C5CFC',
+          color: '#fff',
           '--base-opacity': s.opacity,
           '--grow': s.grow,
           opacity: s.opacity,
@@ -137,6 +156,7 @@ function StarField() {
           animationDelay: `${s.delay}s`,
           userSelect: 'none',
           lineHeight: 1,
+          textShadow: '0 0 8px rgba(124,92,252,0.8)',
         }}>✦</div>
       ))}
     </div>
