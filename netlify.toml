@@ -8,9 +8,6 @@
 [functions]
   node_bundler = "esbuild"
 
-[[functions.install_commands]]
-  command = "npm install"
-
 [functions."generate-image"]
   timeout = 26
 
