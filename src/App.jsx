@@ -453,6 +453,7 @@ function DreamChat({ user, onSignIn }) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [generatingIndex, setGeneratingIndex] = useState(null)
   const [generatedImages, setGeneratedImages] = useState({})
+  const [pendingPrompt, setPendingPrompt] = useState(null) // prompt ready, awaiting user confirm
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const bottomRef = useRef(null)
@@ -537,12 +538,14 @@ function DreamChat({ user, onSignIn }) {
   const send = async () => {
     if (!input.trim() || loading) return
 
-    // If user says yes/go after a prompt is ready — just generate immediately
+    // If user says yes/go after a prompt is ready — generate immediately
     const YES_TRIGGERS = ['yes', 'yeah', 'yep', 'go', 'do it', 'make it', 'generate', 'create it', "let's go", 'yes please', 'go ahead', 'absolutely', 'sure', 'perfect', 'love it']
-    if (YES_TRIGGERS.includes(input.trim().toLowerCase()) && lastAiIndex >= 0 && !generatedImages[lastAiIndex]) {
+    if (YES_TRIGGERS.includes(input.trim().toLowerCase()) && pendingPrompt) {
       setMessages(prev => [...prev, { role: 'user', content: input.trim() }])
       setInput('')
-      generateImage(messages[lastAiIndex].content, lastAiIndex)
+      const { prompt, refImage } = pendingPrompt
+      setPendingPrompt(null)
+      generateImage(prompt, messages.length + 1, refImage)
       return
     }
 
@@ -591,17 +594,19 @@ function DreamChat({ user, onSignIn }) {
       const replyMsg = { role: 'assistant', content: data.reply || "Tell me more about what you're imagining..." }
       setMessages(prev => [...prev, replyMsg])
       setLoading(false)
-      // Schedule generation OUTSIDE setState — safe async trigger
+      // When Dream has a prompt ready, show a confirmation message instead of auto-generating
+      // User can click Generate, or type yes/go/create to confirm
       if (data.generationPrompt && mountedRef.current) {
-        genTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current) {
-            setMessages(prev => {
-              const newIndex = prev.length - 1
-              generateImage(data.generationPrompt, newIndex, currentRef)
-              return prev
-            })
-          }
-        }, 300)
+        setPendingPrompt({ prompt: data.generationPrompt, refImage: currentRef })
+        const confirmPhrases = [
+          "Ready to bring this to life? Hit **Generate** or just say the word ✦",
+          "I've got your vision locked in — want me to create it now? Click **Generate** or just say yes ✦",
+          "Your prompt is ready to go. Click **Generate** below or tell me to go for it ✦",
+          "Loving this direction. Want me to make it now? Hit **Generate** or just say so ✦",
+          "All set! Click **Generate** or just type 'go' and I'll make it happen ✦",
+        ]
+        const confirmMsg = confirmPhrases[Math.floor(Math.random() * confirmPhrases.length)]
+        setMessages(prev => [...prev, { role: 'assistant', content: confirmMsg }])
       }
     } catch {
       if (mountedRef.current) {
@@ -817,12 +822,29 @@ function DreamChat({ user, onSignIn }) {
                 </span>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>Prompt ready — happy with it?</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <style>{`@keyframes generatePulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.5)} 50%{box-shadow:0 0 0 8px rgba(0,212,170,0)} }`}</style>
-                <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
-                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer', animation: generatingIndex === null ? 'generatePulse 2s ease-in-out infinite' : 'none' }}>
-                  {generatingIndex !== null ? '⏳ Generating...' : '✦ Generate Image'}
+                <button onClick={() => {
+                  if (generatingIndex !== null) return
+                  if (pendingPrompt) {
+                    const { prompt, refImage } = pendingPrompt
+                    setPendingPrompt(null)
+                    generateImage(prompt, messages.length - 1, refImage)
+                  } else {
+                    generateImage(messages[lastAiIndex].content, lastAiIndex)
+                  }
+                }} disabled={generatingIndex !== null}
+                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer', animation: generatingIndex === null ? 'generatePulse 2s ease-in-out infinite' : 'none', minWidth: 180, textAlign: 'center' }}>
+                  {generatingIndex !== null ? [
+                    '✨ Making dreams come true...',
+                    '🎨 Painting your vision...',
+                    '🌌 Bending reality...',
+                    '⚡ Conjuring something epic...',
+                    '🔮 Reading your mind...',
+                    '🌀 Warping the cosmos...',
+                    '💫 Channeling the muse...',
+                    '🎭 Bringing it to life...',
+                  ][generatingIndex % 8] : '✦ Generate Image'}
                 </button>
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
                   style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '8px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
