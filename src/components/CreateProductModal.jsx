@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -37,297 +37,156 @@ function Spinner({ label }) {
 // ── Art Placement Editor ──────────────────────────────────────
 function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacementChange }) {
   const canvasRef = useRef(null)
-  const [artPos, setArtPos] = useState({ x: 25, y: 20, scale: 50 }) // % based
+  const [artPos, setArtPos] = useState({ x: 50, y: 40, scale: 55 })
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState(null)
-  const containerRef = useRef(null)
+  const prodImgRef = useRef(null)
+  const artImgRef  = useRef(null)
+  const [imgsReady, setImgsReady] = useState(false)
 
-  const draw = useCallback(() => {
+  // Pre-load both images once on mount / when URLs change
+  useEffect(() => {
+    setImgsReady(false)
+    let loaded = 0
+    const check = () => { if (++loaded === 2) setImgsReady(true) }
+
+    const prod = new Image()
+    prod.crossOrigin = 'anonymous'
+    prod.onload  = () => { prodImgRef.current = prod; check() }
+    prod.onerror = () => {
+      // On CORS error try without crossOrigin
+      const prod2 = new Image()
+      prod2.onload  = () => { prodImgRef.current = prod2; check() }
+      prod2.onerror = () => { prodImgRef.current = null; check() }
+      prod2.src = productImage || ''
+    }
+    prod.src = productImage || ''
+
+    const art = new Image()
+    art.crossOrigin = 'anonymous'
+    art.onload  = () => { artImgRef.current = art; check() }
+    art.onerror = () => { artImgRef.current = null; check() }
+    art.src = artworkUrl || ''
+  }, [productImage, artworkUrl])
+
+  // Redraw canvas whenever images or position changes
+  useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !imgsReady) return
     const ctx = canvas.getContext('2d')
     const W = canvas.width
     const H = canvas.height
     ctx.clearRect(0, 0, W, H)
 
-    // Draw product image
-    const prodImg = new Image()
-    prodImg.crossOrigin = 'anonymous'
-    prodImg.onload = () => {
-      ctx.drawImage(prodImg, 0, 0, W, H)
+    // White background always
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, W, H)
 
-      // Draw artwork on top
-      const artImg = new Image()
-      artImg.crossOrigin = 'anonymous'
-      artImg.onload = () => {
-        const artW = (artPos.scale / 100) * W
-        const artH = artW * (artImg.height / artImg.width)
-        const artX = (artPos.x / 100) * W - artW / 2
-        const artY = (artPos.y / 100) * H - artH / 2
-        ctx.globalAlpha = 0.92
-        ctx.drawImage(artImg, artX, artY, artW, artH)
-        ctx.globalAlpha = 1
-
-        // Draw selection border
-        ctx.strokeStyle = C.accent
-        ctx.lineWidth = 2
-        ctx.setLineDash([4, 4])
-        ctx.strokeRect(artX - 2, artY - 2, artW + 4, artH + 4)
-        ctx.setLineDash([])
-
-        // Draw handle corners
-        const corners = [[artX, artY], [artX + artW, artY], [artX, artY + artH], [artX + artW, artY + artH]]
-        corners.forEach(([cx, cy]) => {
-          ctx.fillStyle = C.accent
-          ctx.fillRect(cx - 5, cy - 5, 10, 10)
-        })
-
-        onPlacementChange?.({ x: artPos.x, y: artPos.y, scale: artPos.scale, artW, artH, artX, artY, canvasW: W, canvasH: H })
-      }
-      artImg.src = artworkUrl
+    // Draw product image if loaded
+    if (prodImgRef.current) {
+      ctx.drawImage(prodImgRef.current, 0, 0, W, H)
+    } else {
+      // Fallback placeholder
+      ctx.fillStyle = '#e8e8e8'
+      ctx.fillRect(0, 0, W, H)
+      ctx.fillStyle = '#aaa'
+      ctx.font = '14px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(productName || 'Product', W / 2, H / 2)
     }
-    prodImg.src = productImage || '/placeholder-shirt.png'
-  }, [artPos, artworkUrl, productImage])
 
-  useEffect(() => { draw() }, [draw])
+    // Draw artwork on top
+    if (artImgRef.current) {
+      const artW = (artPos.scale / 100) * W
+      const artH = artW * (artImgRef.current.height / artImgRef.current.width)
+      const artX = (artPos.x / 100) * W - artW / 2
+      const artY = (artPos.y / 100) * H - artH / 2
 
-  const getRelativePos = (e) => {
+      ctx.globalAlpha = 0.93
+      ctx.drawImage(artImgRef.current, artX, artY, artW, artH)
+      ctx.globalAlpha = 1
+
+      // Selection border + corner handles
+      ctx.strokeStyle = C.accent
+      ctx.lineWidth = 2
+      ctx.setLineDash([5, 4])
+      ctx.strokeRect(artX - 2, artY - 2, artW + 4, artH + 4)
+      ctx.setLineDash([])
+      ;[[artX, artY], [artX + artW, artY], [artX, artY + artH], [artX + artW, artY + artH]].forEach(([cx, cy]) => {
+        ctx.fillStyle = C.accent
+        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill()
+      })
+
+      onPlacementChange?.({ x: artPos.x, y: artPos.y, scale: artPos.scale, artW, artH, artX, artY, canvasW: W, canvasH: H })
+    }
+  }, [imgsReady, artPos, productName])
+
+  const getPos = (e) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 50, y: 50 }
     const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width  / rect.width
+    const scaleY = canvas.height / rect.height
     const clientX = e.touches ? e.touches[0].clientX : e.clientX
     const clientY = e.touches ? e.touches[0].clientY : e.clientY
     return {
-      x: ((clientX - rect.left) / rect.width) * 100,
-      y: ((clientY - rect.top) / rect.height) * 100,
+      x: ((clientX - rect.left) * scaleX / canvas.width)  * 100,
+      y: ((clientY - rect.top)  * scaleY / canvas.height) * 100,
     }
   }
 
-  const handleMouseDown = (e) => {
-    e.preventDefault()
-    const pos = getRelativePos(e)
-    setDragging(true)
-    setDragStart({ mouseX: pos.x, mouseY: pos.y, artX: artPos.x, artY: artPos.y })
-  }
-
-  const handleMouseMove = (e) => {
+  const onDown  = (e) => { e.preventDefault(); const p = getPos(e); setDragging(true); setDragStart({ mx: p.x, my: p.y, ax: artPos.x, ay: artPos.y }) }
+  const onMove  = (e) => {
     if (!dragging || !dragStart) return
     e.preventDefault()
-    const pos = getRelativePos(e)
-    const newX = Math.max(5, Math.min(95, dragStart.artX + (pos.x - dragStart.mouseX)))
-    const newY = Math.max(5, Math.min(95, dragStart.artY + (pos.y - dragStart.mouseY)))
-    setArtPos(prev => ({ ...prev, x: newX, y: newY }))
+    const p = getPos(e)
+    setArtPos(prev => ({
+      ...prev,
+      x: Math.max(5, Math.min(95, dragStart.ax + (p.x - dragStart.mx))),
+      y: Math.max(5, Math.min(95, dragStart.ay + (p.y - dragStart.my))),
+    }))
   }
-
-  const handleMouseUp = () => { setDragging(false); setDragStart(null) }
+  const onUp = () => { setDragging(false); setDragStart(null) }
 
   return (
-    <div ref={containerRef}>
+    <div>
       <canvas
         ref={canvasRef}
-        width={400}
-        height={480}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleMouseDown}
-        onTouchMove={handleMouseMove}
-        onTouchEnd={handleMouseUp}
-        style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', border: `1px solid ${C.border}`, background: '#f5f5f5', display: 'block' }}
+        width={420} height={500}
+        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+        style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', border: `1px solid ${C.border}`, display: 'block', touchAction: 'none' }}
       />
-      {/* Scale slider */}
+      {!imgsReady && (
+        <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: C.muted }}>⏳ Loading canvas...</div>
+      )}
+      {/* Size slider */}
       <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>Size</span>
+        <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>🔍 Size</span>
         <input type="range" min="10" max="90" value={artPos.scale}
           onChange={e => setArtPos(prev => ({ ...prev, scale: parseInt(e.target.value) }))}
           style={{ flex: 1, accentColor: C.accent }} />
         <span style={{ fontSize: 11, color: C.text, minWidth: 32 }}>{artPos.scale}%</span>
       </div>
+      {/* Quick position buttons */}
       <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {[['Center', 50, 35], ['Top', 50, 20], ['Large', 50, 35]].map(([label, x, y]) => (
-          <button key={label} onClick={() => setArtPos(prev => ({ ...prev, x, y, scale: label === 'Large' ? 70 : 50 }))}
+        {[['Center', 50, 40, 55], ['Top', 50, 22, 50], ['Fill', 50, 50, 85]].map(([label, x, y, s]) => (
+          <button key={label} onClick={() => setArtPos({ x, y, scale: s })}
             style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
             {label}
           </button>
         ))}
-        <button onClick={() => setArtPos({ x: 50, y: 35, scale: 50 })}
+        <button onClick={() => setArtPos({ x: 50, y: 40, scale: 55 })}
           style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
           Reset
         </button>
       </div>
-      <p style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Drag your artwork to position it · Use slider to resize</p>
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Drag to position · Slider to resize · Pinch to zoom on mobile</p>
     </div>
   )
 }
 
-
-// ── Printful Fallback Base Costs ──────────────────────────────
-// Used when the API returns no pricing for a product type.
-// Values are approximate 2025 Printful wholesale costs in USD.
-// Source: https://www.printful.com/custom — checked March 2026.
-// Update these periodically as Printful pricing changes.
-const FALLBACK_COSTS = {
-  'T-SHIRT':      12.95,
-  'SHIRT':        12.95,
-  'HOODIE':       27.95,
-  'SWEATSHIRT':   24.95,
-  'LONG SLEEVE':  17.95,
-  'CROP TOP':     15.95,
-  'TANK TOP':     12.95,
-  'POLO':         19.95,
-  'DRESS':        22.95,
-  'LEGGINGS':     21.95,
-  'SHORTS':       18.95,
-  'JOGGERS':      24.95,
-  'JACKET':       34.95,
-  'BOMBER':       38.95,
-  'VEST':         28.95,
-  'MUG':           8.95,
-  'TRAVEL MUG':   16.95,
-  'BOTTLE':       18.95,
-  'GLASS':        11.95,
-  'POSTER':        9.95,
-  'CANVAS':       18.95,
-  'FRAME':        24.95,
-  'PRINT':         9.95,
-  'PHONE CASE':   11.95,
-  'TOTE':         12.95,
-  'BAG':          14.95,
-  'BACKPACK':     29.95,
-  'PILLOW':       17.95,
-  'BLANKET':      34.95,
-  'TOWEL':        21.95,
-  'SOCKS':        10.95,
-  'HAT':          17.95,
-  'CAP':          17.95,
-  'BEANIE':       15.95,
-  'APRON':        19.95,
-  'NOTEBOOK':     12.95,
-  'STICKER':       2.95,
-  'FACE MASK':     9.95,
-  'PATCH':         6.95,
-}
-
-// Get base cost — live from API first, fallback table second, null if unknown
-function resolveBaseCost(apiCost, productType) {
-  if (apiCost != null && apiCost > 0) return apiCost
-  if (!productType) return null
-  const upper = productType.toUpperCase()
-  for (const [key, cost] of Object.entries(FALLBACK_COSTS)) {
-    if (upper.includes(key)) return cost
-  }
-  return null
-}
-
-// ── Pricing Calculator ─────────────────────────────────────────
-const DREAMSCAPE_FEE_PCT = 0.10
-const STRIPE_PCT         = 0.029
-const STRIPE_FIXED       = 0.30
-
-function calcEarnings(retailPrice, baseCost) {
-  const retail = parseFloat(retailPrice) || 0
-  if (retail <= 0 || baseCost == null) return null
-  const stripeFee     = retail * STRIPE_PCT + STRIPE_FIXED
-  const dreamscapeFee = retail * DREAMSCAPE_FEE_PCT
-  const earnings      = retail - baseCost - stripeFee - dreamscapeFee
-  const margin        = (earnings / retail) * 100
-  const breakEven     = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
-  return { retail, stripeFee, dreamscapeFee, earnings, margin, breakEven }
-}
-
-function PricingCalculator({ baseCost, price, onPriceChange, usingFallback }) {
-  const calc = calcEarnings(price, baseCost)
-
-  const marginColor = !calc ? C.muted
-    : calc.earnings < 0  ? C.red
-    : calc.margin < 20   ? C.gold
-    : C.teal
-
-  const marginLabel = !calc ? ''
-    : calc.earnings < 0  ? '🚨 Below break-even'
-    : calc.margin < 20   ? '⚠️ Low margin'
-    : calc.margin < 35   ? '✅ Okay margin'
-    : '✅ Healthy margin'
-
-  if (baseCost == null) return (
-    <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-      <div style={{ position: 'relative', marginBottom: 8 }}>
-        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
-        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="1" step="0.01"
-          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-      </div>
-      <div style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: C.gold }}>
-        ⚠️ Pricing data unavailable for this product — please research Printful's cost before listing to ensure you make a profit.
-      </div>
-    </div>
-  )
-
-  const suggested = Math.ceil(baseCost * 2.4 * 100) / 100
-
-  return (
-    <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-      {usingFallback && (
-        <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}33`, borderRadius: 8, padding: '8px 12px', fontSize: 11, color: C.gold, marginBottom: 8 }}>
-          ℹ️ Using estimated base cost (~${baseCost.toFixed(2)}) — Printful pricing not returned for this product. Verify at printful.com before listing.
-        </div>
-      )}
-      <div style={{ position: 'relative', marginBottom: 10 }}>
-        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13, zIndex: 1 }}>$</span>
-        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="1" step="0.01"
-          style={{ width: '100%', background: C.bg, border: `2px solid ${marginColor}55`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 15, fontWeight: 700, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-      </div>
-
-      {/* Quick-pick chips */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Break-even', val: calc ? Math.ceil(calc.breakEven * 100) / 100 : null, color: C.muted },
-          { label: 'Suggested (40%)', val: suggested, color: C.teal },
-          { label: 'Premium (55%)', val: Math.ceil(baseCost * 3.0 * 100) / 100, color: C.gold },
-        ].filter(c => c.val).map(chip => (
-          <button key={chip.label} onClick={() => onPriceChange(chip.val.toFixed(2))}
-            style={{ background: `${chip.color}15`, border: `1px solid ${chip.color}44`, borderRadius: 8, padding: '4px 10px', color: chip.color, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-            {chip.label}: ${chip.val.toFixed(2)}
-          </button>
-        ))}
-      </div>
-
-      {/* Breakdown */}
-      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-          💰 Pricing Breakdown
-        </div>
-        {[
-          { label: `Printful base cost${usingFallback ? ' (est.)' : ''}`, val: `-$${baseCost.toFixed(2)}`, color: C.muted, bold: false },
-          { label: 'Stripe fee (~2.9% + $0.30)', val: calc ? `-$${calc.stripeFee.toFixed(2)}` : '—', color: C.muted, bold: false },
-          { label: 'Dreamscape fee (10%)', val: calc ? `-$${calc.dreamscapeFee.toFixed(2)}` : '—', color: C.muted, bold: false },
-          { label: 'Your earnings', val: calc ? `$${calc.earnings.toFixed(2)}` : '—', color: marginColor, bold: true },
-          { label: 'Profit margin', val: calc ? `${Math.round(calc.margin)}%` : '—', color: marginColor, bold: true },
-        ].map(row => (
-          <div key={row.label} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: 12, color: C.muted }}>{row.label}</span>
-            <span style={{ fontSize: 13, fontWeight: row.bold ? 700 : 400, color: row.color }}>{row.val}</span>
-          </div>
-        ))}
-        {calc && (
-          <div style={{ padding: '10px 14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-              <span style={{ fontSize: 11, color: marginColor, fontWeight: 700 }}>{marginLabel}</span>
-              <span style={{ fontSize: 11, color: C.muted }}>break-even: ${calc.breakEven.toFixed(2)}</span>
-            </div>
-            <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, calc.margin))}%`, background: `linear-gradient(90deg, ${marginColor}, ${marginColor}cc)`, borderRadius: 3, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const STEPS = ['Upload', 'Product', 'Design', 'Colors', 'Details', 'Done']
+const STEPS = ['Upload', 'Product', 'Colors', 'Design', 'Details', 'Done']
 
 export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
   const navigate = useNavigate()
@@ -358,8 +217,6 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [tags, setTags] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
-  const [baseCost, setBaseCost] = useState(null)       // Printful wholesale cost
-  const [usingFallback, setUsingFallback] = useState(false) // true if API had no pricing
 
   useEffect(() => {
     loadCatalog()
@@ -428,22 +285,6 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const def = colors.find(c => c.name.toLowerCase().includes('white')) || colors[0]
       if (def) { setSelectedColors([def.name]); setPreviewColor(def) }
       setSelected({ ...p, variants })
-
-      // Extract base cost — prefer API wholesale_cost, fall back to price field, then fallback table
-      const apiPrices = variants
-        .map(v => parseFloat(v.wholesale_cost || v.price || 0))
-        .filter(n => n > 0)
-      const apiCost = apiPrices.length ? Math.min(...apiPrices) : null
-      const resolved = resolveBaseCost(apiCost, p.type)
-      const isFallback = apiCost == null && resolved != null
-      setBaseCost(resolved)
-      setUsingFallback(isFallback)
-
-      // Auto-suggest price at ~2.4x cost for healthy 40%+ margin after all fees
-      if (resolved) {
-        const suggested = Math.ceil(resolved * 2.4 * 100) / 100
-        setPrice(suggested.toFixed(2))
-      }
     } catch {}
     setVariantLoading(false)
   }
@@ -495,14 +336,6 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     if (!hostedImageUrl) return setError('No image available.')
     if (!selected) return setError('Please select a product type.')
     if (selectedColors.length === 0) return setError('Please select at least one color.')
-    // Enforce minimum profit — never allow listing below break-even
-    if (baseCost != null) {
-      const profitCheck = calcEarnings(price, baseCost)
-      if (!profitCheck || profitCheck.earnings <= 0) {
-        const floor = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
-        return setError(`Price is too low. You must charge at least $${(Math.ceil(floor * 100) / 100).toFixed(2)} to cover Printful cost + fees and make a profit.`)
-      }
-    }
     setError(''); setCreating(true)
     try {
       const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
@@ -516,7 +349,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl, retailPrice: price }),
+        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
@@ -609,8 +442,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </div>
           )}
 
-          {/* Step 3: Art Placement Editor */}
-          {step === 3 && selected && (
+          {/* Step 4: Art Placement Editor */}
+          {step === 4 && selected && (
             <div style={{ padding: '0 24px 20px' }}>
               <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: C.text }}>
                 <strong style={{ color: C.accent }}>✦ Design Editor</strong> — Drag your artwork to position it on the <strong>{selected.model}</strong>. Resize with the slider.
@@ -624,8 +457,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </div>
           )}
 
-          {/* Step 4: Colors */}
-          {step === 4 && (
+          {/* Step 3: Colors */}
+          {step === 3 && (
             <div style={{ padding: '0 24px 20px' }}>
               {/* Preview */}
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginBottom: 18 }}>
@@ -719,12 +552,15 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surreal, neon, abstract, fantasy"
                     style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
-                <PricingCalculator
-                  baseCost={baseCost}
-                  price={price}
-                  onPriceChange={setPrice}
-                  usingFallback={usingFallback}
-                />
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
+                    <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
+                      style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                  </div>
+                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>You keep the difference after Printful base cost + Stripe fees (~2.9% + $0.30).</p>
+                </div>
                 {error && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b' }}>{error}</div>}
               </div>
             </div>
@@ -771,39 +607,27 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             {step === 2 && (
               <button onClick={() => { if (selected && !variantLoading) setStep(3) }} disabled={!selected || variantLoading}
                 style={{ background: !selected || variantLoading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: !selected || variantLoading ? 'not-allowed' : 'pointer' }}>
-                {variantLoading ? 'Loading...' : 'Design It →'}
+                {variantLoading ? 'Loading...' : 'Choose Colors →'}
               </button>
             )}
             {step === 3 && (
-              <button onClick={() => setStep(4)}
-                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                Choose Colors →
+              <button onClick={() => selectedColors.length > 0 && setStep(4)} disabled={selectedColors.length === 0}
+                style={{ background: selectedColors.length === 0 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedColors.length === 0 ? 'not-allowed' : 'pointer' }}>
+                {selectedColors.length === 0 ? 'Select a Color First' : 'Design It →'}
               </button>
             )}
             {step === 4 && (
-              <button onClick={() => selectedColors.length > 0 && setStep(5)} disabled={selectedColors.length === 0}
-                style={{ background: selectedColors.length === 0 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedColors.length === 0 ? 'not-allowed' : 'pointer' }}>
-                {selectedColors.length === 0 ? 'Select a Color' : `Add Details →`}
+              <button onClick={() => setStep(5)}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Add Details →
               </button>
             )}
-            {step === 5 && (() => {
-              const _calc = baseCost != null ? calcEarnings(price, baseCost) : null
-              const _noProfit = baseCost != null && (!_calc || _calc.earnings <= 0)
-              const _disabled = creating || _noProfit
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                  {_noProfit && (
-                    <div style={{ fontSize: 11, color: C.red, fontWeight: 600, textAlign: 'right', maxWidth: 280 }}>
-                      🚨 Price too low — every product on Dreamscape must earn you a profit
-                    </div>
-                  )}
-                  <button onClick={handleCreate} disabled={_disabled}
-                    style={{ background: _disabled ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: _disabled ? C.muted : '#fff', fontSize: 13, fontWeight: 700, cursor: _disabled ? 'not-allowed' : 'pointer', opacity: _noProfit ? 0.5 : 1 }}>
-                    {creating ? '⏳ Creating...' : _noProfit ? '🔒 Set a Profitable Price' : 'Create Product ✦'}
-                  </button>
-                </div>
-              )
-            })()}
+            {step === 5 && (
+              <button onClick={handleCreate} disabled={creating}
+                style={{ background: creating ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: creating ? 'not-allowed' : 'pointer' }}>
+                {creating ? '⏳ Creating...' : 'Create Product ✦'}
+              </button>
+            )}
           </div>
         )}
       </div>
