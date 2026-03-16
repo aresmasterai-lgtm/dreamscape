@@ -1642,16 +1642,6 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
           )}
         </div>
 
-        {/* Crop editor — renders above the modal when active */}
-        {cropSrc && (
-          <ImageCropEditor
-            src={cropSrc}
-            aspectRatio={cropType === 'avatar' ? 1 : 3}
-            shape={cropType === 'avatar' ? 'circle' : 'rect'}
-            onConfirm={handleCropConfirm}
-            onCancel={() => { setCropSrc(null); setCropType(null) }}
-          />
-        )}
         {/* Footer */}
         {error && <div style={{ margin: '0 24px', background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b', flexShrink: 0 }}>{error}</div>}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
@@ -1663,6 +1653,17 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
           </button>
         </div>
       </div>
+
+      {/* Crop editor — position:fixed so renders above everything, outside modal container */}
+      {cropSrc && (
+        <ImageCropEditor
+          src={cropSrc}
+          aspectRatio={cropType === 'avatar' ? 1 : 3}
+          shape={cropType === 'avatar' ? 'circle' : 'rect'}
+          onConfirm={handleCropConfirm}
+          onCancel={() => { setCropSrc(null); setCropType(null) }}
+        />
+      )}
     </div>
   )
 }
@@ -1684,8 +1685,136 @@ function ShareButton({ username }) {
   )
 }
 
+// ── Follow List Modal ─────────────────────────────────────────
+function FollowListModal({ type, profileId, viewerUser, onClose }) {
+  // type: 'followers' | 'following'
+  const navigate = useNavigate()
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [followingIds, setFollowingIds] = useState(new Set())
+  const [togglingId, setTogglingId] = useState(null)
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    let data
+    if (type === 'followers') {
+      // People who follow this profile
+      const { data: rows } = await supabase
+        .from('follows')
+        .select('follower_id, profiles!follows_follower_id_fkey(id, username, display_name, avatar_url, bio)')
+        .eq('following_id', profileId)
+      data = rows?.map(r => r.profiles).filter(Boolean) || []
+    } else {
+      // People this profile follows
+      const { data: rows } = await supabase
+        .from('follows')
+        .select('following_id, profiles!follows_following_id_fkey(id, username, display_name, avatar_url, bio)')
+        .eq('follower_id', profileId)
+      data = rows?.map(r => r.profiles).filter(Boolean) || []
+    }
+    setUsers(data)
+
+    // Load viewer's current following list for follow buttons
+    if (viewerUser) {
+      const { data: myFollows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', viewerUser.id)
+      setFollowingIds(new Set(myFollows?.map(f => f.following_id) || []))
+    }
+    setLoading(false)
+  }
+
+  const toggleFollow = async (targetId) => {
+    if (!viewerUser || targetId === viewerUser.id) return
+    setTogglingId(targetId)
+    const isFollowing = followingIds.has(targetId)
+    if (isFollowing) {
+      await supabase.from('follows').delete().eq('follower_id', viewerUser.id).eq('following_id', targetId)
+      setFollowingIds(prev => { const n = new Set(prev); n.delete(targetId); return n })
+    } else {
+      await supabase.from('follows').insert({ follower_id: viewerUser.id, following_id: targetId })
+      setFollowingIds(prev => new Set([...prev, targetId]))
+    }
+    setTogglingId(null)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>
+            {type === 'followers' ? '👥 Followers' : '✦ Following'}
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {/* List */}
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+              <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                {[0,1,2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+              </div>
+            </div>
+          ) : users.length === 0 ? (
+            <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>✦</div>
+              <p style={{ color: C.muted, fontSize: 14 }}>
+                {type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+              </p>
+            </div>
+          ) : (
+            users.map(u => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px', borderBottom: `1px solid ${C.border}` }}>
+                {/* Avatar */}
+                <div
+                  onClick={() => { navigate(`/u/${u.username}`); onClose() }}
+                  style={{ width: 44, height: 44, borderRadius: '50%', background: u.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                  {u.avatar_url
+                    ? <img src={u.avatar_url} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : u.username?.[0]?.toUpperCase()}
+                </div>
+                {/* Info */}
+                <div onClick={() => { navigate(`/u/${u.username}`); onClose() }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {u.display_name || u.username}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.accent }}>@{u.username}</div>
+                </div>
+                {/* Follow button — only show if viewer is logged in and it's not themselves */}
+                {viewerUser && u.id !== viewerUser.id && (
+                  <button
+                    onClick={() => toggleFollow(u.id)}
+                    disabled={togglingId === u.id}
+                    style={{
+                      background: followingIds.has(u.id) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+                      border: `1px solid ${followingIds.has(u.id) ? C.border : 'transparent'}`,
+                      borderRadius: 8, padding: '6px 14px',
+                      color: followingIds.has(u.id) ? C.muted : '#fff',
+                      fontSize: 12, fontWeight: 600,
+                      cursor: togglingId === u.id ? 'not-allowed' : 'pointer',
+                      flexShrink: 0,
+                    }}>
+                    {togglingId === u.id ? '...' : followingIds.has(u.id) ? 'Following ✓' : '+ Follow'}
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Profile Header (shared by ProfilePage + ArtistProfilePage) ─
-function ProfileHeader({ profile, artworkCount, followerCount, followingCount, salesCount, isOwnProfile, viewerUser, onEdit, onFollow, followLoading, isFollowing }) {
+function ProfileHeader({ profile, artworkCount, followerCount, followingCount, salesCount, isOwnProfile, viewerUser, onEdit, onFollow, followLoading, isFollowing, onStatClick }) {
   const navigate = useNavigate()
   const avatarLetter = profile?.username?.[0]?.toUpperCase() || '?'
   const tags = profile?.style_tags || []
@@ -1747,10 +1876,22 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
 
         {/* Stats row */}
         <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
-          {[[artworkCount, 'Artworks'], [followerCount, 'Followers'], [followingCount, 'Following'], [salesCount, 'Sales']].map(([count, label]) => (
-            <div key={label}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{count ?? '—'}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+          {[
+            { count: artworkCount,   label: 'Artworks',  key: 'artwork',   clickable: true },
+            { count: followerCount,  label: 'Followers', key: 'followers', clickable: true },
+            { count: followingCount, label: 'Following', key: 'following', clickable: true },
+            { count: salesCount,     label: 'Sales',     key: 'shop',      clickable: isOwnProfile },
+          ].map(({ count, label, key, clickable }) => (
+            <div key={label}
+              onClick={() => clickable && onStatClick?.(key)}
+              style={{ cursor: clickable && onStatClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
+              onMouseEnter={e => { if (clickable && onStatClick) e.currentTarget.style.opacity = '0.7' }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: clickable && onStatClick ? C.accent : C.text, fontFamily: 'Playfair Display, serif' }}>{count ?? '—'}</div>
+              <div style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 3 }}>
+                {label}
+                {clickable && onStatClick && <span style={{ fontSize: 9, color: C.accent }}>↗</span>}
+              </div>
             </div>
           ))}
         </div>
@@ -2281,6 +2422,14 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [showEdit, setShowEdit] = useState(false)
   const [sellTarget, setSellTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
+  const [followModal, setFollowModal] = useState(null) // 'followers' | 'following'
+
+  const handleStatClick = (key) => {
+    if (key === 'artwork') { setTab('artwork'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
+    else if (key === 'shop') { setTab('shop'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
+    else if (key === 'followers') setFollowModal('followers')
+    else if (key === 'following') setFollowModal('following')
+  }
 
   useMeta({ title: `@${profile?.username || 'Profile'}`, description: profile?.bio })
 
@@ -2366,7 +2515,17 @@ function ProfilePage({ user, profile: initialProfile }) {
         isOwnProfile={true}
         viewerUser={user}
         onEdit={() => setShowEdit(true)}
+        onStatClick={handleStatClick}
       />
+
+      {followModal && (
+        <FollowListModal
+          type={followModal}
+          profileId={user.id}
+          viewerUser={user}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
 
       <div style={{ height: 28 }} />
       <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
@@ -2605,6 +2764,14 @@ function ArtistProfilePage({ viewerUser }) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [tab, setTab] = useState('artwork')
+  const [followModal, setFollowModal] = useState(null) // 'followers' | 'following'
+
+  const handleStatClick = (key) => {
+    if (key === 'artwork') { setTab('artwork'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
+    else if (key === 'shop') { setTab('shop'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
+    else if (key === 'followers') setFollowModal('followers')
+    else if (key === 'following') setFollowModal('following')
+  }
 
   useMeta({ title: `@${username}`, description: profile?.bio || `View ${username}'s artwork on Dreamscape` })
 
@@ -2675,7 +2842,17 @@ function ArtistProfilePage({ viewerUser }) {
         onFollow={toggleFollow}
         followLoading={followLoading}
         isFollowing={isFollowing}
+        onStatClick={handleStatClick}
       />
+
+      {followModal && profile && (
+        <FollowListModal
+          type={followModal}
+          profileId={profile.id}
+          viewerUser={viewerUser}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
 
       <div style={{ height: 28 }} />
       <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
