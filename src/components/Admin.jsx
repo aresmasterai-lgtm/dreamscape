@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -9,82 +9,58 @@ const C = {
   red: '#FF4D4D',
 }
 
-const TIER_COLORS = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold }
-const TIERS = ['free', 'starter', 'pro', 'studio']
-
-function StatCard({ label, value, color }) {
-  return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px 24px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 32, fontWeight: 900, fontFamily: 'Playfair Display, serif', color: color || C.text }}>{value}</div>
-    </div>
-  )
-}
-
 function Spinner() {
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
+    <div style={{ textAlign: 'center', padding: '48px 0' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
-      {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      </div>
     </div>
   )
 }
 
-// ── Tier Change Modal ─────────────────────────────────────────
-function TierModal({ confirm, TIERS, TIER_BENEFITS, updating, onUpdate, onClose }) {
-  const [selectedTier, setSelectedTier] = useState(confirm.currentTier)
-  const tierInfo = TIER_BENEFITS[selectedTier]
-  const isUpgrade = TIERS.indexOf(selectedTier) > TIERS.indexOf(confirm.currentTier)
-  const changed = selectedTier !== confirm.currentTier
-
+function StatCard({ label, value, color, sub }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '32px', maxWidth: 460, width: '100%' }}>
-        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>Change Plan</h3>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Updating subscription for <strong style={{ color: C.text }}>@{confirm.username}</strong></p>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: color || C.text, fontFamily: 'Playfair Display, serif' }}>{value ?? '—'}</div>
+      {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>}
+    </div>
+  )
+}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-          {TIERS.map(t => {
-            const info = TIER_BENEFITS[t]
-            const isCurrent = t === confirm.currentTier
-            const isSelected = t === selectedTier
-            return (
-              <button key={t} onClick={() => setSelectedTier(t)}
-                style={{ background: isSelected ? info.color + '20' : C.panel, border: `2px solid ${isSelected ? info.color : C.border}`, borderRadius: 12, padding: '14px 18px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: isSelected ? info.color : C.text }}>✦ {info.label}</span>
-                    {isCurrent && <span style={{ fontSize: 10, background: C.border, borderRadius: 6, padding: '1px 7px', color: C.muted }}>Current</span>}
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? info.color : C.muted }}>{info.price}</span>
-                </div>
-                <div style={{ fontSize: 11, color: C.muted }}>
-                  {info.gens} generations/mo · {info.products} products · {info.commission} commission
-                </div>
-              </button>
-            )
-          })}
+// ── Tier config ───────────────────────────────────────────────
+const TIERS = ['free', 'starter', 'pro', 'studio']
+const TIER_BENEFITS = {
+  free:    { gens: 10,  products: 3,  label: 'Free',    color: C.muted },
+  starter: { gens: 50,  products: 15, label: 'Starter', color: C.teal },
+  pro:     { gens: 200, products: 50, label: 'Pro',     color: C.accent },
+  studio:  { gens: '∞', products: '∞',label: 'Studio',  color: C.gold },
+}
+
+// ── Tier Modal ────────────────────────────────────────────────
+function TierModal({ confirm, TIERS, TIER_BENEFITS, updating, onUpdate, onClose }) {
+  const [selected, setSelected] = useState(confirm.currentTier)
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', maxWidth: 440, width: '100%' }}>
+        <h3 style={{ color: C.text, marginBottom: 4, fontFamily: 'Playfair Display, serif' }}>Change Tier — @{confirm.username}</h3>
+        <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Current: <strong style={{ color: TIER_BENEFITS[confirm.currentTier]?.color }}>{TIER_BENEFITS[confirm.currentTier]?.label}</strong></p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {TIERS.map(tier => (
+            <button key={tier} onClick={() => setSelected(tier)}
+              style={{ background: selected === tier ? `${TIER_BENEFITS[tier]?.color}20` : C.bg, border: `1px solid ${selected === tier ? TIER_BENEFITS[tier]?.color + '66' : C.border}`, borderRadius: 10, padding: '12px 16px', color: selected === tier ? TIER_BENEFITS[tier]?.color : C.muted, fontSize: 13, fontWeight: selected === tier ? 700 : 400, cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{TIER_BENEFITS[tier]?.label}</span>
+              <span style={{ fontSize: 11, opacity: 0.7 }}>{TIER_BENEFITS[tier]?.gens} gens · {TIER_BENEFITS[tier]?.products} products/mo</span>
+            </button>
+          ))}
         </div>
-
-        {changed && (
-          <div style={{ background: isUpgrade ? `${C.teal}12` : `${C.gold}12`, border: `1px solid ${isUpgrade ? C.teal + '44' : C.gold + '44'}`, borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13 }}>
-            <div style={{ fontWeight: 700, color: isUpgrade ? C.teal : C.gold, marginBottom: 4 }}>
-              {isUpgrade ? '⬆ Upgrade' : '⬇ Downgrade'} · {TIER_BENEFITS[confirm.currentTier].label} → {tierInfo.label}
-            </div>
-            <div style={{ color: C.muted, fontSize: 12 }}>
-              {isUpgrade
-                ? `${tierInfo.label} privileges apply immediately — ${tierInfo.gens} gens/mo, ${tierInfo.products} products, ${tierInfo.commission} commission.`
-                : `Access reduced to ${tierInfo.gens} gens/mo, ${tierInfo.products} products. Takes effect immediately.`
-              }
-            </div>
-          </div>
-        )}
-
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => changed && onUpdate(confirm.userId, selectedTier)} disabled={!changed || updating === confirm.userId}
-            style={{ flex: 2, background: !changed ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 12, color: '#fff', fontSize: 13, fontWeight: 700, cursor: !changed ? 'not-allowed' : 'pointer' }}>
-            {updating === confirm.userId ? 'Saving...' : !changed ? 'Select a plan' : `Apply ${tierInfo.label} Plan ✦`}
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => onUpdate(confirm.userId, selected)} disabled={updating === confirm.userId || selected === confirm.currentTier}
+            style={{ flex: 2, background: selected !== confirm.currentTier ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: selected !== confirm.currentTier ? 'pointer' : 'not-allowed' }}>
+            {updating === confirm.userId ? 'Updating...' : 'Apply Change'}
           </button>
         </div>
       </div>
@@ -97,16 +73,9 @@ function UsersTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [updating, setUpdating] = useState(null)
+  const [tierFilter, setTierFilter] = useState('all')
   const [confirm, setConfirm] = useState(null)
-  const [success, setSuccess] = useState(null) // { userId, message }
-
-  const TIER_BENEFITS = {
-    free:    { label: 'Free',    color: C.muted,   gens: 10,   products: 3,  commission: '30%', price: '$0' },
-    starter: { label: 'Starter', color: C.teal,    gens: 50,   products: 15, commission: '25%', price: '$9.99/mo' },
-    pro:     { label: 'Pro',     color: C.accent,  gens: 200,  products: 50, commission: '20%', price: '$24.99/mo' },
-    studio:  { label: 'Studio',  color: C.gold,    gens: '∞',  products: '∞',commission: '15%', price: '$59.99/mo' },
-  }
+  const [updating, setUpdating] = useState(null)
 
   useEffect(() => { loadUsers() }, [])
 
@@ -114,135 +83,92 @@ function UsersTab() {
     setLoading(true)
     const { data } = await supabase
       .from('profiles')
-      .select('id, username, display_name, subscription_tier, subscription_status, is_suspended, is_admin, created_at')
+      .select('*')
       .order('created_at', { ascending: false })
+      .limit(200)
     setUsers(data || [])
     setLoading(false)
   }
 
   const updateTier = async (userId, tier) => {
     setUpdating(userId)
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        subscription_tier: tier,
-        subscription_status: tier === 'free' ? 'inactive' : 'active',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId)
-
-    if (!error) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscription_tier: tier, subscription_status: tier === 'free' ? 'inactive' : 'active' } : u))
-      const username = users.find(u => u.id === userId)?.username
-      setSuccess({ userId, message: `@${username} upgraded to ${TIER_BENEFITS[tier].label} ✓` })
-      setTimeout(() => setSuccess(null), 4000)
-    }
+    await supabase.from('profiles').update({ subscription_tier: tier }).eq('id', userId)
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscription_tier: tier } : u))
     setUpdating(null)
     setConfirm(null)
   }
 
-  const toggleSuspend = async (userId, suspended) => {
+  const toggleSuspend = async (userId, isSuspended) => {
     setUpdating(userId)
-    await supabase.from('profiles').update({ is_suspended: !suspended }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_suspended: !suspended } : u))
+    await supabase.from('profiles').update({ is_suspended: !isSuspended }).eq('id', userId)
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_suspended: !isSuspended } : u))
     setUpdating(null)
     setConfirm(null)
   }
 
-  const toggleAdmin = async (userId, isAdmin) => {
-    setUpdating(userId)
-    await supabase.from('profiles').update({ is_admin: !isAdmin }).eq('id', userId)
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_admin: !isAdmin } : u))
-    setUpdating(null)
-    setConfirm(null)
-  }
-
-  const filtered = users.filter(u =>
-    u.username?.toLowerCase().includes(search.toLowerCase()) ||
-    u.display_name?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = users.filter(u => {
+    const matchSearch = !search || u.username?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase())
+    const matchTier = tierFilter === 'all' || u.subscription_tier === tierFilter
+    return matchSearch && matchTier
+  })
 
   return (
     <div>
-      {/* Success banner */}
-      {success && (
-        <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: '10px 16px', marginBottom: 16, fontSize: 13, color: C.teal, display: 'flex', alignItems: 'center', gap: 8 }}>
-          ✅ {success.message}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search username or email..."
+          style={{ flex: 1, minWidth: 180, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 14px', color: C.text, fontSize: 13, outline: 'none' }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['all', ...TIERS].map(t => (
+            <button key={t} onClick={() => setTierFilter(t)}
+              style={{ background: tierFilter === t ? `${C.accent}20` : 'none', border: `1px solid ${tierFilter === t ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 12px', color: tierFilter === t ? C.accent : C.muted, fontSize: 12, fontWeight: tierFilter === t ? 700 : 400, cursor: 'pointer' }}>
+              {t === 'all' ? 'All' : TIER_BENEFITS[t]?.label}
+            </button>
+          ))}
         </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users..."
-          style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', width: 260 }} />
-        <div style={{ fontSize: 12, color: C.muted }}>{filtered.length} user{filtered.length !== 1 ? 's' : ''}</div>
+        <div style={{ fontSize: 12, color: C.muted }}>{filtered.length} users</div>
       </div>
 
       {loading ? <Spinner /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map(u => {
-            const tier = u.subscription_tier || 'free'
-            const tierInfo = TIER_BENEFITS[tier] || TIER_BENEFITS.free
+            const tierMeta = TIER_BENEFITS[u.subscription_tier || 'free']
             return (
-              <div key={u.id} style={{ background: C.card, border: `1px solid ${u.is_suspended ? '#FF4D4D44' : C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'border-color 0.2s' }}>
-
-                {/* Avatar */}
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: `linear-gradient(135deg, ${tierInfo.color}, ${tierInfo.color}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                  {u.username?.[0]?.toUpperCase() || '?'}
-                </div>
-
-                {/* User info */}
+              <div key={u.id} style={{ background: C.card, border: `1px solid ${u.is_suspended ? C.red + '33' : C.border}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                {u.avatar_url
+                  ? <img src={u.avatar_url} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt={u.username} />
+                  : <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${C.accent}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: C.accent, flexShrink: 0 }}>{u.username?.[0]?.toUpperCase() || '?'}</div>
+                }
                 <div style={{ flex: 1, minWidth: 140 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    {u.display_name || u.username}
-                    {u.is_admin && <span style={{ fontSize: 10, background: C.gold + '22', border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '2px 8px', color: C.gold }}>⚡ ADMIN</span>}
-                    {u.is_suspended && <span style={{ fontSize: 10, background: '#FF4D4D22', border: '1px solid #FF4D4D44', borderRadius: 10, padding: '2px 8px', color: '#FF4D4D' }}>🚫 SUSPENDED</span>}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: u.is_suspended ? C.red : C.text }}>
+                    @{u.username || 'no username'} {u.is_admin && <span style={{ fontSize: 10, background: `${C.gold}20`, color: C.gold, borderRadius: 6, padding: '1px 6px', marginLeft: 4 }}>admin</span>}
+                    {u.is_suspended && <span style={{ fontSize: 10, background: `${C.red}20`, color: C.red, borderRadius: 6, padding: '1px 6px', marginLeft: 4 }}>suspended</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: C.muted }}>@{u.username} · Joined {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-                  <div style={{ fontSize: 11, color: tierInfo.color, marginTop: 2, fontWeight: 600 }}>
-                    {tierInfo.label} · {tierInfo.gens} gens/mo · {tierInfo.products} products · {tierInfo.commission} commission
-                  </div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{new Date(u.created_at).toLocaleDateString()} · {u.date_of_birth ? '✅ DOB on file' : '⚠️ No DOB'}</div>
                 </div>
-
-                {/* Tier badge */}
-                <span style={{ background: tierInfo.color + '20', border: `1px solid ${tierInfo.color}44`, borderRadius: 20, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: tierInfo.color, whiteSpace: 'nowrap' }}>
-                  ✦ {tierInfo.label}
-                </span>
-
-                {/* Change tier button */}
-                <button
-                  onClick={() => setConfirm({ type: 'tier', userId: u.id, username: u.username, currentTier: tier })}
-                  disabled={updating === u.id}
-                  style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: updating === u.id ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
-                  {updating === u.id ? 'Saving...' : '⭐ Change Plan'}
-                </button>
-
-                {/* Suspend */}
-                {!u.is_admin && (
-                  <button onClick={() => setConfirm({ type: 'suspend', userId: u.id, username: u.username, suspended: u.is_suspended })}
-                    disabled={updating === u.id}
-                    style={{ background: u.is_suspended ? `${C.teal}20` : '#FF4D4D18', border: `1px solid ${u.is_suspended ? C.teal + '44' : '#FF4D4D44'}`, borderRadius: 8, padding: '6px 14px', color: u.is_suspended ? C.teal : '#FF4D4D', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {u.is_suspended ? 'Unsuspend' : 'Suspend'}
+                <span style={{ fontSize: 11, background: `${tierMeta?.color}20`, border: `1px solid ${tierMeta?.color}44`, borderRadius: 20, padding: '3px 10px', color: tierMeta?.color, fontWeight: 700 }}>{tierMeta?.label}</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setConfirm({ type: 'tier', userId: u.id, username: u.username, currentTier: u.subscription_tier || 'free' })}
+                    style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                    Change Tier
                   </button>
-                )}
+                  {!u.is_admin && (
+                    <button onClick={() => setConfirm({ type: 'suspend', userId: u.id, username: u.username, suspended: u.is_suspended })}
+                      disabled={updating === u.id}
+                      style={{ background: u.is_suspended ? `${C.teal}20` : '#FF4D4D18', border: `1px solid ${u.is_suspended ? C.teal + '44' : '#FF4D4D44'}`, borderRadius: 8, padding: '6px 14px', color: u.is_suspended ? C.teal : '#FF4D4D', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {u.is_suspended ? 'Unsuspend' : 'Suspend'}
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
       )}
 
-      {/* ── Tier Change Modal ── */}
       {confirm?.type === 'tier' && (
-        <TierModal
-          confirm={confirm}
-          TIERS={TIERS}
-          TIER_BENEFITS={TIER_BENEFITS}
-          updating={updating}
-          onUpdate={updateTier}
-          onClose={() => setConfirm(null)}
-        />
+        <TierModal confirm={confirm} TIERS={TIERS} TIER_BENEFITS={TIER_BENEFITS} updating={updating} onUpdate={updateTier} onClose={() => setConfirm(null)} />
       )}
 
-      {/* ── Suspend Confirm ── */}
       {confirm?.type === 'suspend' && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', maxWidth: 400, width: '100%', textAlign: 'center' }}>
@@ -276,11 +202,7 @@ function OrdersTab() {
 
   const loadOrders = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100)
+    const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(100)
     setOrders(data || [])
     setTotalRevenue(data?.reduce((sum, o) => sum + (o.amount_total || 0), 0) || 0)
     setDreamscapeRevenue(data?.reduce((sum, o) => sum + (o.dreamscape_earnings || 0), 0) || 0)
@@ -301,7 +223,7 @@ function OrdersTab() {
           {orders.map(o => (
             <div key={o.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
               {o.mockup_url
-                ? <img src={o.mockup_url} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                ? <img src={o.mockup_url} alt={o.product_name} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 48, height: 48, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎨</div>
               }
               <div style={{ flex: 1, minWidth: 160 }}>
@@ -369,7 +291,7 @@ function ContentTab() {
           {(tab === 'products' ? products : artworks).map(item => (
             <div key={item.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               {(item.mockup_url || item.image_url)
-                ? <img src={item.mockup_url || item.image_url} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                ? <img src={item.mockup_url || item.image_url} alt={item.title} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 48, height: 48, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎨</div>
               }
               <div style={{ flex: 1, minWidth: 160 }}>
@@ -377,6 +299,7 @@ function ContentTab() {
                 <div style={{ fontSize: 11, color: C.muted }}>@{item.profiles?.username} · {new Date(item.created_at).toLocaleDateString()}</div>
               </div>
               {tab === 'products' && <div style={{ fontSize: 14, fontWeight: 700, color: C.gold }}>${parseFloat(item.price || 0).toFixed(2)}</div>}
+              {tab === 'artworks' && <div style={{ fontSize: 11, background: item.is_public ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${item.is_public ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: item.is_public ? C.teal : C.muted, fontWeight: 600 }}>{item.is_public ? '🌐 Public' : '🔒 Private'}</div>}
               <button onClick={() => setConfirm({ type: tab, id: item.id, title: item.title })}
                 style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '6px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Remove
@@ -394,13 +317,517 @@ function ContentTab() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirm(null)} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => confirm.type === 'products' ? deleteProduct(confirm.id) : deleteArtwork(confirm.id)}
-                style={{ flex: 1, background: `linear-gradient(135deg, ${C.red}, #CC0000)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                Delete
-              </button>
+                style={{ flex: 1, background: `linear-gradient(135deg, ${C.red}, #CC0000)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Overview Tab ──────────────────────────────────────────────
+function OverviewTab() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [topCreators, setTopCreators] = useState([])
+  const [recentUsers, setRecentUsers] = useState([])
+  const [dailyGens, setDailyGens] = useState([])
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const startOfWeek = new Date(now - 7 * 86400000).toISOString()
+
+    const [
+      { count: totalUsers },
+      { count: totalArtworks },
+      { count: totalProducts },
+      { count: totalOrders },
+      { count: newUsersWeek },
+      { count: gensMonth },
+      { data: tierData },
+      { data: creators },
+      { data: recent },
+      { data: orders },
+    ] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('artwork').select('id', { count: 'exact', head: true }),
+      supabase.from('products').select('id', { count: 'exact', head: true }),
+      supabase.from('orders').select('id', { count: 'exact', head: true }),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', startOfWeek),
+      supabase.from('artwork').select('id', { count: 'exact', head: true }).gte('created_at', startOfMonth),
+      supabase.from('profiles').select('subscription_tier'),
+      supabase.from('profiles').select('id, username, avatar_url').limit(200),
+      supabase.from('profiles').select('id, username, created_at').order('created_at', { ascending: false }).limit(5),
+      supabase.from('orders').select('amount_total, created_at').gte('created_at', startOfMonth),
+    ])
+
+    // Tier breakdown
+    const tiers = { free: 0, starter: 0, pro: 0, studio: 0 }
+    tierData?.forEach(p => { const t = p.subscription_tier || 'free'; tiers[t] = (tiers[t] || 0) + 1 })
+
+    // Monthly revenue
+    const monthRevenue = orders?.reduce((sum, o) => sum + (o.amount_total || 0), 0) || 0
+
+    setData({ totalUsers, totalArtworks, totalProducts, totalOrders, newUsersWeek, gensMonth, tiers, monthRevenue })
+    setRecentUsers(recent || [])
+
+    // Top creators by artwork count — fetch artwork counts per user
+    const { data: artworkCounts } = await supabase
+      .from('artwork')
+      .select('user_id, profiles(username, avatar_url)')
+      .limit(500)
+
+    const countMap = {}
+    artworkCounts?.forEach(a => {
+      const id = a.user_id
+      if (!countMap[id]) countMap[id] = { count: 0, username: a.profiles?.username, avatar: a.profiles?.avatar_url }
+      countMap[id].count++
+    })
+    const sorted = Object.entries(countMap).sort((a, b) => b[1].count - a[1].count).slice(0, 5)
+    setTopCreators(sorted.map(([id, v]) => ({ id, ...v })))
+
+    // Daily generations last 7 days
+    const { data: recentArt } = await supabase
+      .from('artwork')
+      .select('created_at')
+      .gte('created_at', startOfWeek)
+      .order('created_at', { ascending: true })
+
+    const dayMap = {}
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now - i * 86400000)
+      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      dayMap[key] = 0
+    }
+    recentArt?.forEach(a => {
+      const key = new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      if (key in dayMap) dayMap[key]++
+    })
+    setDailyGens(Object.entries(dayMap).map(([day, count]) => ({ day, count })))
+
+    setLoading(false)
+  }
+
+  if (loading) return <Spinner />
+
+  const maxGen = Math.max(...dailyGens.map(d => d.count), 1)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Key stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+        <StatCard label="Total Users" value={data.totalUsers} sub={`+${data.newUsersWeek} this week`} />
+        <StatCard label="Artworks Generated" value={data.totalArtworks} sub={`${data.gensMonth} this month`} color={C.teal} />
+        <StatCard label="Products Listed" value={data.totalProducts} color={C.accent} />
+        <StatCard label="Total Orders" value={data.totalOrders} color={C.gold} sub={`$${data.monthRevenue.toFixed(2)} this month`} />
+      </div>
+
+      {/* Tier breakdown + daily chart */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Tier breakdown */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Subscription Tiers</div>
+          {TIERS.map(tier => {
+            const count = data.tiers[tier] || 0
+            const pct = data.totalUsers ? Math.round((count / data.totalUsers) * 100) : 0
+            return (
+              <div key={tier} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: TIER_BENEFITS[tier]?.color, fontWeight: 600 }}>{TIER_BENEFITS[tier]?.label}</span>
+                  <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>{count} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>({pct}%)</span></span>
+                </div>
+                <div style={{ height: 6, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: TIER_BENEFITS[tier]?.color, borderRadius: 3, transition: 'width 0.6s ease' }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Daily generations chart */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Generations — Last 7 Days</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 80 }}>
+            {dailyGens.map(({ day, count }) => (
+              <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 10, color: C.muted }}>{count || ''}</div>
+                <div style={{ width: '100%', background: count > 0 ? `linear-gradient(180deg, ${C.accent}, #4B2FD0)` : C.border, borderRadius: '4px 4px 0 0', height: `${Math.max(4, (count / maxGen) * 60)}px`, transition: 'height 0.4s ease' }} />
+                <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap' }}>{day}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Top creators + recent signups */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>🏆 Top Creators</div>
+          {topCreators.length === 0 && <p style={{ fontSize: 13, color: C.muted }}>No data yet.</p>}
+          {topCreators.map((c, i) => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: [C.gold, C.muted, C.muted][i] || C.muted, width: 16 }}>#{i + 1}</span>
+              {c.avatar
+                ? <img src={c.avatar} alt={c.username} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                : <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${C.accent}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.accent, fontWeight: 700 }}>{c.username?.[0]?.toUpperCase()}</div>
+              }
+              <span style={{ flex: 1, fontSize: 13, color: C.text }}>@{c.username || 'unknown'}</span>
+              <span style={{ fontSize: 13, color: C.teal, fontWeight: 700 }}>{c.count} artworks</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>🆕 Recent Signups</div>
+          {recentUsers.map(u => (
+            <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: C.accent, fontWeight: 700 }}>{u.username?.[0]?.toUpperCase() || '?'}</div>
+              <span style={{ flex: 1, fontSize: 13, color: C.text }}>@{u.username || 'no username'}</span>
+              <span style={{ fontSize: 11, color: C.muted }}>{new Date(u.created_at).toLocaleDateString()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Compliance Tab ────────────────────────────────────────────
+function ComplianceTab() {
+  const [noDob, setNoDob] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState({ total: 0, withDob: 0, noDob: 0, suspended: 0 })
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const { data: all } = await supabase.from('profiles').select('id, username, email, created_at, date_of_birth, is_suspended, subscription_tier').order('created_at', { ascending: false })
+    const users = all || []
+    const missing = users.filter(u => !u.date_of_birth)
+    const withDob = users.filter(u => !!u.date_of_birth)
+    setNoDob(missing)
+    setSummary({ total: users.length, withDob: withDob.length, noDob: missing.length, suspended: users.filter(u => u.is_suspended).length })
+    setLoading(false)
+  }
+
+  if (loading) return <Spinner />
+
+  const pct = summary.total ? Math.round((summary.withDob / summary.total) * 100) : 0
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+        <StatCard label="Total Users" value={summary.total} />
+        <StatCard label="DOB on File" value={summary.withDob} color={C.teal} sub={`${pct}% compliance`} />
+        <StatCard label="No DOB" value={summary.noDob} color={summary.noDob > 0 ? C.gold : C.teal} sub="Signed up pre-gate or skipped" />
+        <StatCard label="Suspended" value={summary.suspended} color={summary.suspended > 0 ? C.red : C.muted} />
+      </div>
+
+      {/* DOB compliance bar */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Age Verification Coverage</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: pct >= 80 ? C.teal : pct >= 50 ? C.gold : C.red }}>{pct}%</span>
+        </div>
+        <div style={{ height: 10, background: C.bg, borderRadius: 5, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: pct >= 80 ? `linear-gradient(90deg, ${C.teal}, #00A884)` : pct >= 50 ? `linear-gradient(90deg, ${C.gold}, #e0a800)` : `linear-gradient(90deg, ${C.red}, #cc0000)`, borderRadius: 5, transition: 'width 0.6s' }} />
+        </div>
+        <p style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+          {pct >= 80 ? '✅ Strong compliance. Most users have verified age on file.' : pct >= 50 ? '⚠️ Moderate compliance. Consider prompting older accounts to add their DOB.' : '🚨 Low compliance. Age gate was recently added — legacy accounts need follow-up.'}
+        </p>
+      </div>
+
+      {/* Users without DOB */}
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>
+          Users Without DOB on File ({noDob.length})
+          <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 8 }}>— These users signed up before age verification was added or signed in via OAuth</span>
+        </div>
+        {noDob.length === 0 ? (
+          <div style={{ background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 12, padding: '20px', textAlign: 'center' }}>
+            <p style={{ color: C.teal, fontSize: 14, fontWeight: 600 }}>✅ All users have a date of birth on file.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
+            {noDob.map(u => (
+              <div key={u.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${C.gold}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: C.gold, fontWeight: 700, flexShrink: 0 }}>⚠️</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>@{u.username || 'no username'}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>Joined {new Date(u.created_at).toLocaleDateString()} · {TIER_BENEFITS[u.subscription_tier || 'free']?.label}</div>
+                </div>
+                {u.is_suspended && <span style={{ fontSize: 10, background: `${C.red}20`, color: C.red, borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>Suspended</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Legal note */}
+      <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 6 }}>⚖️ Legal Protection Status</div>
+        <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>
+          Dreamscape's age gate collects and records date of birth before access is granted. Users who provide false DOB data to circumvent the gate are explicitly warned this violates Terms of Service — this warning is displayed at the gate and shifts legal liability to the user. Stripe Connect handles KYC identity verification for all creators who receive payouts, providing an additional age verification layer for the seller side. Google OAuth verification is pending — once approved, the "Unverified" label on OAuth sign-ins will be removed.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Generation Stats Tab ──────────────────────────────────────
+function StatsTab() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const GEMINI_COST_PER_GEN = 0.02 // estimated $ per image generation
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+
+    const [
+      { count: totalAllTime },
+      { count: thisMonth },
+      { count: lastMonth },
+      { data: tierArtwork },
+      { data: daily },
+    ] = await Promise.all([
+      supabase.from('artwork').select('id', { count: 'exact', head: true }),
+      supabase.from('artwork').select('id', { count: 'exact', head: true }).gte('created_at', startOfMonth),
+      supabase.from('artwork').select('id', { count: 'exact', head: true }).gte('created_at', startOfLastMonth).lt('created_at', startOfMonth),
+      supabase.from('artwork').select('user_id, profiles(subscription_tier)').gte('created_at', startOfMonth).limit(2000),
+      supabase.from('artwork').select('created_at').gte('created_at', new Date(now - 30 * 86400000).toISOString()).order('created_at', { ascending: true }),
+    ])
+
+    // Gens by tier this month
+    const byTier = { free: 0, starter: 0, pro: 0, studio: 0 }
+    tierArtwork?.forEach(a => {
+      const t = a.profiles?.subscription_tier || 'free'
+      byTier[t] = (byTier[t] || 0) + 1
+    })
+
+    // Daily breakdown last 30 days
+    const dayMap = {}
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now - i * 86400000)
+      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      dayMap[key] = 0
+    }
+    daily?.forEach(a => {
+      const key = new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      if (key in dayMap) dayMap[key]++
+    })
+
+    const monthGrowth = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null
+
+    setData({
+      totalAllTime, thisMonth, lastMonth, monthGrowth,
+      estimatedCostMonth: (thisMonth * GEMINI_COST_PER_GEN).toFixed(2),
+      estimatedCostAllTime: (totalAllTime * GEMINI_COST_PER_GEN).toFixed(2),
+      byTier,
+      dailyData: Object.entries(dayMap).map(([day, count]) => ({ day, count })),
+    })
+    setLoading(false)
+  }
+
+  if (loading) return <Spinner />
+
+  const maxDay = Math.max(...data.dailyData.map(d => d.count), 1)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Key stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+        <StatCard label="Total Generations" value={data.totalAllTime?.toLocaleString()} sub={`~$${data.estimatedCostAllTime} total API cost`} />
+        <StatCard label="This Month" value={data.thisMonth?.toLocaleString()} color={C.teal}
+          sub={data.monthGrowth !== null ? `${data.monthGrowth >= 0 ? '+' : ''}${data.monthGrowth}% vs last month` : 'First month of data'} />
+        <StatCard label="Last Month" value={data.lastMonth?.toLocaleString()} color={C.muted} />
+        <StatCard label="Est. API Cost (Month)" value={`$${data.estimatedCostMonth}`} color={C.gold} sub="~$0.02/generation (Gemini)" />
+      </div>
+
+      {/* By tier */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Generations This Month by Tier</div>
+        {TIERS.map(tier => {
+          const count = data.byTier[tier] || 0
+          const pct = data.thisMonth ? Math.round((count / data.thisMonth) * 100) : 0
+          return (
+            <div key={tier} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: TIER_BENEFITS[tier]?.color, fontWeight: 600 }}>{TIER_BENEFITS[tier]?.label}</span>
+                <span style={{ fontSize: 13, color: C.text, fontWeight: 700 }}>{count.toLocaleString()} <span style={{ fontSize: 11, color: C.muted }}>({pct}%)</span></span>
+              </div>
+              <div style={{ height: 6, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: TIER_BENEFITS[tier]?.color, borderRadius: 3 }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 30-day chart */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Daily Generations — Last 30 Days</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, overflowX: 'auto' }}>
+          {data.dailyData.map(({ day, count }, i) => (
+            <div key={day} title={`${day}: ${count}`} style={{ flex: '0 0 auto', width: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <div style={{ width: '100%', background: count > 0 ? `linear-gradient(180deg, ${C.accent}, #4B2FD0)` : C.border, borderRadius: '3px 3px 0 0', height: `${Math.max(3, (count / maxDay) * 80)}px` }} />
+              {i % 5 === 0 && <div style={{ fontSize: 8, color: C.muted, whiteSpace: 'nowrap', transform: 'rotate(-45deg)', transformOrigin: 'top left', marginTop: 4 }}>{day}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* API cost note */}
+      <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}30`, borderRadius: 12, padding: '14px 18px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 4 }}>💡 Cost Estimation Note</div>
+        <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>
+          API cost estimates use $0.02/generation (approximate Gemini 3.1 Flash Image rate). Actual costs vary based on prompt length, reference images, and retry attempts. Check your Google Cloud billing console for exact figures.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ── Announcements Tab ─────────────────────────────────────────
+function AnnouncementsTab() {
+  const [message, setMessage] = useState('')
+  const [type, setType] = useState('info') // 'info' | 'success' | 'warning'
+  const [active, setActive] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const TYPE_CONFIG = {
+    info:    { label: 'Info',    color: C.accent, bg: `${C.accent}15`, icon: '📢' },
+    success: { label: 'Success', color: C.teal,   bg: `${C.teal}15`,   icon: '✅' },
+    warning: { label: 'Warning', color: C.gold,   bg: `${C.gold}15`,   icon: '⚠️' },
+  }
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('site_settings').select('*').in('key', ['announcement_message', 'announcement_type', 'announcement_active'])
+    const get = (key) => data?.find(d => d.key === key)?.value
+    setMessage(get('announcement_message') || '')
+    setType(get('announcement_type') || 'info')
+    setActive(get('announcement_active') === 'true')
+    setLoading(false)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    await Promise.all([
+      supabase.from('site_settings').upsert({ key: 'announcement_message', value: message, updated_at: new Date().toISOString() }),
+      supabase.from('site_settings').upsert({ key: 'announcement_type', value: type, updated_at: new Date().toISOString() }),
+      supabase.from('site_settings').upsert({ key: 'announcement_active', value: String(active), updated_at: new Date().toISOString() }),
+    ])
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  if (loading) return <Spinner />
+
+  const cfg = TYPE_CONFIG[type]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '24px' }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>Site-Wide Banner</h3>
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Show a message across the top of Dreamscape for all visitors. No deploy needed.</p>
+
+        {/* Active toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Banner Status</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Toggle to show or hide the announcement</div>
+          </div>
+          <button onClick={() => setActive(a => !a)}
+            style={{ background: active ? `${C.teal}25` : C.card, border: `2px solid ${active ? C.teal : C.border}`, borderRadius: 24, padding: '6px 20px', color: active ? C.teal : C.muted, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}>
+            {active ? '● Active' : '○ Inactive'}
+          </button>
+        </div>
+
+        {/* Type selector */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>Banner Type</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+              <button key={key} onClick={() => setType(key)}
+                style={{ background: type === key ? `${cfg.color}20` : 'none', border: `1px solid ${type === key ? cfg.color + '66' : C.border}`, borderRadius: 8, padding: '8px 16px', color: type === key ? cfg.color : C.muted, fontSize: 13, fontWeight: type === key ? 700 : 400, cursor: 'pointer' }}>
+                {cfg.icon} {cfg.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Message input */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            Message
+            <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: message.length > 140 ? C.red : C.muted }}>{message.length}/140</span>
+          </label>
+          <textarea value={message} onChange={e => setMessage(e.target.value)} maxLength={140} rows={2}
+            placeholder="e.g. 🎉 Dreamscape is now on Android! Download the app at trydreamscape.com"
+            style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+        </div>
+
+        {/* Preview */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Preview</div>
+          <div style={{ background: cfg.bg, border: `1px solid ${cfg.color}44`, borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{cfg.icon}</span>
+            <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{message || 'Your announcement will appear here...'}</span>
+            <button style={{ background: 'none', border: 'none', color: C.muted, fontSize: 16, cursor: 'pointer', padding: 0 }}>✕</button>
+          </div>
+        </div>
+
+        <button onClick={save} disabled={saving || !message.trim()}
+          style={{ background: !message.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '12px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: !message.trim() ? 'not-allowed' : 'pointer' }}>
+          {saving ? 'Saving...' : saved ? '✅ Saved!' : '💾 Save Banner'}
+        </button>
+      </div>
+
+      {/* Integration note */}
+      <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 12, padding: '16px 20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 6 }}>🔧 To display the banner in the app</div>
+        <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>
+          Add this to your <code style={{ background: C.bg, padding: '1px 6px', borderRadius: 4, color: C.teal }}>App.jsx</code> near the top of the main <code style={{ background: C.bg, padding: '1px 6px', borderRadius: 4, color: C.teal }}>App()</code> component. It reads from Supabase on load and shows/hides automatically based on the active flag you set here.
+        </p>
+        <pre style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px', fontSize: 11, color: C.teal, marginTop: 10, lineHeight: 1.7, overflowX: 'auto' }}>{`// In App.jsx — add near top of App() component:
+const [banner, setBanner] = useState(null)
+useEffect(() => {
+  supabase.from('site_settings')
+    .select('*').in('key', ['announcement_message','announcement_type','announcement_active'])
+    .then(({ data }) => {
+      const get = k => data?.find(d => d.key === k)?.value
+      if (get('announcement_active') === 'true' && get('announcement_message'))
+        setBanner({ message: get('announcement_message'), type: get('announcement_type') || 'info' })
+    })
+}, [])
+
+// Then in your return JSX, above <Navbar>:
+{banner && (
+  <div style={{ background: banner.type === 'success' ? '#00D4AA15' : banner.type === 'warning' ? '#F5C84215' : '#7C5CFC15',
+    borderBottom: '1px solid #1E2A40', padding: '10px 20px', textAlign: 'center',
+    fontSize: 13, color: '#E8EAF0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+    {banner.message}
+    <button onClick={() => setBanner(null)} style={{ background: 'none', border: 'none', color: '#6B7494', cursor: 'pointer', marginLeft: 8 }}>✕</button>
+  </div>
+)}`}</pre>
+      </div>
     </div>
   )
 }
@@ -410,8 +837,7 @@ function renderMarkdownPreview(content) {
   if (!content) return []
   const lines = content.split('\n')
   const elements = []
-  let i = 0
-  let k = 0
+  let i = 0, k = 0
   const key = () => k++
 
   while (i < lines.length) {
@@ -445,10 +871,7 @@ function renderMarkdownPreview(content) {
       continue
     }
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
-    if (imgMatch) {
-      elements.push(<img key={key()} src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', borderRadius: 10, marginBottom: 16 }} />)
-      i++; continue
-    }
+    if (imgMatch) { elements.push(<img key={key()} src={imgMatch[2]} alt={imgMatch[1]} style={{ width: '100%', borderRadius: 10, marginBottom: 16 }} />); i++; continue }
     if (line.trim() === '[PROMPT]') {
       const pl = []; i++
       while (i < lines.length && lines[i].trim() !== '[/PROMPT]') { pl.push(lines[i]); i++ }
@@ -471,10 +894,7 @@ function renderMarkdownPreview(content) {
     while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !lines[i].startsWith('```') && !lines[i].match(/^[-*] /) && !lines[i].match(/^\d+\. /) && lines[i].trim() !== '---' && lines[i].trim() !== '[PROMPT]' && !lines[i].match(/^!\[/)) {
       paraLines.push(lines[i]); i++
     }
-    if (paraLines.length) {
-      const text = paraLines.join(' ')
-      elements.push(<p key={key()} style={{ fontSize: 14, color: C.text, lineHeight: 1.8, marginBottom: 16 }}>{text}</p>)
-    }
+    if (paraLines.length) elements.push(<p key={key()} style={{ fontSize: 14, color: C.text, lineHeight: 1.8, marginBottom: 16 }}>{paraLines.join(' ')}</p>)
   }
   return elements
 }
@@ -486,7 +906,7 @@ function BlogTab() {
   const [previewing, setPreviewing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [confirm, setConfirm] = useState(null)
-  const [editMode, setEditMode] = useState('edit') // 'edit' | 'preview' | 'split'
+  const [editMode, setEditMode] = useState('edit')
 
   const CATEGORIES = ['Prompting Guides', 'Dream AI Tips & Tricks', 'Artist Spotlights', 'Merch & Product Guides', 'Platform Updates & News']
 
@@ -524,11 +944,8 @@ function BlogTab() {
     setSaving(true)
     const updates = { ...editing, status: status || editing.status, updated_at: new Date().toISOString() }
     if (status === 'published' && !editing.published_at) updates.published_at = new Date().toISOString()
-    if (editing.id) {
-      await supabase.from('blog_posts').update(updates).eq('id', editing.id)
-    } else {
-      await supabase.from('blog_posts').insert(updates)
-    }
+    if (editing.id) await supabase.from('blog_posts').update(updates).eq('id', editing.id)
+    else await supabase.from('blog_posts').insert(updates)
     setSaving(false)
     setEditing(null)
     setEditMode('edit')
@@ -540,56 +957,43 @@ function BlogTab() {
     setEditMode('edit')
   }
 
-  const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
-
-  // ── SEO Analysis ──────────────────────────────────────────────
   const getSeoScore = (post) => {
     if (!post) return { score: 0, checks: [] }
-    const title = post.title || ''
-    const slug = post.slug || ''
-    const excerpt = post.excerpt || ''
-    const content = post.content || ''
+    const title = post.title || '', slug = post.slug || '', excerpt = post.excerpt || '', content = post.content || ''
     const wordCount = content.split(/\s+/).filter(Boolean).length
-    const hasH2 = content.includes('## ')
-    const hasPromptBox = content.includes('[PROMPT]')
-    const hasTip = content.includes('> [!TIP]')
-
     const checks = [
-      { label: 'Title length (50-60 chars)', pass: title.length >= 30 && title.length <= 70, value: `${title.length} chars` },
+      { label: 'Title length (30-70 chars)', pass: title.length >= 30 && title.length <= 70, value: `${title.length} chars` },
       { label: 'Slug is set', pass: slug.length > 0, value: slug || 'missing' },
       { label: 'Excerpt filled in', pass: excerpt.length >= 50, value: excerpt.length ? `${excerpt.length} chars` : 'missing' },
       { label: 'Word count 1000+', pass: wordCount >= 1000, value: `${wordCount} words` },
-      { label: 'Has H2 section headers', pass: hasH2, value: hasH2 ? 'yes' : 'missing' },
-      { label: 'Has prompt example box', pass: hasPromptBox, value: hasPromptBox ? 'yes' : 'missing' },
-      { label: 'Has tip callout', pass: hasTip, value: hasTip ? 'yes' : 'missing' },
+      { label: 'Has H2 section headers', pass: content.includes('## '), value: content.includes('## ') ? 'yes' : 'missing' },
+      { label: 'Has prompt example box', pass: content.includes('[PROMPT]'), value: content.includes('[PROMPT]') ? 'yes' : 'missing' },
+      { label: 'Has tip callout', pass: content.includes('> [!TIP]'), value: content.includes('> [!TIP]') ? 'yes' : 'missing' },
       { label: 'Cover image set', pass: !!(post.cover_image), value: post.cover_image ? 'set' : 'missing' },
     ]
-    const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 100)
-    return { score, checks, wordCount, readTime: Math.max(1, Math.ceil(wordCount / 200)) }
+    return { score: Math.round((checks.filter(c => c.pass).length / checks.length) * 100), checks, wordCount }
   }
 
-  // ── Auto-save ─────────────────────────────────────────────────
   useEffect(() => {
     if (!editing?.id || !editing?.title) return
     const timer = setTimeout(async () => {
       await supabase.from('blog_posts').update({ ...editing, updated_at: new Date().toISOString() }).eq('id', editing.id)
-    }, 30000) // auto-save after 30s of inactivity
+    }, 30000)
     return () => clearTimeout(timer)
   }, [editing])
 
-  // ── Markdown toolbar insert ───────────────────────────────────
   const insertMarkdown = (before, after = '', placeholder = '') => {
     const textarea = document.getElementById('blog-content-editor')
     if (!textarea) return
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
+    const start = textarea.selectionStart, end = textarea.selectionEnd
     const selected = editing.content.substring(start, end) || placeholder
     const newContent = editing.content.substring(0, start) + before + selected + after + editing.content.substring(end)
     setEditing(prev => ({ ...prev, content: newContent }))
     setTimeout(() => { textarea.focus(); textarea.setSelectionRange(start + before.length, start + before.length + selected.length) }, 0)
   }
 
-  // ── Preview Modal ─────────────────────────────────────────────
+  const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }
+
   if (previewing) return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
@@ -607,16 +1011,10 @@ function BlogTab() {
           </button>
         </div>
       </div>
-
-      {/* Preview panel */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '32px', maxHeight: '75vh', overflowY: 'auto' }}>
-        {previewing.cover_image && (
-          <div style={{ width: '100%', height: 240, borderRadius: 12, overflow: 'hidden', marginBottom: 24, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)` }}>
-            <img src={previewing.cover_image} alt={previewing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-        )}
+        {previewing.cover_image && <div style={{ width: '100%', height: 240, borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}><img src={previewing.cover_image} alt={previewing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
         {previewing.category && <span style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 600, color: C.accent, display: 'inline-block', marginBottom: 12 }}>{previewing.category}</span>}
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(22px, 4vw, 34px)', fontWeight: 900, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>{previewing.title}</h1>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(22px, 4vw, 34px)', fontWeight: 900, color: C.text, marginBottom: 10 }}>{previewing.title}</h1>
         {previewing.excerpt && <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.8, marginBottom: 24, borderLeft: `3px solid ${C.accent}`, paddingLeft: 16, fontStyle: 'italic' }}>{previewing.excerpt}</p>}
         <div style={{ height: 1, background: C.border, marginBottom: 24 }} />
         <div>{renderMarkdownPreview(previewing.content)}</div>
@@ -624,50 +1022,38 @@ function BlogTab() {
     </div>
   )
 
-  // ── Edit View ─────────────────────────────────────────────────
   if (editing !== null) {
     const seo = getSeoScore(editing)
     const wordCount = (editing.content || '').split(/\s+/).filter(Boolean).length
     const readTime = Math.max(1, Math.ceil(wordCount / 200))
     const titleLen = (editing.title || '').length
     const slugValid = /^[a-z0-9-]+$/.test(editing.slug || '')
-
     const TOOLBAR = [
-      { label: 'B', title: 'Bold', before: '**', after: '**', placeholder: 'bold text' },
-      { label: 'I', title: 'Italic', before: '*', after: '*', placeholder: 'italic text' },
-      { label: 'H2', title: 'Heading', before: '\n## ', after: '', placeholder: 'Section heading' },
-      { label: 'H3', title: 'Subheading', before: '\n### ', after: '', placeholder: 'Subheading' },
-      { label: '`code`', title: 'Inline code', before: '`', after: '`', placeholder: 'code' },
-      { label: '— list', title: 'List item', before: '\n- ', after: '', placeholder: 'List item' },
-      { label: '1. list', title: 'Numbered list', before: '\n1. ', after: '', placeholder: 'List item' },
-      { label: '> quote', title: 'Blockquote', before: '\n> ', after: '', placeholder: 'Quote text' },
-      { label: '💡 Tip', title: 'Tip callout', before: '\n> [!TIP]\n> ', after: '', placeholder: 'Your tip here' },
-      { label: '✦ Prompt', title: 'Prompt box', before: '\n[PROMPT]\n', after: '\n[/PROMPT]', placeholder: 'Your example prompt here' },
-      { label: '---', title: 'Divider', before: '\n---\n', after: '', placeholder: '' },
+      { label: 'B', before: '**', after: '**', placeholder: 'bold text' },
+      { label: 'I', before: '*', after: '*', placeholder: 'italic text' },
+      { label: 'H2', before: '\n## ', after: '', placeholder: 'Section heading' },
+      { label: 'H3', before: '\n### ', after: '', placeholder: 'Subheading' },
+      { label: '`code`', before: '`', after: '`', placeholder: 'code' },
+      { label: '— list', before: '\n- ', after: '', placeholder: 'List item' },
+      { label: '1. list', before: '\n1. ', after: '', placeholder: 'List item' },
+      { label: '> quote', before: '\n> ', after: '', placeholder: 'Quote text' },
+      { label: '💡 Tip', before: '\n> [!TIP]\n> ', after: '', placeholder: 'Your tip here' },
+      { label: '✦ Prompt', before: '\n[PROMPT]\n', after: '\n[/PROMPT]', placeholder: 'Your example prompt here' },
+      { label: '---', before: '\n---\n', after: '', placeholder: '' },
     ]
-
     return (
       <div>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>← Back</button>
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>{editing.id ? 'Edit Post' : 'New Post'}</h2>
-            {editing.id && <span style={{ fontSize: 10, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, padding: '2px 8px' }}>Auto-saves every 30s</span>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* SEO Score badge */}
-            <div style={{ background: seo.score >= 80 ? `${C.teal}20` : seo.score >= 50 ? `${C.gold}20` : `${C.red}20`, border: `1px solid ${seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red}44`, borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red }}>
-              SEO {seo.score}%
-            </div>
-            {/* Word count */}
-            <div style={{ fontSize: 12, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 12px' }}>
-              {wordCount} words · {readTime} min read
-            </div>
-            {/* Edit / Preview / Split */}
+            <div style={{ background: seo.score >= 80 ? `${C.teal}20` : seo.score >= 50 ? `${C.gold}20` : `${C.red}20`, border: `1px solid ${seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red}44`, borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 700, color: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red }}>SEO {seo.score}%</div>
+            <div style={{ fontSize: 12, color: C.muted, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: '4px 12px' }}>{wordCount} words · {readTime} min read</div>
             <div style={{ display: 'flex', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3, gap: 2 }}>
               {[['edit', '✏️'], ['preview', '👁'], ['split', '⊞']].map(([mode, label]) => (
-                <button key={mode} onClick={() => setEditMode(mode)} title={mode}
+                <button key={mode} onClick={() => setEditMode(mode)}
                   style={{ background: editMode === mode ? `${C.accent}20` : 'none', border: `1px solid ${editMode === mode ? C.accent + '55' : 'transparent'}`, borderRadius: 6, padding: '5px 10px', color: editMode === mode ? C.accent : C.muted, fontSize: 13, cursor: 'pointer' }}>
                   {label}
                 </button>
@@ -675,102 +1061,63 @@ function BlogTab() {
             </div>
           </div>
         </div>
-
-        {/* Fields */}
         {editMode !== 'preview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  Title
-                  <span style={{ color: titleLen > 70 ? C.red : titleLen >= 30 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{titleLen}/60</span>
-                </label>
-                <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={{ ...inputStyle, borderColor: titleLen > 70 ? C.red + '88' : C.border }} placeholder="Post title..." />
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>Title <span style={{ color: titleLen > 70 ? C.red : titleLen >= 30 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{titleLen}/60</span></label>
+                <input value={editing.title} onChange={e => setEditing(prev => ({ ...prev, title: e.target.value, slug: prev.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }))} style={inputStyle} placeholder="Post title..." />
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  Slug
-                  <span style={{ color: slugValid && editing.slug ? C.teal : C.red, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{slugValid && editing.slug ? '✓ valid' : '✗ invalid'}</span>
-                </label>
-                <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} style={{ ...inputStyle, borderColor: !slugValid && editing.slug ? C.red + '88' : C.border }} placeholder="post-url-slug" />
+                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>Slug <span style={{ color: slugValid && editing.slug ? C.teal : C.red, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{slugValid && editing.slug ? '✓ valid' : '✗ invalid'}</span></label>
+                <input value={editing.slug} onChange={e => setEditing(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))} style={inputStyle} placeholder="post-url-slug" />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label>
-                <select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label>
-                <input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label>
-                <input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." />
-              </div>
+              <div><label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Category</label><select value={editing.category} onChange={e => setEditing(prev => ({ ...prev, category: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div><label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Author</label><input value={editing.author} onChange={e => setEditing(prev => ({ ...prev, author: e.target.value }))} style={inputStyle} /></div>
+              <div><label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Cover Image URL</label><input value={editing.cover_image} onChange={e => setEditing(prev => ({ ...prev, cover_image: e.target.value }))} style={inputStyle} placeholder="https://..." /></div>
             </div>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                Excerpt (meta description)
-                <span style={{ color: (editing.excerpt || '').length >= 120 && (editing.excerpt || '').length <= 160 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{(editing.excerpt || '').length}/160</span>
-              </label>
-              <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in search results and post cards (120-160 chars ideal)..." />
+              <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>Excerpt <span style={{ color: (editing.excerpt || '').length >= 120 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{(editing.excerpt || '').length}/160</span></label>
+              <textarea value={editing.excerpt} onChange={e => setEditing(prev => ({ ...prev, excerpt: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Short description shown in search results..." />
             </div>
           </div>
         )}
-
-        {/* Google search preview */}
         {editMode !== 'preview' && editing.title && (
           <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginBottom: 14 }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>🔍 Google Preview</div>
-            <div style={{ fontSize: 15, color: '#4A90E2', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{editing.title.slice(0, 60)}{editing.title.length > 60 ? '...' : ''}</div>
+            <div style={{ fontSize: 15, color: '#4A90E2', marginBottom: 2 }}>{editing.title.slice(0, 60)}{editing.title.length > 60 ? '...' : ''}</div>
             <div style={{ fontSize: 12, color: C.teal, marginBottom: 4 }}>trydreamscape.com/blog/{editing.slug || 'your-slug-here'}</div>
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{(editing.excerpt || 'Add an excerpt to show here...').slice(0, 160)}</div>
+            <div style={{ fontSize: 13, color: C.muted }}>{(editing.excerpt || 'Add an excerpt...').slice(0, 160)}</div>
           </div>
         )}
-
-        {/* Markdown toolbar */}
         {editMode !== 'preview' && (
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8, padding: '8px 10px', background: C.panel, border: `1px solid ${C.border}`, borderRadius: '10px 10px 0 0' }}>
             {TOOLBAR.map(tool => (
-              <button key={tool.label} onClick={() => insertMarkdown(tool.before, tool.after, tool.placeholder)} title={tool.title}
-                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: tool.label === '`code`' ? 'monospace' : 'inherit' }}>
+              <button key={tool.label} onClick={() => insertMarkdown(tool.before, tool.after, tool.placeholder)}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 {tool.label}
               </button>
             ))}
           </div>
         )}
-
-        {/* Content area */}
         <div style={{ display: editMode === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {editMode !== 'preview' && (
-            <textarea id="blog-content-editor" value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))}
-              rows={editMode === 'split' ? 22 : 18}
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, fontFamily: 'monospace', fontSize: 13, borderRadius: editMode !== 'split' ? '0 0 10px 10px' : 10 }}
-              placeholder="Write your post content here using markdown..." />
+            <textarea id="blog-content-editor" value={editing.content} onChange={e => setEditing(prev => ({ ...prev, content: e.target.value }))} rows={editMode === 'split' ? 22 : 18}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.7, fontFamily: 'monospace', fontSize: 13, borderRadius: editMode !== 'split' ? '0 0 10px 10px' : 10 }} placeholder="Write your post content here using markdown..." />
           )}
           {editMode !== 'edit' && (
             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', minHeight: 400, maxHeight: editMode === 'split' ? 520 : '70vh', overflowY: 'auto' }}>
               {editing.title && <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 10 }}>{editing.title}</h1>}
               {editing.excerpt && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 14, borderLeft: `3px solid ${C.accent}`, paddingLeft: 14, fontStyle: 'italic' }}>{editing.excerpt}</p>}
-              {editing.excerpt && <div style={{ height: 1, background: C.border, marginBottom: 14 }} />}
               {renderMarkdownPreview(editing.content)}
-              {!editing.content && <p style={{ color: C.muted, fontSize: 13 }}>Start writing to see preview...</p>}
             </div>
           )}
         </div>
-
-        {/* SEO Checklist */}
         {editMode !== 'preview' && (
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', marginTop: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-              Publishing Checklist — {seo.score}% ready
-              <span style={{ display: 'inline-block', marginLeft: 10, width: 100, height: 4, background: C.border, borderRadius: 2, verticalAlign: 'middle', position: 'relative', overflow: 'hidden' }}>
-                <span style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${seo.score}%`, background: seo.score >= 80 ? C.teal : seo.score >= 50 ? C.gold : C.red, borderRadius: 2 }} />
-              </span>
-            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Publishing Checklist — {seo.score}% ready</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 6 }}>
               {seo.checks.map(check => (
                 <div key={check.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
@@ -782,16 +1129,10 @@ function BlogTab() {
             </div>
           </div>
         )}
-
-        {/* Action buttons */}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
           <button onClick={() => { setEditing(null); setEditMode('edit') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 20px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => savePost('draft')} disabled={saving}
-            style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            {saving ? 'Saving...' : '💾 Save Draft'}
-          </button>
-          <button onClick={() => savePost('published')} disabled={saving || seo.score < 60}
-            title={seo.score < 60 ? 'Complete the checklist before publishing' : 'Publish'}
+          <button onClick={() => savePost('draft')} disabled={saving} style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '10px 20px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{saving ? 'Saving...' : '💾 Save Draft'}</button>
+          <button onClick={() => savePost('published')} disabled={saving || seo.score < 60} title={seo.score < 60 ? 'Complete the checklist before publishing' : 'Publish'}
             style={{ background: seo.score < 60 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: seo.score < 60 ? 'not-allowed' : 'pointer' }}>
             {saving ? 'Publishing...' : seo.score < 60 ? '⚠️ Not Ready' : '✦ Publish'}
           </button>
@@ -800,41 +1141,32 @@ function BlogTab() {
     )
   }
 
-  // ── Posts List ────────────────────────────────────────────────
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div style={{ fontSize: 13, color: C.muted }}>{posts.length} post{posts.length !== 1 ? 's' : ''} · {posts.filter(p => p.status === 'published').length} published · {posts.filter(p => p.status === 'draft').length} drafts</div>
         <button onClick={newPost} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Post</button>
       </div>
-
       {loading ? <Spinner /> : posts.length === 0 ? (
         <div style={{ background: C.card, border: `1px dashed ${C.border}`, borderRadius: 16, padding: '48px', textAlign: 'center' }}>
-          <p style={{ color: C.muted, fontSize: 14, marginBottom: 16 }}>No blog posts yet. Create your first one or let Ares draft one!</p>
+          <p style={{ color: C.muted, fontSize: 14, marginBottom: 16 }}>No blog posts yet.</p>
           <button onClick={newPost} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ New Post</button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {posts.map(post => (
             <div key={post.id} style={{ background: C.card, border: `1px solid ${post.status === 'published' ? C.accent + '33' : C.border}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              {post.cover_image
-                ? <img src={post.cover_image} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                : <div style={{ width: 52, height: 52, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✦</div>
-              }
+              {post.cover_image ? <img src={post.cover_image} alt={post.title} style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} /> : <div style={{ width: 52, height: 52, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✦</div>}
               <div style={{ flex: 1, minWidth: 160 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 2 }}>{post.title}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>{post.category} · {new Date(post.created_at).toLocaleDateString()}</div>
               </div>
               {post.featured && <span style={{ fontSize: 10, background: `${C.gold}20`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '2px 8px', color: C.gold, fontWeight: 700 }}>⭐ Featured</span>}
-              <span style={{ fontSize: 11, background: post.status === 'published' ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${post.status === 'published' ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: post.status === 'published' ? C.teal : C.muted, fontWeight: 600 }}>
-                {post.status === 'published' ? '● Live' : '○ Draft'}
-              </span>
+              <span style={{ fontSize: 11, background: post.status === 'published' ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${post.status === 'published' ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: post.status === 'published' ? C.teal : C.muted, fontWeight: 600 }}>{post.status === 'published' ? '● Live' : '○ Draft'}</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button onClick={() => setPreviewing(post)} style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '5px 12px', color: C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>👁 Preview</button>
                 <button onClick={() => { setEditing(post); setEditMode('split') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>✏️ Edit</button>
-                <button onClick={() => togglePublish(post)} style={{ background: post.status === 'published' ? 'none' : `${C.accent}20`, border: `1px solid ${post.status === 'published' ? C.border : C.accent + '55'}`, borderRadius: 8, padding: '5px 12px', color: post.status === 'published' ? C.muted : C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  {post.status === 'published' ? 'Unpublish' : '✦ Publish'}
-                </button>
+                <button onClick={() => togglePublish(post)} style={{ background: post.status === 'published' ? 'none' : `${C.accent}20`, border: `1px solid ${post.status === 'published' ? C.border : C.accent + '55'}`, borderRadius: 8, padding: '5px 12px', color: post.status === 'published' ? C.muted : C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{post.status === 'published' ? 'Unpublish' : '✦ Publish'}</button>
                 <button onClick={() => toggleFeatured(post)} style={{ background: post.featured ? `${C.gold}20` : 'none', border: `1px solid ${post.featured ? C.gold + '55' : C.border}`, borderRadius: 8, padding: '5px 12px', color: post.featured ? C.gold : C.muted, fontSize: 12, cursor: 'pointer' }}>⭐</button>
                 <button onClick={() => setConfirm(post.id)} style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '5px 12px', color: C.red, fontSize: 12, cursor: 'pointer' }}>✕</button>
               </div>
@@ -842,7 +1174,6 @@ function BlogTab() {
           ))}
         </div>
       )}
-
       {confirm && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
@@ -863,67 +1194,51 @@ function BlogTab() {
 // ── Admin Dashboard ───────────────────────────────────────────
 export default function Admin({ user, profile }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('users')
-  const [stats, setStats] = useState(null)
+  const [tab, setTab] = useState('overview')
 
   useEffect(() => {
-    // Redirect non-admins
     if (profile && !profile.is_admin) navigate('/')
-    if (profile?.is_admin) loadStats()
   }, [profile])
-
-  const loadStats = async () => {
-    const [
-      { count: userCount },
-      { count: orderCount },
-      { count: productCount },
-      { count: artworkCount },
-    ] = await Promise.all([
-      supabase.from('profiles').select('id', { count: 'exact' }),
-      supabase.from('orders').select('id', { count: 'exact' }),
-      supabase.from('products').select('id', { count: 'exact' }),
-      supabase.from('artwork').select('id', { count: 'exact' }),
-    ])
-    setStats({ userCount, orderCount, productCount, artworkCount })
-  }
 
   if (!profile?.is_admin) return null
 
-  const tabs = [['users', '👥 Users'], ['orders', '📦 Orders'], ['content', '🎨 Content'], ['blog', '✍️ Blog']]
+  const tabs = [
+    ['overview',      '📊 Overview'],
+    ['users',         '👥 Users'],
+    ['orders',        '📦 Orders'],
+    ['content',       '🎨 Content'],
+    ['compliance',    '🛡️ Compliance'],
+    ['stats',         '📈 Gen Stats'],
+    ['announcements', '📢 Announcements'],
+    ['blog',          '✍️ Blog'],
+  ]
 
   return (
-    <div style={{ padding: '40px 20px', maxWidth: 1000, margin: '0 auto' }}>
-      {/* Header */}
+    <div style={{ padding: '40px 20px', maxWidth: 1060, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>Admin Dashboard</div>
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 4 }}>Dreamscape Control Center</h1>
         <p style={{ color: C.muted, fontSize: 13 }}>Founder access · @{profile?.username}</p>
       </div>
 
-      {/* Stats row */}
-      {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 32 }}>
-          <StatCard label="Total Users" value={stats.userCount} />
-          <StatCard label="Total Orders" value={stats.orderCount} color={C.gold} />
-          <StatCard label="Products Listed" value={stats.productCount} color={C.accent} />
-          <StatCard label="Artworks Created" value={stats.artworkCount} color={C.teal} />
-        </div>
-      )}
-
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${C.border}`, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 28, overflowX: 'auto', flexWrap: 'nowrap' }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`, padding: '10px 18px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1 }}>
+            style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? C.accent : 'transparent'}`, padding: '10px 16px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1, whiteSpace: 'nowrap', flexShrink: 0 }}>
             {label}
           </button>
         ))}
       </div>
 
-      {tab === 'users' && <UsersTab />}
-      {tab === 'orders' && <OrdersTab />}
-      {tab === 'content' && <ContentTab />}
-      {tab === 'blog' && <BlogTab />}
+      {tab === 'overview'      && <OverviewTab />}
+      {tab === 'users'         && <UsersTab />}
+      {tab === 'orders'        && <OrdersTab />}
+      {tab === 'content'       && <ContentTab />}
+      {tab === 'compliance'    && <ComplianceTab />}
+      {tab === 'stats'         && <StatsTab />}
+      {tab === 'announcements' && <AnnouncementsTab />}
+      {tab === 'blog'          && <BlogTab />}
     </div>
   )
 }
