@@ -942,6 +942,143 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
   )
 }
 
+// ── Age Gate ──────────────────────────────────────────────────
+const AGE_KEY = 'ds_age_verified'
+
+function useAgeGate() {
+  const [gateState, setGateState] = useState(() => {
+    try { return localStorage.getItem(AGE_KEY) || null } catch { return null }
+  })
+  const pass = (dob) => {
+    try { localStorage.setItem(AGE_KEY, dob) } catch {}
+    setGateState(dob)
+  }
+  const isVerified = gateState && gateState !== 'blocked_u13' && gateState !== 'blocked_u18'
+  const isBlockedU13 = gateState === 'blocked_u13'
+  const isBlockedU18 = gateState === 'blocked_u18'
+  return { isVerified, isBlockedU13, isBlockedU18, pass, gateState }
+}
+
+function AgeGate({ onPass }) {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const [month, setMonth] = useState('')
+  const [day, setDay] = useState('')
+  const [year, setYear] = useState('')
+  const [error, setError] = useState('')
+  const [blocked, setBlocked] = useState(null) // null | 'u13' | 'u18'
+
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: 100 }, (_, i) => currentYear - i)
+  const days = Array.from({ length: 31 }, (_, i) => i + 1)
+
+  const handleConfirm = () => {
+    setError('')
+    if (!month || !day || !year) { setError('Please enter your full date of birth.'); return }
+    const dob = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+    if (isNaN(dob.getTime())) { setError('Please enter a valid date.'); return }
+    const today = new Date()
+    let age = today.getFullYear() - dob.getFullYear()
+    const m = today.getMonth() - dob.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+    if (age < 0 || age > 120) { setError('Please enter a valid date of birth.'); return }
+
+    const dobStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    if (age < 13) {
+      try { localStorage.setItem(AGE_KEY, 'blocked_u13') } catch {}
+      setBlocked('u13')
+    } else if (age < 18) {
+      try { localStorage.setItem(AGE_KEY, 'blocked_u18') } catch {}
+      setBlocked('u18')
+    } else {
+      onPass(dobStr)
+    }
+  }
+
+  const sel = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: month || day || year ? C.text : C.muted, fontSize: 14, outline: 'none', fontFamily: 'inherit', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }
+
+  if (blocked === 'u13') return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ textAlign: 'center', maxWidth: 400 }}>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>🎨</div>
+        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: C.text, marginBottom: 12 }}>Come Back Soon!</h2>
+        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7 }}>
+          Dreamscape is for artists aged 13 and over. We can't wait to see what you create when you're older! 🌟
+        </p>
+      </div>
+    </div>
+  )
+
+  if (blocked === 'u18') return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ textAlign: 'center', maxWidth: 440 }}>
+        <div style={{ fontSize: 64, marginBottom: 20 }}>✦</div>
+        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: C.text, marginBottom: 12 }}>Almost There!</h2>
+        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, marginBottom: 24 }}>
+          Dreamscape is currently available to artists 18 and over. We're working on a version for younger creators — check back on your 18th birthday! 🎂
+        </p>
+        <p style={{ color: C.muted, fontSize: 12 }}>
+          In the meantime, explore AI art at <a href="https://google.com" style={{ color: C.accent }}>Google's Arts & Culture</a>.
+        </p>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(8,11,20,0.98)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <StarField />
+      <div style={{ position: 'relative', zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, padding: '40px 36px', maxWidth: 440, width: '100%', textAlign: 'center' }}>
+        {/* Logo */}
+        <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: '#fff', margin: '0 auto 20px' }}>✦</div>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 8 }}>
+          Welcome to <span style={{ color: C.accent }}>Dream</span>scape
+        </h1>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6, marginBottom: 28 }}>
+          To continue, please enter your date of birth.<br />
+          <span style={{ fontSize: 12 }}>Dreamscape is for users aged 18 and over.</span>
+        </p>
+
+        {/* DOB dropdowns */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: 10, marginBottom: 20 }}>
+          <select value={month} onChange={e => setMonth(e.target.value)} style={sel}>
+            <option value="" disabled>Month</option>
+            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={day} onChange={e => setDay(e.target.value)} style={sel}>
+            <option value="" disabled>Day</option>
+            {days.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={year} onChange={e => setYear(e.target.value)} style={sel}>
+            <option value="" disabled>Year</option>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+
+        {error && (
+          <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '9px 14px', marginBottom: 16, fontSize: 13, color: '#ff6b6b' }}>
+            {error}
+          </div>
+        )}
+
+        <button onClick={handleConfirm}
+          style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
+          Continue ✦
+        </button>
+
+        <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.6 }}>
+          By continuing you confirm you are 18+ and agree to our{' '}
+          <a href="/terms" style={{ color: C.accent }}>Terms of Service</a> and{' '}
+          <a href="/privacy" style={{ color: C.accent }}>Privacy Policy</a>.
+          Your date of birth is used only for age verification and is never shared.
+          <br /><br />
+          <span style={{ color: '#ff6b6b88' }}>
+            ⚠️ Providing a false date of birth to circumvent this age gate is a violation of our Terms of Service and misrepresentation of age to access an adult platform. Dreamscape is not liable for any access obtained through false information.
+          </span>
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ── Edit Profile Modal ────────────────────────────────────────
 function EditProfileModal({ user, profile, onClose, onSave }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
@@ -950,6 +1087,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [website, setWebsite] = useState(profile?.website || '')
   const [artistStatement, setArtistStatement] = useState(profile?.artist_statement || '')
   const [styleTags, setStyleTags] = useState((profile?.style_tags || []).join(', '))
+  const [dob, setDob] = useState(profile?.date_of_birth || '')
   const [avatarFile, setAvatarFile] = useState(null)
   const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || null)
   const [bannerFile, setBannerFile] = useState(null)
@@ -1004,6 +1142,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         style_tags: tags,
         avatar_url: avatarUrl,
         banner_url: bannerUrl,
+        date_of_birth: dob || null,
         updated_at: new Date().toISOString(),
       }
       console.log('Upserting profile:', updates)
@@ -1057,6 +1196,12 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
               <div>
                 <label style={labelStyle}>Location</label>
                 <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" maxLength={80} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Date of Birth <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(private — used for age compliance)</span></label>
+                <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                  style={{ ...inputStyle, colorScheme: 'dark' }} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>🔒 Never shared or displayed publicly.</div>
               </div>
               <div>
                 <label style={labelStyle}>Website / Social Link</label>
@@ -2620,6 +2765,18 @@ export default function App() {
   const { user, profile, setProfile, signOut, loading } = useAuth()
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
+  const { isVerified, isBlockedU13, isBlockedU18, pass } = useAgeGate()
+
+  // Show age gate before anything else (except loading)
+  if (!loading && !isVerified) {
+    return <AgeGate onPass={(dob) => {
+      pass(dob)
+      // If user already logged in, save DOB to their profile too
+      if (user) {
+        supabase.from('profiles').update({ date_of_birth: dob }).eq('id', user.id).then(() => {})
+      }
+    }} />
+  }
 
   if (loading) return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
