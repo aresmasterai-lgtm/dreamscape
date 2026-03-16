@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Component } from 'react'
+import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
@@ -453,7 +453,7 @@ function DreamChat({ user, onSignIn }) {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [generatingIndex, setGeneratingIndex] = useState(null)
   const [generatedImages, setGeneratedImages] = useState({})
-  const [pendingPrompt, setPendingPrompt] = useState(null) // prompt ready, awaiting user confirm
+  const [pendingPrompt, setPendingPrompt] = useState(null)
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const bottomRef = useRef(null)
@@ -461,16 +461,99 @@ function DreamChat({ user, onSignIn }) {
   const fileInputRef = useRef(null)
   const mountedRef = useRef(true)
   const genTimeoutRef = useRef(null)
-  // Auto-save tracking: { [messageIndex]: artworkId }
   const [autoSavedIds, setAutoSavedIds] = useState({})
-  // Published state: Set of artwork IDs that are public
   const [publishedIds, setPublishedIds] = useState(new Set())
   const inputRef = useRef(null)
+
+  // ── Session history ───────────────────────────────────────────
+  const [currentSessionId, setCurrentSessionId] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const autoSaveTimerRef = useRef(null)
+
+  // Auto-save current session to Supabase (debounced 2s)
+  const autoSaveSession = useCallback(async (msgs, sessionId) => {
+    if (!user || msgs.length < 2) return // don't save empty sessions
+    clearTimeout(autoSaveTimerRef.current)
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (!mountedRef.current) return
+      // Title = first user message, truncated
+      const firstUser = msgs.find(m => m.role === 'user')
+      const title = typeof firstUser?.content === 'string'
+        ? firstUser.content.slice(0, 60)
+        : firstUser?.content?.find?.(c => c.type === 'text')?.text?.slice(0, 60) || 'Dream Session'
+
+      // Strip base64 images from saved messages to keep DB lean
+      const saveable = msgs.map(m => {
+        if (Array.isArray(m.content)) {
+          const text = m.content.find(c => c.type === 'text')
+          return { ...m, content: text?.text || '', _refImage: undefined }
+        }
+        return { ...m, _refImage: undefined }
+      })
+
+      if (sessionId) {
+        await supabase.from('dream_sessions')
+          .update({ messages: saveable, title, updated_at: new Date().toISOString() })
+          .eq('id', sessionId)
+      } else {
+        const { data } = await supabase.from('dream_sessions')
+          .insert({ user_id: user.id, title, messages: saveable })
+          .select('id').single()
+        if (data?.id && mountedRef.current) setCurrentSessionId(data.id)
+      }
+    }, 2000)
+  }, [user])
+
+  // Load session history list
+  const loadSessions = async () => {
+    if (!user) return
+    setLoadingSessions(true)
+    const { data } = await supabase
+      .from('dream_sessions')
+      .select('id, title, created_at, updated_at')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(40)
+    if (mountedRef.current) { setSessions(data || []); setLoadingSessions(false) }
+  }
+
+  // Resume a past session
+  const resumeSession = async (session) => {
+    const { data } = await supabase
+      .from('dream_sessions')
+      .select('messages')
+      .eq('id', session.id)
+      .single()
+    if (!data?.messages) return
+    setMessages(data.messages.length ? data.messages : [INITIAL_MESSAGE])
+    setGeneratedImages({})
+    setSavedIndexes(new Set())
+    setGeneratingIndex(null)
+    setPendingPrompt(null)
+    setAutoSavedIds({})
+    setPublishedIds(new Set())
+    setCurrentSessionId(session.id)
+    setShowHistory(false)
+  }
+
+  // Delete a session
+  const deleteSession = async (e, sessionId) => {
+    e.stopPropagation()
+    await supabase.from('dream_sessions').delete().eq('id', sessionId)
+    setSessions(prev => prev.filter(s => s.id !== sessionId))
+    if (currentSessionId === sessionId) resetChat()
+  }
+
+  // Auto-save whenever messages change (after first user message)
+  useEffect(() => {
+    if (messages.length > 1) autoSaveSession(messages, currentSessionId)
+  }, [messages])
 
   // Track mounted state — prevent setState after unmount
   useEffect(() => {
     mountedRef.current = true
-    // Pick up refine prompt set by profile page
     const refinePrompt = sessionStorage.getItem('dreamRefinePrompt')
     if (refinePrompt) {
       sessionStorage.removeItem('dreamRefinePrompt')
@@ -480,6 +563,7 @@ function DreamChat({ user, onSignIn }) {
     return () => {
       mountedRef.current = false
       if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current)
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     }
   }, [])
 
@@ -506,6 +590,8 @@ function DreamChat({ user, onSignIn }) {
     setSaveSuccess(false)
     setAutoSavedIds({})
     setPublishedIds(new Set())
+    setCurrentSessionId(null)
+    setPendingPrompt(null)
   }
 
   const handleFileSelect = (e) => {
@@ -726,23 +812,90 @@ function DreamChat({ user, onSignIn }) {
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+        {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
             <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
+          {/* History button */}
+          <button onClick={() => { setShowHistory(h => { if (!h) loadSessions(); return !h }) }}
+            title="Conversation history"
+            style={{ background: showHistory ? `${C.accent}30` : `${C.accent}18`, border: `1px solid ${showHistory ? C.accent + '88' : C.accent + '44'}`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            🕐 History
+          </button>
           {messages.length > 1 && (
             <button onClick={resetChat}
-              title="Start a new prompt"
-              style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = `${C.accent}30`; e.currentTarget.style.borderColor = C.accent + '88' }}
-              onMouseLeave={e => { e.currentTarget.style.background = `${C.accent}18`; e.currentTarget.style.borderColor = C.accent + '44' }}>
-              ✦ New Prompt
+              title="Start a new conversation"
+              style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '6px 14px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              + New
             </button>
           )}
         </div>
+
+        {/* History panel — slides in over the chat */}
+        {showHistory && (
+          <div style={{ position: 'absolute', inset: '57px 0 0 0', background: C.card, zIndex: 10, display: 'flex', flexDirection: 'column', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Past Conversations</span>
+              <button onClick={() => setShowHistory(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loadingSessions ? (
+                <div style={{ padding: 40, textAlign: 'center' }}>
+                  <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+                  </div>
+                </div>
+              ) : sessions.length === 0 ? (
+                <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 36, marginBottom: 12 }}>✦</div>
+                  <p style={{ color: C.muted, fontSize: 14 }}>No saved conversations yet.</p>
+                  <p style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>Start chatting with Dream and your sessions will appear here.</p>
+                </div>
+              ) : (
+                sessions.map(s => {
+                  const isActive = s.id === currentSessionId
+                  const date = new Date(s.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  return (
+                    <div key={s.id} onClick={() => resumeSession(s)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 20px', borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: isActive ? `${C.accent}12` : 'transparent', transition: 'background 0.15s' }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = `${C.panel}` }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: isActive ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? C.accent : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {s.title || 'Dream Session'}
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{date}</div>
+                      </div>
+                      {isActive && <span style={{ fontSize: 10, color: C.accent, fontWeight: 700, flexShrink: 0 }}>ACTIVE</span>}
+                      <button onClick={e => deleteSession(e, s.id)}
+                        title="Delete session"
+                        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 6, flexShrink: 0, opacity: 0.5 }}
+                        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = C.red }}
+                        onMouseLeave={e => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = C.muted }}>
+                        🗑
+                      </button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            {sessions.length > 0 && (
+              <div style={{ padding: '12px 20px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+                <button onClick={() => { resetChat(); setShowHistory(false) }}
+                  style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ✦ Start New Conversation
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 300, maxHeight: '55vh' }}>
           {messages.map((msg, i) => {
             const isUser = msg.role === 'user'
