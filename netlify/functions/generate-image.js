@@ -5,29 +5,26 @@ export default async (req) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json',
   }
-
   if (req.method === 'OPTIONS') return new Response('', { status: 200, headers })
 
   try {
     const { prompt, referenceImage } = await req.json()
-
     if (!prompt) {
       return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
     }
 
-    const generateImage = async (attemptPrompt) => {
+    const attemptGenerate = async (attemptPrompt) => {
       const parts = []
-
       if (referenceImage) {
         const match = referenceImage.match(/^data:(image\/[^;]+);base64,(.+)$/)
         if (match) {
           parts.push({ inline_data: { mime_type: match[1], data: match[2] } })
-          parts.push({ text: `Using this reference image for style and subject inspiration, generate a high quality artwork: ${attemptPrompt}. Generate ONLY the image, no text response.` })
+          parts.push({ text: `Using this reference image for style and subject inspiration, generate a high quality artwork: ${attemptPrompt}` })
         } else {
-          parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}. Generate ONLY the image, no text response.` })
+          parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}` })
         }
       } else {
-        parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}. Generate ONLY the image, no text response.` })
+        parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}` })
       }
 
       const response = await fetch(
@@ -37,7 +34,8 @@ export default async (req) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts }],
-            generationConfig: { responseModalities: ['IMAGE'] },
+            // IMPORTANT: Must include both TEXT and IMAGE — IMAGE-only causes silent failure
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
           }),
         }
       )
@@ -46,23 +44,22 @@ export default async (req) => {
       if (data.error) throw new Error(data.error.message)
 
       const responseParts = data.candidates?.[0]?.content?.parts || []
-      const imagePart = responseParts.find(p => p.inlineData)
-      return imagePart || null
+      return responseParts.find(p => p.inlineData) || null
     }
 
-    // Try generating — retry once with simplified prompt if first attempt fails
-    let imagePart = await generateImage(prompt)
+    // First attempt
+    let imagePart = await attemptGenerate(prompt)
 
+    // Retry once with a simpler prompt if first attempt fails
     if (!imagePart) {
-      // Retry with a more direct prompt
-      const simplifiedPrompt = `Digital artwork: ${prompt.slice(0, 200)}, highly detailed, vibrant colors, professional quality`
-      imagePart = await generateImage(simplifiedPrompt)
+      const simplified = `Digital artwork, highly detailed, vibrant colors, professional quality: ${prompt.slice(0, 300)}`
+      imagePart = await attemptGenerate(simplified)
     }
 
     if (!imagePart) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Image generation failed after retry. Please try refining your prompt and try again.'
+        error: 'No image returned. Try rephrasing your prompt and generating again.'
       }), { status: 200, headers })
     }
 

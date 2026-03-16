@@ -1,0 +1,28 @@
+# Dreamscape — https://trydreamscape.com
+# robots.txt
+
+User-agent: *
+Allow: /
+
+# Keep admin and private user areas out of search results
+Disallow: /admin
+Disallow: /profile
+Disallow: /orders
+Disallow: /reset-password
+Disallow: /success
+
+# Allow all public content
+Allow: /gallery
+Allow: /marketplace
+Allow: /create
+Allow: /blog
+Allow: /blog/
+Allow: /pricing
+Allow: /u/
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+Allow: /sitemap
+
+# XML Sitemap location
+Sitemap: https://trydreamscape.com/sitemap.xml

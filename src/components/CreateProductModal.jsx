@@ -162,46 +162,105 @@ function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacement
 }
 
 
-// ── Pricing Calculator ────────────────────────────────────────
-const DREAMSCAPE_FEE_PCT = 0.10  // 10% platform fee
-const STRIPE_PCT         = 0.029 // 2.9%
-const STRIPE_FIXED       = 0.30  // $0.30
+// ── Printful Fallback Base Costs ──────────────────────────────
+// Used when the API returns no pricing for a product type.
+// Values are approximate 2025 Printful wholesale costs in USD.
+// Source: https://www.printful.com/custom — checked March 2026.
+// Update these periodically as Printful pricing changes.
+const FALLBACK_COSTS = {
+  'T-SHIRT':      12.95,
+  'SHIRT':        12.95,
+  'HOODIE':       27.95,
+  'SWEATSHIRT':   24.95,
+  'LONG SLEEVE':  17.95,
+  'CROP TOP':     15.95,
+  'TANK TOP':     12.95,
+  'POLO':         19.95,
+  'DRESS':        22.95,
+  'LEGGINGS':     21.95,
+  'SHORTS':       18.95,
+  'JOGGERS':      24.95,
+  'JACKET':       34.95,
+  'BOMBER':       38.95,
+  'VEST':         28.95,
+  'MUG':           8.95,
+  'TRAVEL MUG':   16.95,
+  'BOTTLE':       18.95,
+  'GLASS':        11.95,
+  'POSTER':        9.95,
+  'CANVAS':       18.95,
+  'FRAME':        24.95,
+  'PRINT':         9.95,
+  'PHONE CASE':   11.95,
+  'TOTE':         12.95,
+  'BAG':          14.95,
+  'BACKPACK':     29.95,
+  'PILLOW':       17.95,
+  'BLANKET':      34.95,
+  'TOWEL':        21.95,
+  'SOCKS':        10.95,
+  'HAT':          17.95,
+  'CAP':          17.95,
+  'BEANIE':       15.95,
+  'APRON':        19.95,
+  'NOTEBOOK':     12.95,
+  'STICKER':       2.95,
+  'FACE MASK':     9.95,
+  'PATCH':         6.95,
+}
+
+// Get base cost — live from API first, fallback table second, null if unknown
+function resolveBaseCost(apiCost, productType) {
+  if (apiCost != null && apiCost > 0) return apiCost
+  if (!productType) return null
+  const upper = productType.toUpperCase()
+  for (const [key, cost] of Object.entries(FALLBACK_COSTS)) {
+    if (upper.includes(key)) return cost
+  }
+  return null
+}
+
+// ── Pricing Calculator ─────────────────────────────────────────
+const DREAMSCAPE_FEE_PCT = 0.10
+const STRIPE_PCT         = 0.029
+const STRIPE_FIXED       = 0.30
 
 function calcEarnings(retailPrice, baseCost) {
   const retail = parseFloat(retailPrice) || 0
   if (retail <= 0 || baseCost == null) return null
-  const stripeFee    = retail * STRIPE_PCT + STRIPE_FIXED
+  const stripeFee     = retail * STRIPE_PCT + STRIPE_FIXED
   const dreamscapeFee = retail * DREAMSCAPE_FEE_PCT
-  const earnings     = retail - baseCost - stripeFee - dreamscapeFee
-  const margin       = (earnings / retail) * 100
-  const breakEven    = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
+  const earnings      = retail - baseCost - stripeFee - dreamscapeFee
+  const margin        = (earnings / retail) * 100
+  const breakEven     = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
   return { retail, stripeFee, dreamscapeFee, earnings, margin, breakEven }
 }
 
-function PricingCalculator({ baseCost, price, onPriceChange }) {
+function PricingCalculator({ baseCost, price, onPriceChange, usingFallback }) {
   const calc = calcEarnings(price, baseCost)
-  const retail = parseFloat(price) || 0
 
   const marginColor = !calc ? C.muted
-    : calc.earnings < 0   ? C.red
-    : calc.margin < 20    ? C.gold
+    : calc.earnings < 0  ? C.red
+    : calc.margin < 20   ? C.gold
     : C.teal
 
-  const marginLabel = !calc ? '' 
-    : calc.earnings < 0   ? '🚨 Below break-even'
-    : calc.margin < 20    ? '⚠️ Low margin'
-    : calc.margin < 35    ? '✅ Okay margin'
+  const marginLabel = !calc ? ''
+    : calc.earnings < 0  ? '🚨 Below break-even'
+    : calc.margin < 20   ? '⚠️ Low margin'
+    : calc.margin < 35   ? '✅ Okay margin'
     : '✅ Healthy margin'
 
   if (baseCost == null) return (
     <div>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', marginBottom: 8 }}>
         <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
-        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="10" step="0.01"
+        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="1" step="0.01"
           style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
       </div>
-      <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Select a product type first to see profit breakdown.</p>
+      <div style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '10px 12px', fontSize: 12, color: C.gold }}>
+        ⚠️ Pricing data unavailable for this product — please research Printful's cost before listing to ensure you make a profit.
+      </div>
     </div>
   )
 
@@ -210,13 +269,18 @@ function PricingCalculator({ baseCost, price, onPriceChange }) {
   return (
     <div>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-      <div style={{ position: 'relative', marginBottom: 12 }}>
+      {usingFallback && (
+        <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}33`, borderRadius: 8, padding: '8px 12px', fontSize: 11, color: C.gold, marginBottom: 8 }}>
+          ℹ️ Using estimated base cost (~${baseCost.toFixed(2)}) — Printful pricing not returned for this product. Verify at printful.com before listing.
+        </div>
+      )}
+      <div style={{ position: 'relative', marginBottom: 10 }}>
         <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13, zIndex: 1 }}>$</span>
         <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="1" step="0.01"
           style={{ width: '100%', background: C.bg, border: `2px solid ${marginColor}55`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 15, fontWeight: 700, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
       </div>
 
-      {/* Suggested price chips */}
+      {/* Quick-pick chips */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {[
           { label: 'Break-even', val: calc ? Math.ceil(calc.breakEven * 100) / 100 : null, color: C.muted },
@@ -232,22 +296,21 @@ function PricingCalculator({ baseCost, price, onPriceChange }) {
 
       {/* Breakdown */}
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+        <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
           💰 Pricing Breakdown
         </div>
         {[
-          { label: 'Printful base cost',   val: `-$${baseCost.toFixed(2)}`,                     color: C.muted,  bold: false },
-          { label: 'Stripe fee (~2.9%+$0.30)', val: calc ? `-$${calc.stripeFee.toFixed(2)}`  : '—', color: C.muted,  bold: false },
-          { label: 'Dreamscape fee (10%)',  val: calc ? `-$${calc.dreamscapeFee.toFixed(2)}`    : '—', color: C.muted,  bold: false },
-          { label: 'Your earnings',         val: calc ? `$${calc.earnings.toFixed(2)}`          : '—', color: marginColor, bold: true },
-          { label: 'Profit margin',         val: calc ? `${Math.round(calc.margin)}%`           : '—', color: marginColor, bold: true },
+          { label: `Printful base cost${usingFallback ? ' (est.)' : ''}`, val: `-$${baseCost.toFixed(2)}`, color: C.muted, bold: false },
+          { label: 'Stripe fee (~2.9% + $0.30)', val: calc ? `-$${calc.stripeFee.toFixed(2)}` : '—', color: C.muted, bold: false },
+          { label: 'Dreamscape fee (10%)', val: calc ? `-$${calc.dreamscapeFee.toFixed(2)}` : '—', color: C.muted, bold: false },
+          { label: 'Your earnings', val: calc ? `$${calc.earnings.toFixed(2)}` : '—', color: marginColor, bold: true },
+          { label: 'Profit margin', val: calc ? `${Math.round(calc.margin)}%` : '—', color: marginColor, bold: true },
         ].map(row => (
           <div key={row.label} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
             <span style={{ fontSize: 12, color: C.muted }}>{row.label}</span>
             <span style={{ fontSize: 13, fontWeight: row.bold ? 700 : 400, color: row.color }}>{row.val}</span>
           </div>
         ))}
-        {/* Margin bar */}
         {calc && (
           <div style={{ padding: '10px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -295,7 +358,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [tags, setTags] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
-  const [baseCost, setBaseCost] = useState(null)
+  const [baseCost, setBaseCost] = useState(null)       // Printful wholesale cost
+  const [usingFallback, setUsingFallback] = useState(false) // true if API had no pricing
 
   useEffect(() => {
     loadCatalog()
@@ -365,15 +429,19 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       if (def) { setSelectedColors([def.name]); setPreviewColor(def) }
       setSelected({ ...p, variants })
 
-      // Extract base cost from variant pricing — use lowest price (most common size)
-      const prices = variants
-        .map(v => parseFloat(v.price || v.retail_price || 0))
+      // Extract base cost — prefer API wholesale_cost, fall back to price field, then fallback table
+      const apiPrices = variants
+        .map(v => parseFloat(v.wholesale_cost || v.price || 0))
         .filter(n => n > 0)
-      if (prices.length) {
-        const cost = Math.min(...prices)
-        setBaseCost(cost)
-        // Suggest retail at ~2.4x cost for healthy 40%+ margin after fees
-        const suggested = Math.ceil(cost * 2.4 * 100) / 100
+      const apiCost = apiPrices.length ? Math.min(...apiPrices) : null
+      const resolved = resolveBaseCost(apiCost, p.type)
+      const isFallback = apiCost == null && resolved != null
+      setBaseCost(resolved)
+      setUsingFallback(isFallback)
+
+      // Auto-suggest price at ~2.4x cost for healthy 40%+ margin after all fees
+      if (resolved) {
+        const suggested = Math.ceil(resolved * 2.4 * 100) / 100
         setPrice(suggested.toFixed(2))
       }
     } catch {}
@@ -427,12 +495,12 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     if (!hostedImageUrl) return setError('No image available.')
     if (!selected) return setError('Please select a product type.')
     if (selectedColors.length === 0) return setError('Please select at least one color.')
-    // Enforce minimum profit — cannot list a product at or below break-even
+    // Enforce minimum profit — never allow listing below break-even
     if (baseCost != null) {
-      const calc = calcEarnings(price, baseCost)
-      if (!calc || calc.earnings <= 0) {
-        const breakEven = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
-        return setError(`Your price must be above the break-even point of $${breakEven.toFixed(2)}. Every product on Dreamscape must earn you a profit.`)
+      const profitCheck = calcEarnings(price, baseCost)
+      if (!profitCheck || profitCheck.earnings <= 0) {
+        const floor = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
+        return setError(`Price is too low. You must charge at least $${(Math.ceil(floor * 100) / 100).toFixed(2)} to cover Printful cost + fees and make a profit.`)
       }
     }
     setError(''); setCreating(true)
@@ -448,7 +516,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
+        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl, retailPrice: price }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
@@ -655,6 +723,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   baseCost={baseCost}
                   price={price}
                   onPriceChange={setPrice}
+                  usingFallback={usingFallback}
                 />
                 {error && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b' }}>{error}</div>}
               </div>
@@ -724,8 +793,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                   {_noProfit && (
-                    <div style={{ fontSize: 11, color: C.red, fontWeight: 600, textAlign: 'right', maxWidth: 260 }}>
-                      🚨 Price too low — raise it above break-even to list this product
+                    <div style={{ fontSize: 11, color: C.red, fontWeight: 600, textAlign: 'right', maxWidth: 280 }}>
+                      🚨 Price too low — every product on Dreamscape must earn you a profit
                     </div>
                   )}
                   <button onClick={handleCreate} disabled={_disabled}

@@ -68,26 +68,82 @@ export default async (req) => {
       })
     }
 
-    // GET single catalog product with variants
+    // GET single catalog product with variants (includes price = wholesale cost per variant)
     if (req.method === 'GET' && action === 'catalogProduct') {
       const productId = url.searchParams.get('id')
       const res = await fetch(`${BASE}/products/${productId}`, { headers: authHeaders })
       const data = await res.json()
-      return new Response(JSON.stringify(data.result || data), {
+      const result = data.result || data
+
+      // Ensure price field is always surfaced clearly on each variant
+      if (result.variants) {
+        result.variants = result.variants.map(v => ({
+          ...v,
+          // `price` is Printful's wholesale cost — what you pay per item ordered
+          // Explicitly surface it so frontend always has a clear field to read
+          wholesale_cost: parseFloat(v.price) || null,
+        }))
+      }
+
+      return new Response(JSON.stringify(result), {
         status: res.ok ? 200 : res.status, headers: { 'Content-Type': 'application/json' },
       })
     }
 
+    // GET pricing summary for a catalog product
+    // Returns: lowestCost, averageCost, hasFullPricing, variants with costs
+    if (req.method === 'GET' && action === 'catalogPricing') {
+      const productId = url.searchParams.get('id')
+      if (!productId) {
+        return new Response(JSON.stringify({ error: 'id is required' }), { status: 400 })
+      }
+      const res = await fetch(`${BASE}/products/${productId}`, { headers: authHeaders })
+      const data = await res.json()
+      const variants = data.result?.variants || []
+
+      const prices = variants
+        .map(v => parseFloat(v.price))
+        .filter(n => !isNaN(n) && n > 0)
+
+      if (prices.length === 0) {
+        return new Response(JSON.stringify({
+          productId,
+          hasFullPricing: false,
+          lowestCost: null,
+          averageCost: null,
+          variantCount: variants.length,
+          pricedVariantCount: 0,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+
+      return new Response(JSON.stringify({
+        productId,
+        hasFullPricing: prices.length === variants.length,
+        pricedVariantCount: prices.length,
+        variantCount: variants.length,
+        lowestCost: Math.min(...prices),
+        averageCost: parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2)),
+        highestCost: Math.max(...prices),
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+
     // POST create store product
+    // FIX: use the actual retailPrice passed from the frontend, not a hardcoded $35.00
     if (req.method === 'POST' && action === 'create') {
       const body = await req.json()
-      const { title, description, variantIds, imageUrl } = body
+      const { title, description, variantIds, imageUrl, retailPrice } = body
+
+      // retailPrice should always be provided from the frontend pricing calculator
+      // Fall back to 35.00 only as a last resort — frontend enforces minimum profit
+      const priceToUse = retailPrice && parseFloat(retailPrice) > 0
+        ? parseFloat(retailPrice).toFixed(2)
+        : '35.00'
 
       const payload = {
         sync_product: { name: title, description: description || '' },
         sync_variants: variantIds.map(variantId => ({
           variant_id: variantId,
-          retail_price: '35.00',
+          retail_price: priceToUse,
           files: [{ url: imageUrl, position: 'front' }],
         })),
       }
@@ -102,13 +158,12 @@ export default async (req) => {
     }
 
     // POST create mockup generation task
-    // Printful mockup generator: POST /mockup-generator/create-task/{catalog_product_id}
     if (req.method === 'POST' && action === 'mockupCreate') {
       const body = await req.json()
       const { catalogProductId, variantIds, imageUrl } = body
 
       const payload = {
-        variant_ids: variantIds.slice(0, 3), // Use first 3 variants for preview
+        variant_ids: variantIds.slice(0, 3),
         format: 'jpg',
         files: [{
           placement: 'front',
@@ -134,7 +189,6 @@ export default async (req) => {
     }
 
     // GET mockup task status
-    // Poll: GET /mockup-generator/task?task_key={taskKey}
     if (req.method === 'GET' && action === 'mockupStatus') {
       const taskKey = url.searchParams.get('taskKey')
       if (!taskKey) {
