@@ -423,10 +423,22 @@ function DreamChat({ user, onSignIn }) {
   const fileInputRef = useRef(null)
   const mountedRef = useRef(true)
   const genTimeoutRef = useRef(null)
+  // Auto-save tracking: { [messageIndex]: artworkId }
+  const [autoSavedIds, setAutoSavedIds] = useState({})
+  // Published state: Set of artwork IDs that are public
+  const [publishedIds, setPublishedIds] = useState(new Set())
+  const inputRef = useRef(null)
 
   // Track mounted state — prevent setState after unmount
   useEffect(() => {
     mountedRef.current = true
+    // Pick up refine prompt set by profile page
+    const refinePrompt = sessionStorage.getItem('dreamRefinePrompt')
+    if (refinePrompt) {
+      sessionStorage.removeItem('dreamRefinePrompt')
+      setInput(`Refine this prompt: ${refinePrompt}`)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
     return () => {
       mountedRef.current = false
       if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current)
@@ -454,6 +466,8 @@ function DreamChat({ user, onSignIn }) {
     setCreateProductImage(null)
     setReferenceImage(null)
     setSaveSuccess(false)
+    setAutoSavedIds({})
+    setPublishedIds(new Set())
   }
 
   const handleFileSelect = (e) => {
@@ -603,7 +617,23 @@ function DreamChat({ user, onSignIn }) {
       const data = await res.json()
       if (!mountedRef.current) return
       if (data.success) {
-        setGeneratedImages(prev => ({ ...prev, [index]: `data:${data.mimeType};base64,${data.imageData}` }))
+        const imageDataUrl = `data:${data.mimeType};base64,${data.imageData}`
+        setGeneratedImages(prev => ({ ...prev, [index]: imageDataUrl }))
+        // Auto-save to artwork as private (user can publish later)
+        if (user) {
+          const promptText = typeof prompt === 'string' ? prompt : ''
+          const { data: savedArt } = await supabase.from('artwork').insert({
+            user_id: user.id,
+            title: 'Untitled Generation',
+            prompt: promptText,
+            image_url: imageDataUrl,
+            style_tags: [],
+            is_public: false,
+          }).select().single()
+          if (savedArt && mountedRef.current) {
+            setAutoSavedIds(prev => ({ ...prev, [index]: savedArt.id }))
+          }
+        }
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error || 'Image generation failed.'} Try rephrasing or click Generate again.` }])
       }
@@ -614,6 +644,26 @@ function DreamChat({ user, onSignIn }) {
     } finally {
       if (mountedRef.current) setGeneratingIndex(null)
     }
+  }
+
+  const togglePublish = async (index) => {
+    const artworkId = autoSavedIds[index]
+    if (!artworkId) return
+    const isPublished = publishedIds.has(artworkId)
+    const { error } = await supabase.from('artwork').update({ is_public: !isPublished }).eq('id', artworkId)
+    if (!error) {
+      setPublishedIds(prev => {
+        const next = new Set(prev)
+        isPublished ? next.delete(artworkId) : next.add(artworkId)
+        return next
+      })
+    }
+  }
+
+  const refineImage = (index) => {
+    const promptText = typeof messages[index]?.content === 'string' ? messages[index].content : ''
+    setInput('Refine this: ')
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
   const ERROR_MSGS = ['Connection error. Please try again.', 'Sorry, something went wrong. Please try again.']
@@ -690,22 +740,44 @@ function DreamChat({ user, onSignIn }) {
         {lastAiIndex >= 0 && !loading && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <img src={generatedImages[lastAiIndex]} alt="Generated" onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
-                  style={{ width: 52, height: 52, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in' }} />
-                <span style={{ fontSize: 12, color: C.teal, flex: 1 }}>✅ Image ready! <span style={{ color: C.muted, fontSize: 11 }}>(click to preview)</span></span>
-                <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: generatedImages[lastAiIndex] })}
-                  style={{ background: savedIndexes.has(lastAiIndex) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : 'transparent'}`, borderRadius: 8, padding: '7px 13px', color: savedIndexes.has(lastAiIndex) ? C.teal : '#fff', fontSize: 12, fontWeight: 700, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
-                  {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save'}
+                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in', flexShrink: 0 }} />
+                {/* Regenerate */}
+                <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
+                  title="Generate again"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
+                  🔄
                 </button>
+                {/* Refine */}
+                <button onClick={() => refineImage(lastAiIndex)}
+                  title="Refine with Dream AI"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+                  ✏️ Refine
+                </button>
+                {/* Publish toggle */}
+                {autoSavedIds[lastAiIndex] && (
+                  <button onClick={() => togglePublish(lastAiIndex)}
+                    title={publishedIds.has(autoSavedIds[lastAiIndex]) ? 'Remove from public gallery' : 'Publish to gallery'}
+                    style={{ background: publishedIds.has(autoSavedIds[lastAiIndex]) ? `${C.teal}22` : 'none', border: `1px solid ${publishedIds.has(autoSavedIds[lastAiIndex]) ? C.teal + '66' : C.border}`, borderRadius: 8, padding: '6px 10px', color: publishedIds.has(autoSavedIds[lastAiIndex]) ? C.teal : C.muted, fontSize: 12, cursor: 'pointer' }}>
+                    {publishedIds.has(autoSavedIds[lastAiIndex]) ? '🌐 Public' : '🔒 Private'}
+                  </button>
+                )}
+                {/* Sell */}
                 <button onClick={() => setCreateProductImage(generatedImages[lastAiIndex])}
-                  style={{ background: `${C.teal}22`, border: `1px solid ${C.teal}55`, borderRadius: 8, padding: '7px 13px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                   🛍 Sell
                 </button>
+                {/* Download */}
                 <a href={generatedImages[lastAiIndex]} download="dreamscape-art.png" target="_blank"
-                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'none' }}>
+                  title="Download"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'none' }}>
                   ↓
                 </a>
+                {/* Auto-save indicator */}
+                <span style={{ fontSize: 10, color: autoSavedIds[lastAiIndex] ? C.teal : C.muted, marginLeft: 'auto' }}>
+                  {autoSavedIds[lastAiIndex] ? '✅ Saved to profile' : '💾 Saving...'}
+                </span>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -742,7 +814,7 @@ function DreamChat({ user, onSignIn }) {
               style={{ background: referenceImage ? `${C.accent}22` : 'none', border: `1px solid ${referenceImage ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '10px 12px', color: referenceImage ? C.accent : C.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
               📎
             </button>
-            <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Describe your vision or ask Dream anything..."
               style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
             <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
@@ -778,10 +850,11 @@ function DreamChat({ user, onSignIn }) {
 }
 
 // ── Artwork Grid ──────────────────────────────────────────────
-function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse }) {
+function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPublishToggle, onRefine, onDelete }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(null)
   const [hover, setHover] = useState(null)
+  const [togglingId, setTogglingId] = useState(null)
   if (loading) return <Spinner />
   if (!artworks.length) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -789,6 +862,14 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse }) {
       <p style={{ color: C.muted, fontSize: 14 }}>No artworks yet.</p>
     </div>
   )
+
+  const handlePublish = async (e, art) => {
+    e.stopPropagation()
+    setTogglingId(art.id)
+    await onPublishToggle?.(art)
+    setTogglingId(null)
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
       {artworks.map(art => (
@@ -799,17 +880,21 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse }) {
           <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
             onClick={() => setExpanded(expanded === art.id ? null : art.id)}>
             {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎨'}
-            {/* Owner quick actions on image hover */}
+            {/* Public/private badge */}
+            <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
+              {art.is_public ? '🌐 Public' : '🔒 Private'}
+            </div>
+            {/* Owner quick actions on hover */}
             {isOwner && hover === art.id && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
                 onClick={e => e.stopPropagation()}>
-                <button onClick={() => onSell && onSell(art)}
-                  style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '8px 14px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 Sell
+                <button onClick={(e) => handlePublish(e, art)} disabled={togglingId === art.id}
+                  style={{ background: art.is_public ? `${C.teal}30` : `${C.accent}30`, border: `1px solid ${art.is_public ? C.teal + '66' : C.accent + '66'}`, borderRadius: 8, padding: '7px 12px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Make Private' : '🌐 Publish'}
                 </button>
-                <button onClick={() => onReuse && onReuse(art)}
-                  style={{ background: `${C.teal}25`, border: `1px solid ${C.teal}55`, borderRadius: 8, padding: '8px 14px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  ↻ Reuse
+                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
+                  style={{ background: `${C.accent}30`, border: `1px solid ${C.accent}66`, borderRadius: 8, padding: '7px 12px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell
                 </button>
               </div>
             )}
@@ -827,15 +912,26 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse }) {
               </div>
             )}
             {isOwner && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                <button onClick={e => { e.stopPropagation(); handlePublish(e, art) }} disabled={togglingId === art.id}
+                  style={{ flex: 1, background: art.is_public ? `${C.teal}18` : `${C.accent}18`, border: `1px solid ${art.is_public ? C.teal + '33' : C.accent + '33'}`, borderRadius: 8, padding: '6px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 80 }}>
+                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Private' : '🌐 Publish'}
+                </button>
+                <button onClick={e => { e.stopPropagation(); onRefine && onRefine(art) }}
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 70 }}>
+                  ✏️ Refine
+                </button>
                 <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
-                  style={{ flex: 1, background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: '6px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 Sell This
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 60 }}>
+                  🛍 Sell
                 </button>
-                <button onClick={e => { e.stopPropagation(); onReuse && onReuse(art) }}
-                  style={{ flex: 1, background: `${C.teal}18`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '6px', color: C.teal, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  ↻ Reuse
-                </button>
+                {onDelete && (
+                  <button onClick={e => { e.stopPropagation(); onDelete && onDelete(art) }}
+                    title="Delete artwork"
+                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+                    🗑
+                  </button>
+                )}
               </div>
             )}
             <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
@@ -1532,6 +1628,7 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [followingCount, setFollowingCount] = useState(0)
   const [salesCount, setSalesCount] = useState(0)
   const [tab, setTab] = useState('artwork')
+  const [artworkFilter, setArtworkFilter] = useState('all') // 'all' | 'public' | 'private'
   const [showEdit, setShowEdit] = useState(false)
   const [sellTarget, setSellTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
@@ -1575,7 +1672,7 @@ function ProfilePage({ user, profile: initialProfile }) {
     const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
     if (followRows?.length) {
       const ids = followRows.map(r => r.following_id)
-      const { data: feedArt } = await supabase.from('artwork').select('*, profiles(username, avatar_url)').in('user_id', ids).order('created_at', { ascending: false }).limit(40)
+      const { data: feedArt } = await supabase.from('artwork').select('*, profiles(username, avatar_url)').in('user_id', ids).eq('is_public', true).order('created_at', { ascending: false }).limit(40)
       setFeedArtworks(feedArt || [])
     }
     setLoadingFeed(false)
@@ -1583,6 +1680,23 @@ function ProfilePage({ user, profile: initialProfile }) {
 
   const handleSaveProfile = (updates) => {
     setProfile(prev => ({ ...prev, ...updates }))
+  }
+
+  const handlePublishToggle = async (art) => {
+    const { error } = await supabase.from('artwork').update({ is_public: !art.is_public }).eq('id', art.id)
+    if (!error) setArtworks(prev => prev.map(a => a.id === art.id ? { ...a, is_public: !a.is_public } : a))
+  }
+
+  const handleRefine = (art) => {
+    // Store prompt in sessionStorage so CreatePage/DreamChat can pick it up
+    sessionStorage.setItem('dreamRefinePrompt', art.prompt || '')
+    navigate('/create')
+  }
+
+  const handleDelete = async (art) => {
+    if (!window.confirm(`Delete "${art.title}"? This cannot be undone.`)) return
+    const { error } = await supabase.from('artwork').delete().eq('id', art.id)
+    if (!error) setArtworks(prev => prev.filter(a => a.id !== art.id))
   }
 
   const tabs = [
@@ -1610,6 +1724,20 @@ function ProfilePage({ user, profile: initialProfile }) {
 
       {tab === 'artwork' && (
         <>
+          {/* Filter bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['all', 'All'], ['public', '🌐 Published'], ['private', '🔒 Private']].map(([val, label]) => (
+                <button key={val} onClick={() => setArtworkFilter(val)}
+                  style={{ background: artworkFilter === val ? `${C.accent}25` : 'none', border: `1px solid ${artworkFilter === val ? C.accent + '66' : C.border}`, borderRadius: 8, padding: '6px 14px', color: artworkFilter === val ? C.accent : C.muted, fontSize: 12, fontWeight: artworkFilter === val ? 700 : 400, cursor: 'pointer' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted }}>
+              {artworks.filter(a => a.is_public).length} published · {artworks.filter(a => !a.is_public).length} private
+            </div>
+          </div>
           {featuredArtworks.length > 0 && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>⭐ Featured</div>
@@ -1628,7 +1756,16 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
             </div>
           )}
-          <ArtworkGrid artworks={artworks} loading={loadingArt} isOwner={true} onSell={setSellTarget} onReuse={setReuseTarget} />
+          <ArtworkGrid
+            artworks={artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public)}
+            loading={loadingArt}
+            isOwner={true}
+            onSell={setSellTarget}
+            onReuse={setReuseTarget}
+            onPublishToggle={handlePublishToggle}
+            onRefine={handleRefine}
+            onDelete={handleDelete}
+          />
         </>
       )}
 
@@ -1830,7 +1967,7 @@ function ArtistProfilePage({ viewerUser }) {
     if (!prof) { setLoading(false); return }
     setProfile(prof)
     const [{ data: art }, { data: prods }, { count: followers }, { count: following }] = await Promise.all([
-      supabase.from('artwork').select('*').eq('user_id', prof.id).order('created_at', { ascending: false }),
+      supabase.from('artwork').select('*').eq('user_id', prof.id).eq('is_public', true).order('created_at', { ascending: false }),
       supabase.from('products').select('*').eq('user_id', prof.id).order('created_at', { ascending: false }),
       supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', prof.id),
       supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', prof.id),
