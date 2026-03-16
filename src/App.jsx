@@ -1421,25 +1421,6 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
     }, 500)
   }
 
-  const handleImageSelect = (file, type) => {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => { setCropSrc(e.target.result); setCropType(type) }
-    reader.readAsDataURL(file)
-  }
-
-  const handleCropConfirm = (blob) => {
-    const url = URL.createObjectURL(blob)
-    if (cropType === 'avatar') {
-      setAvatarPreview(url)
-      setAvatarFile(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
-    } else {
-      setBannerPreview(url)
-      setBannerFile(new File([blob], 'banner.jpg', { type: 'image/jpeg' }))
-    }
-    setCropSrc(null); setCropType(null)
-  }
-
   const uploadImage = async (file, bucket, pathPrefix) => {
     const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
     const path = `${pathPrefix}.${ext}`
