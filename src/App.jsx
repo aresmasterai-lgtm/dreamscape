@@ -1204,6 +1204,153 @@ function AgeGate({ onPass }) {
   )
 }
 
+// ── Image Crop / Pan / Zoom Editor ───────────────────────────
+function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect' }) {
+  // aspectRatio: e.g. 1 for avatar (square), 3 for banner (3:1)
+  const canvasRef = useRef(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [dragging, setDragging] = useState(false)
+  const [dragStart, setDragStart] = useState(null)
+  const imgRef = useRef(null)
+  const [imgLoaded, setImgLoaded] = useState(false)
+
+  const CANVAS_W = 480
+  const CANVAS_H = Math.round(CANVAS_W / aspectRatio)
+
+  useEffect(() => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => { imgRef.current = img; setImgLoaded(true) }
+    img.src = src
+  }, [src])
+
+  useEffect(() => {
+    if (!imgLoaded) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+
+    const img = imgRef.current
+    const scale = Math.max(CANVAS_W / img.width, CANVAS_H / img.height) * zoom
+    const drawW = img.width * scale
+    const drawH = img.height * scale
+    const x = (CANVAS_W - drawW) / 2 + offset.x
+    const y = (CANVAS_H - drawH) / 2 + offset.y
+
+    ctx.drawImage(img, x, y, drawW, drawH)
+
+    // Dim outside the crop circle for avatars
+    if (shape === 'circle') {
+      ctx.save()
+      ctx.fillStyle = 'rgba(8,11,20,0.6)'
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H)
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.beginPath()
+      const r = Math.min(CANVAS_W, CANVAS_H) / 2 - 4
+      ctx.arc(CANVAS_W / 2, CANVAS_H / 2, r, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+      // Circle guide border
+      ctx.strokeStyle = C.accent
+      ctx.lineWidth = 2
+      ctx.setLineDash([4, 4])
+      ctx.beginPath()
+      ctx.arc(CANVAS_W / 2, CANVAS_H / 2, Math.min(CANVAS_W, CANVAS_H) / 2 - 4, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+    } else {
+      // Banner guide border
+      ctx.strokeStyle = C.accent
+      ctx.lineWidth = 2
+      ctx.setLineDash([6, 4])
+      ctx.strokeRect(2, 2, CANVAS_W - 4, CANVAS_H - 4)
+      ctx.setLineDash([])
+    }
+  }, [imgLoaded, offset, zoom, shape])
+
+  const getPos = (e) => {
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = CANVAS_W / rect.width
+    const scaleY = CANVAS_H / rect.height
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
+  }
+
+  const onMouseDown = (e) => { e.preventDefault(); setDragging(true); setDragStart(getPos(e)) }
+  const onMouseMove = (e) => {
+    if (!dragging || !dragStart) return
+    e.preventDefault()
+    const pos = getPos(e)
+    setOffset(prev => ({ x: prev.x + (pos.x - dragStart.x), y: prev.y + (pos.y - dragStart.y) }))
+    setDragStart(pos)
+  }
+  const onMouseUp = () => { setDragging(false); setDragStart(null) }
+
+  const onWheel = (e) => {
+    e.preventDefault()
+    setZoom(z => Math.max(0.5, Math.min(4, z - e.deltaY * 0.001)))
+  }
+
+  const handleConfirm = () => {
+    const canvas = canvasRef.current
+    canvas.toBlob(blob => onConfirm(blob), 'image/jpeg', 0.92)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '24px', maxWidth: 540, width: '100%' }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+          {shape === 'circle' ? '📸 Crop Profile Picture' : '🖼 Crop Banner Image'}
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+          Drag to reposition · Scroll or use slider to zoom · {shape === 'circle' ? 'Circle shows what visitors see' : 'Rectangle shows what visitors see'}
+        </div>
+
+        {/* Canvas */}
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_W}
+          height={CANVAS_H}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onTouchStart={onMouseDown}
+          onTouchMove={onMouseMove}
+          onTouchEnd={onMouseUp}
+          onWheel={onWheel}
+          style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', display: 'block', background: C.bg, border: `1px solid ${C.border}` }}
+        />
+
+        {/* Zoom slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+          <span style={{ fontSize: 12, color: C.muted }}>🔍</span>
+          <input type="range" min="50" max="300" value={Math.round(zoom * 100)}
+            onChange={e => setZoom(parseInt(e.target.value) / 100)}
+            style={{ flex: 1, accentColor: C.accent }} />
+          <span style={{ fontSize: 12, color: C.text, minWidth: 36 }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }) }}
+            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+            Reset
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button onClick={onCancel} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleConfirm} style={{ flex: 2, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Use This ✦
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Edit Profile Modal ────────────────────────────────────────
 function EditProfileModal({ user, profile, onClose, onSave }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
@@ -1225,8 +1372,27 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [activeSection, setActiveSection] = useState('basic')
   const avatarRef = useRef(null)
   const bannerRef = useRef(null)
+  const [cropSrc, setCropSrc] = useState(null)     // raw src waiting to be cropped
+  const [cropType, setCropType] = useState(null)   // 'avatar' | 'banner'
 
-  const handleUsernameChange = (val) => {
+  const handleImageSelect = (file, type) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => { setCropSrc(e.target.result); setCropType(type) }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCropConfirm = (blob) => {
+    const url = URL.createObjectURL(blob)
+    if (cropType === 'avatar') {
+      setAvatarPreview(url)
+      setAvatarFile(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
+    } else {
+      setBannerPreview(url)
+      setBannerFile(new File([blob], 'banner.jpg', { type: 'image/jpeg' }))
+    }
+    setCropSrc(null); setCropType(null)
+  }
     // Sanitise: lowercase, alphanumeric + underscore + hyphen only
     const clean = val.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
     setUsername(clean)
@@ -1256,11 +1422,20 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const handleImageSelect = (file, type) => {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (e) => {
-      if (type === 'avatar') { setAvatarPreview(e.target.result); setAvatarFile(file) }
-      else { setBannerPreview(e.target.result); setBannerFile(file) }
-    }
+    reader.onload = (e) => { setCropSrc(e.target.result); setCropType(type) }
     reader.readAsDataURL(file)
+  }
+
+  const handleCropConfirm = (blob) => {
+    const url = URL.createObjectURL(blob)
+    if (cropType === 'avatar') {
+      setAvatarPreview(url)
+      setAvatarFile(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
+    } else {
+      setBannerPreview(url)
+      setBannerFile(new File([blob], 'banner.jpg', { type: 'image/jpeg' }))
+    }
+    setCropSrc(null); setCropType(null)
   }
 
   const uploadImage = async (file, bucket, pathPrefix) => {
@@ -1428,16 +1603,20 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
               <div>
                 <label style={labelStyle}>Profile Picture</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div onClick={() => avatarRef.current?.click()} style={{ width: 80, height: 80, borderRadius: '50%', background: avatarPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}>
+                  <div style={{ width: 80, height: 80, borderRadius: '50%', background: avatarPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {avatarPreview ? <img src={avatarPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 28, color: '#fff' }}>{profile?.username?.[0]?.toUpperCase() || '?'}</span>}
                   </div>
-                  <div>
-                    <button onClick={() => avatarRef.current?.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px 16px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'block', marginBottom: 6 }}>Upload Photo</button>
-                    <div style={{ fontSize: 11, color: C.muted }}>JPG, PNG or WebP. Square works best.</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <button onClick={() => avatarRef.current?.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px 16px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Upload Photo</button>
+                    {avatarPreview && (
+                      <button onClick={() => { setCropSrc(avatarPreview); setCropType('avatar') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 16px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>✂️ Re-crop</button>
+                    )}
+                    <div style={{ fontSize: 11, color: C.muted }}>Square works best.</div>
                   </div>
                 </div>
-                <input ref={avatarRef} type="file" accept="image/*" onChange={e => handleImageSelect(e.target.files?.[0], 'avatar')} style={{ display: 'none' }} />
+                <input ref={avatarRef} type="file" accept="image/*" onChange={e => { handleImageSelect(e.target.files?.[0], 'avatar'); e.target.value = '' }} style={{ display: 'none' }} />
               </div>
+
               {/* Banner */}
               <div>
                 <label style={labelStyle}>Banner Image</label>
@@ -1450,12 +1629,29 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                     </div>
                   )}
                 </div>
-                <input ref={bannerRef} type="file" accept="image/*" onChange={e => handleImageSelect(e.target.files?.[0], 'banner')} style={{ display: 'none' }} />
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>💡 Recommended size: <span style={{ color: C.text }}>1500×500px</span> (3:1 ratio) · JPG, PNG or WebP · The center of the image shows best on all screens.</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button onClick={() => bannerRef.current?.click()} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 14px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Upload Banner</button>
+                  {bannerPreview && (
+                    <button onClick={() => { setCropSrc(bannerPreview); setCropType('banner') }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>✂️ Re-crop</button>
+                  )}
+                </div>
+                <input ref={bannerRef} type="file" accept="image/*" onChange={e => { handleImageSelect(e.target.files?.[0], 'banner'); e.target.value = '' }} style={{ display: 'none' }} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>💡 Recommended: <span style={{ color: C.text }}>1500×500px</span> (3:1 ratio). The center shows best on all screens.</div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Crop editor — renders above the modal when active */}
+        {cropSrc && (
+          <ImageCropEditor
+            src={cropSrc}
+            aspectRatio={cropType === 'avatar' ? 1 : 3}
+            shape={cropType === 'avatar' ? 'circle' : 'rect'}
+            onConfirm={handleCropConfirm}
+            onCancel={() => { setCropSrc(null); setCropType(null) }}
+          />
+        )}
         {/* Footer */}
         {error && <div style={{ margin: '0 24px', background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b', flexShrink: 0 }}>{error}</div>}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
