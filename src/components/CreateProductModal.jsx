@@ -161,6 +161,109 @@ function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacement
   )
 }
 
+
+// ── Pricing Calculator ────────────────────────────────────────
+const DREAMSCAPE_FEE_PCT = 0.10  // 10% platform fee
+const STRIPE_PCT         = 0.029 // 2.9%
+const STRIPE_FIXED       = 0.30  // $0.30
+
+function calcEarnings(retailPrice, baseCost) {
+  const retail = parseFloat(retailPrice) || 0
+  if (retail <= 0 || baseCost == null) return null
+  const stripeFee    = retail * STRIPE_PCT + STRIPE_FIXED
+  const dreamscapeFee = retail * DREAMSCAPE_FEE_PCT
+  const earnings     = retail - baseCost - stripeFee - dreamscapeFee
+  const margin       = (earnings / retail) * 100
+  const breakEven    = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
+  return { retail, stripeFee, dreamscapeFee, earnings, margin, breakEven }
+}
+
+function PricingCalculator({ baseCost, price, onPriceChange }) {
+  const calc = calcEarnings(price, baseCost)
+  const retail = parseFloat(price) || 0
+
+  const marginColor = !calc ? C.muted
+    : calc.earnings < 0   ? C.red
+    : calc.margin < 20    ? C.gold
+    : C.teal
+
+  const marginLabel = !calc ? '' 
+    : calc.earnings < 0   ? '🚨 Below break-even'
+    : calc.margin < 20    ? '⚠️ Low margin'
+    : calc.margin < 35    ? '✅ Okay margin'
+    : '✅ Healthy margin'
+
+  if (baseCost == null) return (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+      <div style={{ position: 'relative' }}>
+        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
+        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="10" step="0.01"
+          style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+      </div>
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Select a product type first to see profit breakdown.</p>
+    </div>
+  )
+
+  const suggested = Math.ceil(baseCost * 2.4 * 100) / 100
+
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13, zIndex: 1 }}>$</span>
+        <input value={price} onChange={e => onPriceChange(e.target.value)} type="number" min="1" step="0.01"
+          style={{ width: '100%', background: C.bg, border: `2px solid ${marginColor}55`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 15, fontWeight: 700, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+      </div>
+
+      {/* Suggested price chips */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Break-even', val: calc ? Math.ceil(calc.breakEven * 100) / 100 : null, color: C.muted },
+          { label: 'Suggested (40%)', val: suggested, color: C.teal },
+          { label: 'Premium (55%)', val: Math.ceil(baseCost * 3.0 * 100) / 100, color: C.gold },
+        ].filter(c => c.val).map(chip => (
+          <button key={chip.label} onClick={() => onPriceChange(chip.val.toFixed(2))}
+            style={{ background: `${chip.color}15`, border: `1px solid ${chip.color}44`, borderRadius: 8, padding: '4px 10px', color: chip.color, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+            {chip.label}: ${chip.val.toFixed(2)}
+          </button>
+        ))}
+      </div>
+
+      {/* Breakdown */}
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+          💰 Pricing Breakdown
+        </div>
+        {[
+          { label: 'Printful base cost',   val: `-$${baseCost.toFixed(2)}`,                     color: C.muted,  bold: false },
+          { label: 'Stripe fee (~2.9%+$0.30)', val: calc ? `-$${calc.stripeFee.toFixed(2)}`  : '—', color: C.muted,  bold: false },
+          { label: 'Dreamscape fee (10%)',  val: calc ? `-$${calc.dreamscapeFee.toFixed(2)}`    : '—', color: C.muted,  bold: false },
+          { label: 'Your earnings',         val: calc ? `$${calc.earnings.toFixed(2)}`          : '—', color: marginColor, bold: true },
+          { label: 'Profit margin',         val: calc ? `${Math.round(calc.margin)}%`           : '—', color: marginColor, bold: true },
+        ].map(row => (
+          <div key={row.label} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 12, color: C.muted }}>{row.label}</span>
+            <span style={{ fontSize: 13, fontWeight: row.bold ? 700 : 400, color: row.color }}>{row.val}</span>
+          </div>
+        ))}
+        {/* Margin bar */}
+        {calc && (
+          <div style={{ padding: '10px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 11, color: marginColor, fontWeight: 700 }}>{marginLabel}</span>
+              <span style={{ fontSize: 11, color: C.muted }}>break-even: ${calc.breakEven.toFixed(2)}</span>
+            </div>
+            <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, calc.margin))}%`, background: `linear-gradient(90deg, ${marginColor}, ${marginColor}cc)`, borderRadius: 3, transition: 'width 0.3s' }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const STEPS = ['Upload', 'Product', 'Design', 'Colors', 'Details', 'Done']
 
 export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
@@ -192,6 +295,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [tags, setTags] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [baseCost, setBaseCost] = useState(null)
 
   useEffect(() => {
     loadCatalog()
@@ -260,6 +364,18 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const def = colors.find(c => c.name.toLowerCase().includes('white')) || colors[0]
       if (def) { setSelectedColors([def.name]); setPreviewColor(def) }
       setSelected({ ...p, variants })
+
+      // Extract base cost from variant pricing — use lowest price (most common size)
+      const prices = variants
+        .map(v => parseFloat(v.price || v.retail_price || 0))
+        .filter(n => n > 0)
+      if (prices.length) {
+        const cost = Math.min(...prices)
+        setBaseCost(cost)
+        // Suggest retail at ~2.4x cost for healthy 40%+ margin after fees
+        const suggested = Math.ceil(cost * 2.4 * 100) / 100
+        setPrice(suggested.toFixed(2))
+      }
     } catch {}
     setVariantLoading(false)
   }
@@ -311,6 +427,14 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     if (!hostedImageUrl) return setError('No image available.')
     if (!selected) return setError('Please select a product type.')
     if (selectedColors.length === 0) return setError('Please select at least one color.')
+    // Enforce minimum profit — cannot list a product at or below break-even
+    if (baseCost != null) {
+      const calc = calcEarnings(price, baseCost)
+      if (!calc || calc.earnings <= 0) {
+        const breakEven = (baseCost + STRIPE_FIXED) / (1 - STRIPE_PCT - DREAMSCAPE_FEE_PCT)
+        return setError(`Your price must be above the break-even point of $${breakEven.toFixed(2)}. Every product on Dreamscape must earn you a profit.`)
+      }
+    }
     setError(''); setCreating(true)
     try {
       const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
@@ -527,15 +651,11 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surreal, neon, abstract, fantasy"
                     style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
-                    <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
-                      style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px 10px 26px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                  </div>
-                  <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>You keep the difference after Printful base cost + Stripe fees (~2.9% + $0.30).</p>
-                </div>
+                <PricingCalculator
+                  baseCost={baseCost}
+                  price={price}
+                  onPriceChange={setPrice}
+                />
                 {error && <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b' }}>{error}</div>}
               </div>
             </div>
@@ -597,12 +717,24 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                 {selectedColors.length === 0 ? 'Select a Color' : `Add Details →`}
               </button>
             )}
-            {step === 5 && (
-              <button onClick={handleCreate} disabled={creating}
-                style={{ background: creating ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: creating ? 'not-allowed' : 'pointer' }}>
-                {creating ? '⏳ Creating...' : 'Create Product ✦'}
-              </button>
-            )}
+            {step === 5 && (() => {
+              const _calc = baseCost != null ? calcEarnings(price, baseCost) : null
+              const _noProfit = baseCost != null && (!_calc || _calc.earnings <= 0)
+              const _disabled = creating || _noProfit
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {_noProfit && (
+                    <div style={{ fontSize: 11, color: C.red, fontWeight: 600, textAlign: 'right', maxWidth: 260 }}>
+                      🚨 Price too low — raise it above break-even to list this product
+                    </div>
+                  )}
+                  <button onClick={handleCreate} disabled={_disabled}
+                    style={{ background: _disabled ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: _disabled ? C.muted : '#fff', fontSize: 13, fontWeight: 700, cursor: _disabled ? 'not-allowed' : 'pointer', opacity: _noProfit ? 0.5 : 1 }}>
+                    {creating ? '⏳ Creating...' : _noProfit ? '🔒 Set a Profitable Price' : 'Create Product ✦'}
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
