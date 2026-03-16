@@ -1393,6 +1393,8 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
     }
     setCropSrc(null); setCropType(null)
   }
+
+  const handleUsernameChange = (val) => {
     // Sanitise: lowercase, alphanumeric + underscore + hyphen only
     const clean = val.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
     setUsername(clean)
