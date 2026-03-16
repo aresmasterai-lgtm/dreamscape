@@ -1207,6 +1207,9 @@ function AgeGate({ onPass }) {
 // ── Edit Profile Modal ────────────────────────────────────────
 function EditProfileModal({ user, profile, onClose, onSave }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
+  const [username, setUsername] = useState(profile?.username || '')
+  const [usernameStatus, setUsernameStatus] = useState('unchanged') // 'unchanged' | 'checking' | 'available' | 'taken' | 'invalid'
+  const usernameCheckRef = useRef(null)
   const [bio, setBio] = useState(profile?.bio || '')
   const [location, setLocation] = useState(profile?.location || '')
   const [website, setWebsite] = useState(profile?.website || '')
@@ -1222,6 +1225,33 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [activeSection, setActiveSection] = useState('basic')
   const avatarRef = useRef(null)
   const bannerRef = useRef(null)
+
+  const handleUsernameChange = (val) => {
+    // Sanitise: lowercase, alphanumeric + underscore + hyphen only
+    const clean = val.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
+    setUsername(clean)
+
+    // No check needed if unchanged
+    if (clean === profile?.username) { setUsernameStatus('unchanged'); return }
+
+    // Validate format: 3-30 chars, letters/numbers/underscore/hyphen
+    if (clean.length < 3 || !/^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/.test(clean)) {
+      setUsernameStatus('invalid'); return
+    }
+
+    // Debounced availability check
+    setUsernameStatus('checking')
+    clearTimeout(usernameCheckRef.current)
+    usernameCheckRef.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', clean)
+        .neq('id', user.id) // exclude self
+        .maybeSingle()
+      setUsernameStatus(data ? 'taken' : 'available')
+    }, 500)
+  }
 
   const handleImageSelect = (file, type) => {
     if (!file) return
@@ -1248,17 +1278,24 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
 
   const handleSave = async () => {
     setSaving(true); setError('')
+    // Block save if username is in a bad state
+    if (usernameStatus === 'taken') { setError('That username is already taken. Please choose another.'); setSaving(false); return }
+    if (usernameStatus === 'invalid') { setError('Username must be 3–30 characters and only contain letters, numbers, underscores, or hyphens.'); setSaving(false); return }
+    if (usernameStatus === 'checking') { setError('Still checking username availability — please wait a moment.'); setSaving(false); return }
+    // If username changed, do a final availability check before committing
+    if (usernameStatus === 'available') {
+      const { data: conflict } = await supabase.from('profiles').select('id').eq('username', username).neq('id', user.id).maybeSingle()
+      if (conflict) { setError('That username was just taken. Please choose another.'); setSaving(false); return }
+    }
     try {
       let avatarUrl = profile?.avatar_url || null
       let bannerUrl = profile?.banner_url || null
-      console.log('Saving profile, avatarFile:', avatarFile?.name, 'bannerFile:', bannerFile?.name)
       if (avatarFile) avatarUrl = await uploadImage(avatarFile, 'avatars', `${user.id}/avatar`)
       if (bannerFile) bannerUrl = await uploadImage(bannerFile, 'banners', `${user.id}/banner`)
-      console.log('Avatar URL to save:', avatarUrl)
       const tags = styleTags.split(',').map(t => t.trim()).filter(Boolean)
       const updates = {
         id: user.id,
-        username: profile?.username,
+        username: username || profile?.username,
         display_name: displayName.trim() || null,
         bio: bio.trim() || null,
         location: location.trim() || null,
@@ -1270,14 +1307,11 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         date_of_birth: dob || null,
         updated_at: new Date().toISOString(),
       }
-      console.log('Upserting profile:', updates)
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
-      if (upsertErr) { console.error('Upsert error:', upsertErr); throw upsertErr }
-      console.log('Profile saved successfully')
+      if (upsertErr) throw upsertErr
       onSave(updates)
       onClose()
     } catch (err) {
-      console.error('Save error:', err)
       setError(err.message || 'Something went wrong.')
     }
     setSaving(false)
@@ -1309,6 +1343,40 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         <div style={{ overflowY: 'auto', padding: '20px 24px', flex: 1 }}>
           {activeSection === 'basic' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Username */}
+              <div>
+                <label style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between' }}>
+                  Username
+                  {/* Live status indicator */}
+                  {usernameStatus === 'unchanged' && <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>current: @{profile?.username}</span>}
+                  {usernameStatus === 'checking'  && <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>⏳ Checking...</span>}
+                  {usernameStatus === 'available' && <span style={{ fontSize: 11, color: C.teal, fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>✅ Available</span>}
+                  {usernameStatus === 'taken'     && <span style={{ fontSize: 11, color: C.red, fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>❌ Taken</span>}
+                  {usernameStatus === 'invalid'   && <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>⚠️ 3–30 chars, letters/numbers/_/-</span>}
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>@</span>
+                  <input
+                    value={username}
+                    onChange={e => handleUsernameChange(e.target.value)}
+                    placeholder={profile?.username || 'yourhandle'}
+                    maxLength={30}
+                    style={{
+                      ...inputStyle,
+                      paddingLeft: 28,
+                      borderColor: usernameStatus === 'taken'     ? C.red + '88'
+                                 : usernameStatus === 'available' ? C.teal + '88'
+                                 : usernameStatus === 'invalid'   ? C.gold + '88'
+                                 : C.border,
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                  Your public profile lives at trydreamscape.com/u/<strong style={{ color: C.accent }}>{username || profile?.username}</strong>. Changing it frees up your old handle for others.
+                </div>
+              </div>
+
               <div>
                 <label style={labelStyle}>Display Name</label>
                 <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name or artist name" maxLength={60} style={inputStyle} />
@@ -1392,8 +1460,10 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         {error && <div style={{ margin: '0 24px', background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b', flexShrink: 0 }}>{error}</div>}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
           <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Saving...' : 'Save Profile ✦'}
+          <button onClick={handleSave}
+            disabled={saving || usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'checking'}
+            style={{ flex: 2, background: (saving || usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'checking') ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: (saving || usernameStatus === 'taken' || usernameStatus === 'invalid' || usernameStatus === 'checking') ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : usernameStatus === 'taken' ? '❌ Username Taken' : usernameStatus === 'checking' ? '⏳ Checking...' : 'Save Profile ✦'}
           </button>
         </div>
       </div>
