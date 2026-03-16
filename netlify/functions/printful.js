@@ -203,6 +203,33 @@ export default async (req) => {
       })
     }
 
+    // POST update retail price on existing Printful store variants
+    // Called when a creator edits their product price in Dreamscape
+    if (req.method === 'POST' && action === 'updateVariantPrice') {
+      const body = await req.json()
+      const { variantIds, retailPrice } = body
+      if (!variantIds?.length || !retailPrice) {
+        return new Response(JSON.stringify({ error: 'variantIds and retailPrice required' }), { status: 400 })
+      }
+      // Update each variant's retail_price on Printful
+      const results = await Promise.all(
+        variantIds.map(async (variantId) => {
+          const res = await fetch(`${BASE}/store/variants/${variantId}`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({ retail_price: String(retailPrice) }),
+          })
+          const data = await res.json()
+          return { variantId, ok: res.ok, result: data.result || data }
+        })
+      )
+      const allOk = results.every(r => r.ok)
+      return new Response(JSON.stringify({ success: allOk, results }), {
+        status: allOk ? 200 : 207,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400 })
 
   } catch (err) {
