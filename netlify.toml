@@ -5,10 +5,14 @@
 [build.environment]
   NODE_VERSION = "20"
 
-[[redirects]]
-  from = "/sitemap.xml"
-  to = "/.netlify/functions/sitemap-dynamic"
-  status = 200
+[functions]
+  node_bundler = "esbuild"
+
+[[functions.install_commands]]
+  command = "npm install"
+
+[functions."generate-image"]
+  timeout = 26
 
 [[redirects]]
   from = "/*"
