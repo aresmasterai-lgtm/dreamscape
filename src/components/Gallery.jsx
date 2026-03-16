@@ -20,8 +20,69 @@ function Spinner() {
   )
 }
 
+// ── Alt tag generator ─────────────────────────────────────────
+function artAltTag(art) {
+  const title = art.title || 'AI generated artwork'
+  const styles = art.style_tags?.length ? ` in ${art.style_tags.slice(0,3).join(', ')} style` : ''
+  const by = art.profiles?.username ? ` by @${art.profiles.username}` : ''
+  const promptSnippet = art.prompt ? ` — ${art.prompt.slice(0, 80)}` : ''
+  return `${title}${styles}${by} on Dreamscape${promptSnippet}`
+}
+
+// ── Image Lightbox ────────────────────────────────────────────
+function ImageLightbox({ image, onClose, onSell, onDownload }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  return (
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+      <style>{`@keyframes lbIn { from { opacity:0; transform:scale(0.94) } to { opacity:1; transform:scale(1) } }`}</style>
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
+        {/* Close */}
+        <button onClick={onClose}
+          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ✕
+        </button>
+        {/* Image */}
+        <img src={image.src} alt={image.alt}
+          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '75vh', objectFit: 'contain', background: C.panel }} />
+        {/* Caption */}
+        {(image.title || image.username) && (
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.username && <div style={{ fontSize: 12, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
+            {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '…' : ''}</div>}
+          </div>
+        )}
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+          {onSell && (
+            <button onClick={onSell}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              🛍 Sell This
+            </button>
+          )}
+          <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>
+            ↓ Download
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Art Card ──────────────────────────────────────────────────
-function ArtCard({ art, isOwn, onSelect, onSell, onUseAgain, onDelete }) {
+function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
   const [hover, setHover] = useState(false)
   const navigate = useNavigate()
 
@@ -31,14 +92,27 @@ function ArtCard({ art, isOwn, onSelect, onSell, onUseAgain, onDelete }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}>
 
-      {/* Image */}
-      <div style={{ position: 'relative' }} onClick={() => onSelect(art)}>
+      {/* Image — always opens lightbox */}
+      <div style={{ position: 'relative' }} onClick={() => art.image_url && onLightbox(art)}>
         {art.image_url
-          ? <img src={art.image_url} alt={art.title} style={{ width: '100%', display: 'block' }} loading="lazy" />
+          ? <>
+              <img
+                src={art.image_url}
+                alt={artAltTag(art)}
+                style={{ width: '100%', display: 'block', cursor: 'zoom-in' }}
+                loading="lazy"
+              />
+              {/* Zoom hint on hover */}
+              {hover && (
+                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: C.muted, pointerEvents: 'none' }}>
+                  🔍 View
+                </div>
+              )}
+            </>
           : <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}20, ${C.teal}15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🎨</div>
         }
 
-        {/* Owner action overlay — appears on hover */}
+        {/* Owner action overlay on hover */}
         {isOwn && hover && (
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, backdropFilter: 'blur(2px)' }}
             onClick={e => e.stopPropagation()}>
@@ -49,6 +123,10 @@ function ArtCard({ art, isOwn, onSelect, onSell, onUseAgain, onDelete }) {
             <button onClick={() => onUseAgain(art)}
               style={{ background: `${C.teal}22`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 22px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer', width: 160 }}>
               ↻ Use Again
+            </button>
+            <button onClick={() => onLightbox(art)}
+              style={{ background: 'rgba(8,11,20,0.6)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 22px', color: C.muted, fontSize: 12, cursor: 'pointer', width: 160 }}>
+              🔍 View Full
             </button>
             <button onClick={() => onDelete(art)}
               style={{ background: 'none', border: `1px solid ${C.red}44`, borderRadius: 10, padding: '7px 22px', color: C.red, fontSize: 12, cursor: 'pointer', width: 160 }}>
@@ -99,22 +177,15 @@ function UseAgainModal({ art, onClose, onSell }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, maxWidth: 540, width: '100%', overflow: 'hidden' }}>
-
-        {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>Reuse This Artwork</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
-
-        {/* Image preview */}
         <div style={{ background: C.bg, maxHeight: 260, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {art.image_url && <img src={art.image_url} alt={art.title} style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} />}
+          {art.image_url && <img src={art.image_url} alt={artAltTag(art)} style={{ width: '100%', maxHeight: 260, objectFit: 'contain', display: 'block' }} />}
         </div>
-
         <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <h4 style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{art.title}</h4>
-
-          {/* Prompt box */}
           {art.prompt && (
             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -127,8 +198,6 @@ function UseAgainModal({ art, onClose, onSell }) {
               <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.7, margin: 0 }}>{art.prompt}</p>
             </div>
           )}
-
-          {/* Actions */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
             <button onClick={() => { onSell(art); onClose() }}
               style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
@@ -142,7 +211,7 @@ function UseAgainModal({ art, onClose, onSell }) {
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               ↓ Download
             </a>
-            <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com`); }}
+            <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com`) }}
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
               🔗 Share
             </button>
@@ -159,7 +228,7 @@ export default function Gallery({ user, onSignIn }) {
   const [tab, setTab] = useState('all')
   const [artworks, setArtworks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState(null)
+  const [lightbox, setLightbox] = useState(null)
   const [createTarget, setCreateTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
@@ -179,6 +248,9 @@ export default function Gallery({ user, onSignIn }) {
       if (tab === 'mine') {
         if (!user) { setArtworks([]); setLoading(false); return }
         query = query.eq('user_id', user.id)
+      } else {
+        // Public gallery — only show is_public artworks
+        query = query.eq('is_public', true)
       }
       const { data } = await query
       setArtworks(data || [])
@@ -196,6 +268,18 @@ export default function Gallery({ user, onSignIn }) {
     setDeleting(false)
   }
 
+  const openLightbox = (art) => {
+    if (!art.image_url) return
+    setLightbox({
+      src: art.image_url,
+      alt: artAltTag(art),
+      title: art.title,
+      username: art.profiles?.username,
+      prompt: art.prompt,
+      art,
+    })
+  }
+
   const filtered = artworks.filter(a =>
     !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.prompt?.toLowerCase().includes(search.toLowerCase())
   )
@@ -203,6 +287,15 @@ export default function Gallery({ user, onSignIn }) {
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <ImageLightbox
+          image={lightbox}
+          onClose={() => setLightbox(null)}
+          onSell={isOwn(lightbox.art) ? () => { setCreateTarget(lightbox.art); setLightbox(null) } : null}
+        />
+      )}
 
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
@@ -232,7 +325,7 @@ export default function Gallery({ user, onSignIn }) {
       {tab === 'mine' && user && !loading && artworks.length > 0 && (
         <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16 }}>💡</span>
-          Hover any artwork to <strong style={{ color: C.accent }}>Sell This</strong>, <strong style={{ color: C.teal }}>Remix</strong>, or download — or use the quick buttons below each card.
+          Hover any artwork to <strong style={{ color: C.accent }}>Sell This</strong>, <strong style={{ color: C.teal }}>Remix</strong>, or download — or click any image to view full size.
         </div>
       )}
 
@@ -259,62 +352,12 @@ export default function Gallery({ user, onSignIn }) {
               key={art.id}
               art={art}
               isOwn={isOwn(art)}
-              onSelect={setSelected}
+              onLightbox={openLightbox}
               onSell={setCreateTarget}
               onUseAgain={setReuseTarget}
               onDelete={setDeleteConfirm}
             />
           ))}
-        </div>
-      )}
-
-      {/* Artwork Detail Modal */}
-      {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={e => e.target === e.currentTarget && setSelected(null)}>
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, maxWidth: 580, width: '100%', overflow: 'hidden' }}>
-            <div style={{ position: 'relative', background: C.bg }}>
-              {selected.image_url && <img src={selected.image_url} alt={selected.title} style={{ width: '100%', maxHeight: 380, objectFit: 'contain', display: 'block' }} />}
-              <button onClick={() => setSelected(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: C.text, cursor: 'pointer', fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ padding: '20px 24px' }}>
-              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 4 }}>{selected.title}</h3>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 14, cursor: 'pointer' }}
-                onClick={() => { navigate(`/u/${selected.profiles?.username}`); setSelected(null) }}>
-                by @{selected.profiles?.username || 'artist'}
-              </div>
-              {selected.prompt && (
-                <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-                  "{selected.prompt.slice(0, 200)}{selected.prompt.length > 200 ? '...' : ''}"
-                </div>
-              )}
-              {isOwn(selected) ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <button onClick={() => { setCreateTarget(selected); setSelected(null) }}
-                    style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    🛍 Sell This
-                  </button>
-                  <button onClick={() => { setReuseTarget(selected); setSelected(null) }}
-                    style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: '11px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    ↻ Use Again
-                  </button>
-                  <a href={selected.image_url} download={`${selected.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
-                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
-                    ↓ Download
-                  </a>
-                  <button onClick={() => { setDeleteConfirm(selected); setSelected(null) }}
-                    style={{ background: `${C.red}12`, border: `1px solid ${C.red}33`, borderRadius: 10, padding: '11px', color: C.red, fontSize: 13, cursor: 'pointer' }}>
-                    🗑 Delete
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => { navigate(`/u/${selected.profiles?.username}`); setSelected(null) }}
-                  style={{ width: '100%', background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
-                  View Artist Profile →
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
@@ -335,7 +378,7 @@ export default function Gallery({ user, onSignIn }) {
           artworkId={createTarget.id}
           title={createTarget.title}
           onClose={() => setCreateTarget(null)}
-          onSuccess={() => { setCreateTarget(null); setSelected(null) }}
+          onSuccess={() => { setCreateTarget(null) }}
         />
       )}
 

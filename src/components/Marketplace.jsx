@@ -26,6 +26,14 @@ function getEmoji(type = '') {
   return '🎨'
 }
 
+function productAltTag(product) {
+  const title = product.title || 'AI art product'
+  const type = product.product_type ? ` ${product.product_type}` : ''
+  const style = product.tags?.length ? ` — ${product.tags.slice(0,3).join(', ')}` : ''
+  const by = product.profiles?.username ? ` by @${product.profiles.username}` : ''
+  return `${title}${type}${style}${by} on Dreamscape`
+}
+
 function Spinner() {
   return (
     <div style={{ textAlign: 'center', padding: '60px 0' }}>
@@ -33,6 +41,40 @@ function Spinner() {
         {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+    </div>
+  )
+}
+
+// ── Image Lightbox ────────────────────────────────────────────
+function ImageLightbox({ image, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  return (
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+      <style>{`@keyframes lbIn { from { opacity:0; transform:scale(0.94) } to { opacity:1; transform:scale(1) } }`}</style>
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose}
+          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ✕
+        </button>
+        <img src={image.src} alt={image.alt}
+          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '78vh', objectFit: 'contain', background: C.panel }} />
+        {(image.title || image.caption) && (
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.caption && <div style={{ fontSize: 12, color: C.muted }}>{image.caption}</div>}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -49,6 +91,7 @@ function CatalogView({ user, onSignIn }) {
   const [success, setSuccess] = useState(false)
   const [form, setForm] = useState({ title: '', description: '', imageUrl: '' })
   const [error, setError] = useState('')
+  const [lightbox, setLightbox] = useState(null)
 
   useEffect(() => { loadProducts(0, true) }, [])
 
@@ -95,6 +138,7 @@ function CatalogView({ user, onSignIn }) {
 
   return (
     <div>
+      {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
       {success && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '12px 18px', marginBottom: 24, fontSize: 14, color: C.teal }}>✅ Product created successfully in your Printful store!</div>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
         {products.map(product => (
@@ -102,8 +146,15 @@ function CatalogView({ user, onSignIn }) {
             style={{ background: C.card, border: `1px solid ${selected?.id === product.id ? C.accent : C.border}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
             onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '88'}
             onMouseLeave={e => e.currentTarget.style.borderColor = selected?.id === product.id ? C.accent : C.border}>
-            <div style={{ height: 140, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>
-              {product.image ? <img src={product.image} alt={product.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : getEmoji(product.type)}
+            <div style={{ height: 140, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, position: 'relative', overflow: 'hidden' }}>
+              {product.image
+                ? <img
+                    src={product.image}
+                    alt={`${product.model} ${product.type} — Printful product available on Dreamscape`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onClick={e => { e.stopPropagation(); setLightbox({ src: product.image, alt: `${product.model} ${product.type}`, title: product.model, caption: product.type }) }}
+                  />
+                : getEmoji(product.type)}
             </div>
             <div style={{ padding: '12px 14px' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.model}</div>
@@ -166,6 +217,7 @@ function ShopView({ user, onSignIn }) {
   const [styleFilter, setStyleFilter] = useState('All')
   const [typeFilter, setTypeFilter] = useState('All')
   const [search, setSearch] = useState('')
+  const [lightbox, setLightbox] = useState(null)
   const navigate = useNavigate()
 
   const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art']
@@ -219,6 +271,8 @@ function ShopView({ user, onSignIn }) {
 
   return (
     <div>
+      {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
+
       <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
           style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', width: 260 }} />
@@ -260,16 +314,22 @@ function ShopView({ user, onSignIn }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
           {filtered.map(product => (
-            <div key={product.id} onClick={() => setSelectedProduct(product)}
+            <div key={product.id}
               style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
-              <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {/* Image — click to lightbox, rest of card opens product modal */}
+              <div
+                style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative', cursor: 'zoom-in' }}
+                onClick={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}>
                 {product.mockup_url
-                  ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <img src={product.mockup_url} alt={productAltTag(product)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <span style={{ fontSize: 52 }}>🎨</span>}
+                {/* Zoom hint */}
+                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: C.muted }}>🔍 View</div>
               </div>
-              <div style={{ padding: '14px 16px' }}>
+              {/* Card info — click to product modal */}
+              <div style={{ padding: '14px 16px' }} onClick={() => setSelectedProduct(product)}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.title}</div>
                 {product.tags?.length > 0 && (
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -292,11 +352,17 @@ function ShopView({ user, onSignIn }) {
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(8,11,20,0.93)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
           onClick={e => e.target === e.currentTarget && setSelectedProduct(null)}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, maxWidth: 500, width: '100%', overflow: 'hidden' }}>
-            <div style={{ height: 240, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* Product image — click to full lightbox */}
+            <div
+              style={{ height: 240, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: selectedProduct.mockup_url ? 'zoom-in' : 'default' }}
+              onClick={() => selectedProduct.mockup_url && setLightbox({ src: selectedProduct.mockup_url, alt: productAltTag(selectedProduct), title: selectedProduct.title, caption: `by @${selectedProduct.profiles?.username || 'artist'}` })}>
               {selectedProduct.mockup_url
-                ? <img src={selectedProduct.mockup_url} alt={selectedProduct.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <img src={selectedProduct.mockup_url} alt={productAltTag(selectedProduct)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ fontSize: 64 }}>🎨</span>}
-              <button onClick={() => setSelectedProduct(null)} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: C.text, cursor: 'pointer', fontSize: 16 }}>✕</button>
+              {selectedProduct.mockup_url && (
+                <div style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: C.muted }}>🔍 View full image</div>
+              )}
+              <button onClick={e => { e.stopPropagation(); setSelectedProduct(null) }} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.8)', border: 'none', borderRadius: '50%', width: 32, height: 32, color: C.text, cursor: 'pointer', fontSize: 16 }}>✕</button>
             </div>
             <div style={{ padding: '24px 28px' }}>
               <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>{selectedProduct.title}</h3>
