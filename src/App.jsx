@@ -741,7 +741,7 @@ function DreamChat({ user, onSignIn }) {
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <img src={generatedImages[lastAiIndex]} alt="Generated" onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
+                <img src={generatedImages[lastAiIndex]} alt={`AI generated artwork — ${(messages[lastAiIndex]?.content || '').slice(0, 100)}`} onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
                   style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in', flexShrink: 0 }} />
                 {/* Regenerate */}
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
@@ -823,18 +823,11 @@ function DreamChat({ user, onSignIn }) {
       </div>
       {saveTarget && <SaveModal prompt={saveTarget.prompt} imageUrl={saveTarget.imageUrl} onSave={handleSave} onClose={() => setSaveTarget(null)} />}
       {lightboxImage && (
-        <div onClick={() => setLightboxImage(null)} style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
-          <div style={{ position: 'relative', maxWidth: 800, width: '100%' }}>
-            <img src={lightboxImage} alt="Preview" style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block' }} />
-            <button onClick={() => setLightboxImage(null)} style={{ position: 'absolute', top: -14, right: -14, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
-              <button onClick={e => { e.stopPropagation(); setCreateProductImage(lightboxImage); setLightboxImage(null) }}
-                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>🛍 Sell This</button>
-              <a href={lightboxImage} download="dreamscape-art.png" target="_blank" onClick={e => e.stopPropagation()}
-                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>↓ Download</a>
-            </div>
-          </div>
-        </div>
+        <ImageLightbox
+          image={{ src: lightboxImage, alt: `AI generated artwork on Dreamscape`, title: 'Generated Artwork' }}
+          onClose={() => setLightboxImage(null)}
+          onSell={user ? () => { setCreateProductImage(lightboxImage); setLightboxImage(null) } : null}
+        />
       )}
       {createProductImage && user && (
         <CreateProductModal
@@ -849,12 +842,77 @@ function DreamChat({ user, onSignIn }) {
   )
 }
 
+// ── Shared Image Lightbox ─────────────────────────────────────
+function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+      <style>{`@keyframes lbIn { from { opacity:0; transform: scale(0.94) } to { opacity:1; transform: scale(1) } }`}</style>
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
+        {/* Close */}
+        <button onClick={onClose}
+          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          ✕
+        </button>
+        {/* Image */}
+        <img
+          src={image.src}
+          alt={image.alt}
+          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '75vh', objectFit: 'contain', background: C.panel }}
+        />
+        {/* Caption */}
+        {(image.title || image.prompt) && (
+          <div style={{ marginTop: 14, textAlign: 'center' }}>
+            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.username && <div style={{ fontSize: 12, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
+            {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '…' : ''}</div>}
+          </div>
+        )}
+        {/* Actions */}
+        {showActions && (
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+            {onSell && (
+              <button onClick={onSell}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                🛍 Sell This
+              </button>
+            )}
+            <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>
+              ↓ Download
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Alt tag generator ─────────────────────────────────────────
+function artAltTag(art) {
+  const title = art.title || 'AI generated artwork'
+  const styles = art.style_tags?.length ? ` in ${art.style_tags.slice(0,3).join(', ')} style` : ''
+  const by = art.profiles?.username ? ` by @${art.profiles.username}` : ''
+  const promptSnippet = art.prompt ? ` — ${art.prompt.slice(0, 80)}` : ''
+  return `${title}${styles}${by} on Dreamscape${promptSnippet}`
+}
+
 // ── Artwork Grid ──────────────────────────────────────────────
 function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPublishToggle, onRefine, onDelete }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(null)
   const [hover, setHover] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
+  const [lightbox, setLightbox] = useState(null) // { src, alt, title, prompt, username }
+
   if (loading) return <Spinner />
   if (!artworks.length) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -870,16 +928,45 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
     setTogglingId(null)
   }
 
+  const openLightbox = (e, art) => {
+    if (!art.image_url) return
+    e.stopPropagation()
+    setLightbox({
+      src: art.image_url,
+      alt: artAltTag(art),
+      title: art.title,
+      prompt: art.prompt,
+      username: art.profiles?.username,
+      art,
+    })
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-      {artworks.map(art => (
-        <div key={art.id}
-          style={{ background: C.card, border: `1px solid ${hover === art.id ? C.accent + '88' : expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', transform: hover === art.id ? 'translateY(-2px)' : 'none' }}
-          onMouseEnter={() => setHover(art.id)}
-          onMouseLeave={() => setHover(null)}>
-          <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
-            onClick={() => setExpanded(expanded === art.id ? null : art.id)}>
-            {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎨'}
+    <>
+      {lightbox && (
+        <ImageLightbox
+          image={lightbox}
+          onClose={() => setLightbox(null)}
+          onSell={isOwner && onSell ? () => { onSell(lightbox.art); setLightbox(null) } : null}
+        />
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+        {artworks.map(art => (
+          <div key={art.id}
+            style={{ background: C.card, border: `1px solid ${hover === art.id ? C.accent + '88' : expanded === art.id ? C.accent + '88' : C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', transform: hover === art.id ? 'translateY(-2px)' : 'none' }}
+            onMouseEnter={() => setHover(art.id)}
+            onMouseLeave={() => setHover(null)}>
+            <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
+              onClick={(e) => art.image_url ? openLightbox(e, art) : setExpanded(expanded === art.id ? null : art.id)}>
+              {art.image_url
+                ? <img src={art.image_url} alt={artAltTag(art)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
+                : '🎨'}
+              {/* Zoom hint on hover */}
+              {art.image_url && hover === art.id && !isOwner && (
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ background: 'rgba(8,11,20,0.75)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#fff' }}>🔍 View</div>
+                </div>
+              )}
             {/* Public/private badge */}
             <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
               {art.is_public ? '🌐 Public' : '🔒 Private'}
@@ -939,6 +1026,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
         </div>
       ))}
     </div>
+    </>
   )
 }
 
