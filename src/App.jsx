@@ -677,22 +677,15 @@ function DreamChat({ user, onSignIn }) {
       }
 
       if (!mountedRef.current) return
-      const replyMsg = { role: 'assistant', content: data.reply || "Tell me more about what you're imagining..." }
-      setMessages(prev => [...prev, replyMsg])
+
+      // Use the backend reply as-is — Dream's system prompt already tells the user to generate
+      const replyContent = data.reply || "Tell me more about what you're imagining..."
+      setMessages(prev => [...prev, { role: 'assistant', content: replyContent }])
       setLoading(false)
-      // When Dream has a prompt ready, show a confirmation message instead of auto-generating
-      // User can click Generate, or type yes/go/create to confirm
+
+      // Store the generation prompt silently — Generate button will appear
       if (data.generationPrompt && mountedRef.current) {
         setPendingPrompt({ prompt: data.generationPrompt, refImage: currentRef })
-        const confirmPhrases = [
-          "Ready to bring this to life? Hit **Generate** or just say the word ✦",
-          "I've got your vision locked in — want me to create it now? Click **Generate** or just say yes ✦",
-          "Your prompt is ready to go. Click **Generate** below or tell me to go for it ✦",
-          "Loving this direction. Want me to make it now? Hit **Generate** or just say so ✦",
-          "All set! Click **Generate** or just type 'go' and I'll make it happen ✦",
-        ]
-        const confirmMsg = confirmPhrases[Math.floor(Math.random() * confirmPhrases.length)]
-        setMessages(prev => [...prev, { role: 'assistant', content: confirmMsg }])
       }
     } catch {
       if (mountedRef.current) {
