@@ -1,3 +1,64 @@
+// ── Model resolution cache ────────────────────────────────────
+// Cached at the module level so we only call ListModels once per
+// cold start, not on every generation request.
+let cachedImageModel = null
+let cacheTime = 0
+const CACHE_TTL = 1000 * 60 * 60 // re-check once per hour
+
+async function resolveImageModel(apiKey) {
+  const now = Date.now()
+  if (cachedImageModel && (now - cacheTime) < CACHE_TTL) {
+    return cachedImageModel
+  }
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`,
+      { headers: { 'Content-Type': 'application/json' } }
+    )
+    const data = await res.json()
+    const models = data.models || []
+
+    // Find models that:
+    // 1. Support generateContent
+    // 2. Have "image" in the name (image generation models)
+    // 3. Are not vision/understanding models (those accept images as input, not output)
+    const imageGenModels = models.filter(m => {
+      const name = (m.name || '').toLowerCase()
+      const methods = m.supportedGenerationMethods || []
+      return methods.includes('generateContent') &&
+             (name.includes('image-generation') ||
+              name.includes('flash-exp') ||
+              name.includes('imagen'))
+    })
+
+    // Sort: prefer "image-generation" in name, then "flash-exp", then anything else
+    imageGenModels.sort((a, b) => {
+      const score = (n) => {
+        if (n.includes('image-generation')) return 3
+        if (n.includes('2.0') && n.includes('flash')) return 2
+        if (n.includes('flash-exp')) return 1
+        return 0
+      }
+      return score(b.name) - score(a.name)
+    })
+
+    if (imageGenModels.length > 0) {
+      // Strip the "models/" prefix — the API path uses just the model ID
+      const modelId = imageGenModels[0].name.replace('models/', '')
+      console.log(`Resolved image model: ${modelId} (from ${imageGenModels.length} candidates)`)
+      cachedImageModel = modelId
+      cacheTime = now
+      return modelId
+    }
+  } catch (err) {
+    console.warn('ListModels failed, falling back to known model:', err.message)
+  }
+
+  // Hard fallback if ListModels fails entirely
+  return 'gemini-2.0-flash-exp'
+}
+
 export default async (req) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -12,6 +73,11 @@ export default async (req) => {
     if (!prompt) {
       return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
     }
+
+    const apiKey = process.env.GEMINI_API_KEY
+
+    // Resolve the correct model dynamically
+    let model = await resolveImageModel(apiKey)
 
     const buildParts = (attemptPrompt) => {
       const parts = []
@@ -29,17 +95,9 @@ export default async (req) => {
       return parts
     }
 
-    // Try models in order — first one that works wins
-    // Gemini image generation model names change frequently; this list is ordered newest to oldest
-    const MODELS_TO_TRY = [
-      'gemini-2.0-flash-exp',
-      'gemini-2.0-flash-preview-image-generation',
-      'gemini-2.0-flash',
-    ]
-
-    const attemptWithModel = async (model, attemptPrompt) => {
+    const callGemini = async (attemptModel, attemptPrompt) => {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${attemptModel}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -51,50 +109,41 @@ export default async (req) => {
       )
       const data = await res.json()
 
-      // Model not found or not supported — signal to try next model
-      if (data.error?.code === 404 || data.error?.status === 'NOT_FOUND' ||
-          (data.error?.message || '').includes('not found') ||
-          (data.error?.message || '').includes('not supported')) {
-        return { notFound: true, model }
+      // Model no longer valid — bust the cache and try to re-resolve
+      const errMsg = data.error?.message || ''
+      if (data.error?.code === 404 || errMsg.includes('not found') || errMsg.includes('not supported')) {
+        console.warn(`Model ${attemptModel} is no longer valid — busting cache`)
+        cachedImageModel = null
+        cacheTime = 0
+        return { invalid: true }
       }
 
-      if (!res.ok || data.error) {
-        throw new Error(data.error?.message || `Gemini error ${res.status}`)
-      }
+      if (!res.ok || data.error) throw new Error(errMsg || `Gemini error ${res.status}`)
 
       const finishReason = data.candidates?.[0]?.finishReason
-      if (finishReason && finishReason !== 'STOP') {
-        console.warn(`Model ${model} finish reason:`, finishReason)
-      }
+      if (finishReason && finishReason !== 'STOP') console.warn(`Finish reason: ${finishReason}`)
 
       const parts = data.candidates?.[0]?.content?.parts || []
-      return { imagePart: parts.find(p => p.inlineData) || null, model }
+      return { imagePart: parts.find(p => p.inlineData) || null }
     }
 
-    // Try each model until one works
-    let imagePart = null
-    let workingModel = null
+    // First attempt with resolved model
+    let result = await callGemini(model, prompt)
 
-    for (const model of MODELS_TO_TRY) {
-      const result = await attemptWithModel(model, prompt)
-      if (result.notFound) {
-        console.warn(`Model ${result.model} not found, trying next...`)
-        continue
-      }
-      imagePart = result.imagePart
-      workingModel = result.model
-      break
+    // If that model is now invalid, re-resolve and try once more
+    if (result.invalid) {
+      model = await resolveImageModel(apiKey)
+      result = await callGemini(model, prompt)
     }
 
-    // Retry with simplified prompt if no image returned
-    if (workingModel && !imagePart) {
-      console.warn(`${workingModel} returned no image — retrying with simplified prompt`)
+    // Retry with simplified prompt if model worked but returned no image
+    if (!result.invalid && !result.imagePart) {
+      console.warn('No image returned — retrying with simplified prompt')
       const simplified = `Digital artwork, highly detailed, vibrant colors, professional quality: ${prompt.slice(0, 300)}`
-      const retry = await attemptWithModel(workingModel, simplified)
-      imagePart = retry.imagePart
+      result = await callGemini(model, simplified)
     }
 
-    if (!imagePart) {
+    if (!result.imagePart) {
       return new Response(JSON.stringify({
         success: false,
         error: 'No image was returned. Try rephrasing your prompt and generating again.',
@@ -103,8 +152,8 @@ export default async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      imageData: imagePart.inlineData.data,
-      mimeType: imagePart.inlineData.mimeType || 'image/png',
+      imageData: result.imagePart.inlineData.data,
+      mimeType: result.imagePart.inlineData.mimeType || 'image/png',
     }), { status: 200, headers })
 
   } catch (err) {
