@@ -2747,12 +2747,166 @@ export default function App() {
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
+
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
         @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+        @keyframes rotateBorder {
+          0%   { box-shadow: -6px 0 30px 3px #00D4FF, 0 -6px 30px 3px #FF2D9B, 6px 0 30px 3px #00D4FF, 0 6px 30px 3px #FF2D9B, 0 0 80px rgba(0,212,255,0.08) inset; border-color: #00D4FF !important; }
+          33%  { box-shadow: -6px 0 30px 3px #FF2D9B, 0 -6px 30px 3px #7B5CF0, 6px 0 30px 3px #FF2D9B, 0 6px 30px 3px #7B5CF0, 0 0 80px rgba(255,45,155,0.08) inset; border-color: #FF2D9B !important; }
+          66%  { box-shadow: -6px 0 30px 3px #7B5CF0, 0 -6px 30px 3px #00E5CC, 6px 0 30px 3px #7B5CF0, 0 6px 30px 3px #00E5CC, 0 0 80px rgba(123,92,240,0.08) inset; border-color: #7B5CF0 !important; }
+          100% { box-shadow: -6px 0 30px 3px #00D4FF, 0 -6px 30px 3px #FF2D9B, 6px 0 30px 3px #00D4FF, 0 6px 30px 3px #FF2D9B, 0 0 80px rgba(0,212,255,0.08) inset; border-color: #00D4FF !important; }
+        }
+
+        @keyframes cardGlow {
+          0%,100% { box-shadow: 0 0 12px rgba(123,92,240,0.5), 0 0 24px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.5) !important; }
+          50%     { box-shadow: 0 0 18px rgba(0,212,255,0.5), 0 0 36px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.5) !important; }
+        }
+
+        @keyframes btnGlow {
+          0%,100% { box-shadow: 0 0 14px rgba(123,92,240,0.7), 0 0 28px rgba(123,92,240,0.3); }
+          50%     { box-shadow: 0 0 22px rgba(123,92,240,1),   0 0 44px rgba(123,92,240,0.5); }
+        }
+
+        @keyframes tealGlow {
+          0%,100% { box-shadow: 0 0 14px rgba(0,212,255,0.7), 0 0 28px rgba(0,212,255,0.3); }
+          50%     { box-shadow: 0 0 22px rgba(0,212,255,1),   0 0 44px rgba(0,212,255,0.5); }
+        }
+
+        @keyframes inputFocus {
+          0%,100% { box-shadow: 0 0 10px rgba(0,212,255,0.4); }
+          50%     { box-shadow: 0 0 22px rgba(0,212,255,0.8), 0 0 44px rgba(0,212,255,0.3); }
+        }
+
+        @keyframes navGlow {
+          0%,100% { box-shadow: 0 2px 20px rgba(0,212,255,0.15); border-bottom-color: rgba(0,212,255,0.3) !important; }
+          50%     { box-shadow: 0 2px 28px rgba(255,45,155,0.2); border-bottom-color: rgba(255,45,155,0.3) !important; }
+        }
+
+        @keyframes onlinePulse {
+          0%,100% { color: #00E5CC; text-shadow: 0 0 8px #00E5CC, 0 0 16px #00E5CC; }
+          50%     { color: #00D4FF; text-shadow: 0 0 14px #00D4FF, 0 0 28px #00D4FF; }
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #06040f; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
         button { -webkit-tap-highlight-color: transparent; }
+
+        /* ── Navbar ── */
+        nav { animation: navGlow 4s ease-in-out infinite !important; }
+
+        /* ── Main chat panel and widget ── */
+        .neon-panel {
+          border: 1.5px solid #00D4FF !important;
+          animation: rotateBorder 5s ease-in-out infinite !important;
+        }
+
+        /* ── ALL cards and panels site-wide ── */
+        [style*="borderRadius: 16"],
+        [style*="borderRadius: 14"],
+        [style*="borderRadius: 20"],
+        [style*="borderRadius: 24"] {
+          border: 1px solid rgba(123,92,240,0.45) !important;
+          animation: cardGlow 4s ease-in-out infinite !important;
+          transition: transform 0.2s ease !important;
+        }
+        [style*="borderRadius: 16"]:hover,
+        [style*="borderRadius: 14"]:hover,
+        [style*="borderRadius: 20"]:hover,
+        [style*="borderRadius: 24"]:hover {
+          transform: translateY(-2px) !important;
+          box-shadow: 0 0 30px rgba(0,212,255,0.5), 0 0 60px rgba(255,45,155,0.2) !important;
+          border-color: rgba(0,212,255,0.8) !important;
+        }
+
+        /* ── Chat bubbles ── */
+        .bubble-user {
+          box-shadow: 4px 0 22px #FF2D9B, 0 4px 16px #7B5CF0, 0 0 10px rgba(255,45,155,0.3) inset !important;
+          border: 1px solid rgba(255,45,155,0.5) !important;
+        }
+        .bubble-ai {
+          box-shadow: -4px 0 22px #00D4FF, 0 -4px 16px #00E5CC, 0 0 10px rgba(0,212,255,0.2) inset !important;
+          border: 1px solid rgba(0,212,255,0.45) !important;
+        }
+
+        /* ── Input fields ── */
+        .neon-input {
+          border: 1px solid rgba(123,92,240,0.5) !important;
+          transition: box-shadow 0.3s ease, border-color 0.3s ease !important;
+        }
+        .neon-input:focus {
+          border-color: #00D4FF !important;
+          box-shadow: 0 0 0 2px rgba(0,212,255,0.15), 0 0 28px #00D4FF, 0 0 56px rgba(0,212,255,0.3) !important;
+          outline: none !important;
+          animation: inputFocus 2s ease-in-out infinite !important;
+        }
+        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]),
+        textarea {
+          border: 1px solid rgba(123,92,240,0.35) !important;
+          transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+        }
+        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):focus,
+        textarea:focus {
+          border-color: #00D4FF !important;
+          box-shadow: 0 0 0 2px rgba(0,212,255,0.12), 0 0 24px #00D4FF, 0 0 48px rgba(0,212,255,0.25) !important;
+          outline: none !important;
+        }
+
+        /* ── Purple buttons ── */
+        button[style*="7B5CF0"],
+        button[style*="7C5CFC"],
+        button[style*="4B2FD0"] {
+          animation: btnGlow 2.5s ease-in-out infinite !important;
+          transition: transform 0.15s ease !important;
+        }
+        button[style*="7B5CF0"]:hover,
+        button[style*="7C5CFC"]:hover,
+        button[style*="4B2FD0"]:hover {
+          transform: translateY(-2px) !important;
+        }
+
+        /* ── Teal/cyan buttons ── */
+        button[style*="00A884"],
+        button[style*="00D4FF"],
+        button[style*="00E5CC"] {
+          animation: tealGlow 2.5s ease-in-out infinite !important;
+        }
+
+        /* ── Online status dot ── */
+        .status-dot-online {
+          animation: onlinePulse 2s ease-in-out infinite !important;
+        }
+
+        /* ── Logo lock ── */
+        .logo-icon ~ span span:first-child {
+          color: #7B5CF0 !important;
+          -webkit-text-fill-color: #7B5CF0 !important;
+          text-shadow: 0 0 14px rgba(123,92,240,0.9), 0 0 28px rgba(123,92,240,0.4) !important;
+          background: none !important;
+          animation: none !important;
+        }
+        .logo-icon ~ span span:last-child {
+          color: #E8EAF0 !important;
+          -webkit-text-fill-color: #E8EAF0 !important;
+          background: none !important;
+          animation: none !important;
+        }
+
+        /* ── Image hover glow ── */
+        img[style*="objectFit"]:hover {
+          box-shadow: 0 0 28px rgba(0,229,204,0.6), 0 0 56px rgba(0,212,255,0.3) !important;
+          transition: box-shadow 0.3s ease !important;
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #00D4FF, #FF2D9B); border-radius: 3px; }
+
+        /* ── Selection ── */
+        ::selection { background: rgba(123,92,240,0.45); color: #fff; }
+
         @media (max-width: 640px) { .nav-links { display: none !important; } .mobile-menu-btn { display: flex !important; } }
       `}</style>
 
