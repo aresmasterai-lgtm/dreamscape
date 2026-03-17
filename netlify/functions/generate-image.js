@@ -1,62 +1,117 @@
-// ── Model resolution cache ────────────────────────────────────
-// Cached at the module level so we only call ListModels once per
-// cold start, not on every generation request.
-let cachedImageModel = null
-let cacheTime = 0
-const CACHE_TTL = 1000 * 60 * 60 // re-check once per hour
+// ── Gemini Image Generation ───────────────────────────────────
+// Uses a two-strategy approach:
+//   1. Gemini generateContent with responseModalities IMAGE (flash models)
+//   2. Imagen 3 predict endpoint (stable, separate API)
+// Whichever returns an image first wins.
 
-async function resolveImageModel(apiKey) {
+let cachedGeminiModel = null
+let cacheTime = 0
+const CACHE_TTL = 1000 * 60 * 60 // 1 hour
+
+async function resolveGeminiImageModel(apiKey) {
   const now = Date.now()
-  if (cachedImageModel && (now - cacheTime) < CACHE_TTL) {
-    return cachedImageModel
-  }
+  if (cachedGeminiModel && (now - cacheTime) < CACHE_TTL) return cachedGeminiModel
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`,
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`,
       { headers: { 'Content-Type': 'application/json' } }
     )
     const data = await res.json()
-    const models = data.models || []
+    const models = (data.models || [])
+      .filter(m => {
+        const name = (m.name || '').toLowerCase()
+        const methods = m.supportedGenerationMethods || []
+        return methods.includes('generateContent') && name.includes('image-generation')
+      })
+      .map(m => m.name.replace('models/', ''))
 
-    // Find models that:
-    // 1. Support generateContent
-    // 2. Have "image" in the name (image generation models)
-    // 3. Are not vision/understanding models (those accept images as input, not output)
-    const imageGenModels = models.filter(m => {
-      const name = (m.name || '').toLowerCase()
-      const methods = m.supportedGenerationMethods || []
-      return methods.includes('generateContent') &&
-             (name.includes('image-generation') ||
-              name.includes('flash-exp') ||
-              name.includes('imagen'))
-    })
+    console.log('Image-generation models found:', models)
 
-    // Sort: prefer "image-generation" in name, then "flash-exp", then anything else
-    imageGenModels.sort((a, b) => {
-      const score = (n) => {
-        if (n.includes('image-generation')) return 3
-        if (n.includes('2.0') && n.includes('flash')) return 2
-        if (n.includes('flash-exp')) return 1
-        return 0
-      }
-      return score(b.name) - score(a.name)
-    })
-
-    if (imageGenModels.length > 0) {
-      // Strip the "models/" prefix — the API path uses just the model ID
-      const modelId = imageGenModels[0].name.replace('models/', '')
-      console.log(`Resolved image model: ${modelId} (from ${imageGenModels.length} candidates)`)
-      cachedImageModel = modelId
+    if (models.length > 0) {
+      // Prefer 2.0 over older versions
+      const best = models.find(m => m.includes('2.0')) || models[0]
+      cachedGeminiModel = best
       cacheTime = now
-      return modelId
+      console.log('Using model:', best)
+      return best
     }
   } catch (err) {
-    console.warn('ListModels failed, falling back to known model:', err.message)
+    console.warn('ListModels failed:', err.message)
+  }
+  return null
+}
+
+async function tryGeminiGenerate(model, parts, apiKey) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+      }),
+    }
+  )
+  const data = await res.json()
+  console.log(`Gemini ${model} response:`, JSON.stringify({
+    status: res.status,
+    error: data.error?.message,
+    finishReason: data.candidates?.[0]?.finishReason,
+    partTypes: data.candidates?.[0]?.content?.parts?.map(p => Object.keys(p).join(',')),
+  }))
+
+  if (data.error) {
+    const msg = data.error.message || ''
+    if (msg.includes('not found') || msg.includes('not supported') || data.error.code === 404) {
+      cachedGeminiModel = null; cacheTime = 0 // bust cache
+      return { modelInvalid: true }
+    }
+    throw new Error(msg)
   }
 
-  // Hard fallback if ListModels fails entirely
-  return 'gemini-2.0-flash-exp'
+  const imagePart = (data.candidates?.[0]?.content?.parts || []).find(p => p.inlineData)
+  return { imagePart: imagePart || null }
+}
+
+async function tryImagenGenerate(prompt, apiKey) {
+  // Imagen 3 uses /predict not /generateContent
+  const models = ['imagen-3.0-generate-002', 'imagen-3.0-fast-generate-001']
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instances: [{ prompt }],
+            parameters: { sampleCount: 1 },
+          }),
+        }
+      )
+      const data = await res.json()
+      console.log(`Imagen ${model} response:`, JSON.stringify({
+        status: res.status,
+        error: data.error?.message,
+        hasPredictions: !!data.predictions?.length,
+      }))
+
+      if (data.error) continue
+
+      const prediction = data.predictions?.[0]
+      if (prediction?.bytesBase64Encoded) {
+        return {
+          imageData: prediction.bytesBase64Encoded,
+          mimeType: prediction.mimeType || 'image/png',
+        }
+      }
+    } catch (err) {
+      console.warn(`Imagen ${model} failed:`, err.message)
+    }
+  }
+  return null
 }
 
 export default async (req) => {
@@ -70,90 +125,68 @@ export default async (req) => {
 
   try {
     const { prompt, referenceImage } = await req.json()
-    if (!prompt) {
-      return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
-    }
+    if (!prompt) return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
 
     const apiKey = process.env.GEMINI_API_KEY
 
-    // Resolve the correct model dynamically
-    let model = await resolveImageModel(apiKey)
-
-    const buildParts = (attemptPrompt) => {
-      const parts = []
+    const buildParts = (p) => {
       if (referenceImage) {
         const match = referenceImage.match(/^data:(image\/[^;]+);base64,(.+)$/)
-        if (match) {
-          parts.push({ inline_data: { mime_type: match[1], data: match[2] } })
-          parts.push({ text: `Using this reference image for style and subject inspiration, generate a high quality artwork: ${attemptPrompt}` })
-        } else {
-          parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}` })
-        }
-      } else {
-        parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}` })
+        if (match) return [
+          { inline_data: { mime_type: match[1], data: match[2] } },
+          { text: `Using this reference image for style inspiration, generate: ${p}` }
+        ]
       }
-      return parts
+      return [{ text: `Generate a high quality artwork image: ${p}` }]
     }
 
-    const callGemini = async (attemptModel, attemptPrompt) => {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${attemptModel}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: buildParts(attemptPrompt) }],
-            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
-          }),
-        }
-      )
-      const data = await res.json()
+    // ── Strategy 1: Gemini flash image-generation model ──────────
+    const geminiModel = await resolveGeminiImageModel(apiKey)
+    if (geminiModel) {
+      let result = await tryGeminiGenerate(geminiModel, buildParts(prompt), apiKey)
 
-      // Model no longer valid — bust the cache and try to re-resolve
-      const errMsg = data.error?.message || ''
-      if (data.error?.code === 404 || errMsg.includes('not found') || errMsg.includes('not supported')) {
-        console.warn(`Model ${attemptModel} is no longer valid — busting cache`)
-        cachedImageModel = null
-        cacheTime = 0
-        return { invalid: true }
+      if (result.modelInvalid) {
+        // Cache busted — try to re-resolve once
+        const newModel = await resolveGeminiImageModel(apiKey)
+        if (newModel) result = await tryGeminiGenerate(newModel, buildParts(prompt), apiKey)
       }
 
-      if (!res.ok || data.error) throw new Error(errMsg || `Gemini error ${res.status}`)
+      if (result.imagePart) {
+        return new Response(JSON.stringify({
+          success: true,
+          imageData: result.imagePart.inlineData.data,
+          mimeType: result.imagePart.inlineData.mimeType || 'image/png',
+        }), { status: 200, headers })
+      }
 
-      const finishReason = data.candidates?.[0]?.finishReason
-      if (finishReason && finishReason !== 'STOP') console.warn(`Finish reason: ${finishReason}`)
-
-      const parts = data.candidates?.[0]?.content?.parts || []
-      return { imagePart: parts.find(p => p.inlineData) || null }
+      // Retry with simplified prompt
+      if (!result.modelInvalid) {
+        const simple = `Digital artwork, vibrant colors, highly detailed: ${prompt.slice(0, 200)}`
+        const retry = await tryGeminiGenerate(geminiModel, buildParts(simple), apiKey)
+        if (retry.imagePart) {
+          return new Response(JSON.stringify({
+            success: true,
+            imageData: retry.imagePart.inlineData.data,
+            mimeType: retry.imagePart.inlineData.mimeType || 'image/png',
+          }), { status: 200, headers })
+        }
+      }
     }
 
-    // First attempt with resolved model
-    let result = await callGemini(model, prompt)
-
-    // If that model is now invalid, re-resolve and try once more
-    if (result.invalid) {
-      model = await resolveImageModel(apiKey)
-      result = await callGemini(model, prompt)
-    }
-
-    // Retry with simplified prompt if model worked but returned no image
-    if (!result.invalid && !result.imagePart) {
-      console.warn('No image returned — retrying with simplified prompt')
-      const simplified = `Digital artwork, highly detailed, vibrant colors, professional quality: ${prompt.slice(0, 300)}`
-      result = await callGemini(model, simplified)
-    }
-
-    if (!result.imagePart) {
+    // ── Strategy 2: Imagen 3 predict endpoint ────────────────────
+    console.log('Gemini returned no image — trying Imagen 3')
+    const imagenResult = await tryImagenGenerate(prompt, apiKey)
+    if (imagenResult) {
       return new Response(JSON.stringify({
-        success: false,
-        error: 'No image was returned. Try rephrasing your prompt and generating again.',
+        success: true,
+        imageData: imagenResult.imageData,
+        mimeType: imagenResult.mimeType,
       }), { status: 200, headers })
     }
 
     return new Response(JSON.stringify({
-      success: true,
-      imageData: result.imagePart.inlineData.data,
-      mimeType: result.imagePart.inlineData.mimeType || 'image/png',
+      success: false,
+      error: 'Image generation is temporarily unavailable. Please try again in a moment.',
     }), { status: 200, headers })
 
   } catch (err) {
