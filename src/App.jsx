@@ -2867,7 +2867,7 @@ export default function App() {
           animation: navDream 5s ease-in-out infinite !important;
           border-bottom: 1px solid rgba(0,212,255,0.25) !important;
         }
-        nav a { font-size: 15px !important; font-weight: 500 !important; transition: all 0.2s ease !important; }
+        nav a { font-size: 15px !important; font-weight: 500 !important; transition: all 0.1s ease !important; }
         nav a:hover {
           color: #00D4FF !important;
           text-shadow: 0 0 14px #00D4FF !important;
@@ -2881,7 +2881,7 @@ export default function App() {
         .neon-panel {
           border: 2px solid rgba(0,212,255,0.6) !important;
           border-radius: 24px !important;
-          animation: dreamCloud 6s ease-in-out infinite !important;
+          animation: dreamCloud 5s ease-in-out infinite !important;
         }
 
         /* ══════════════════════════════════════
@@ -2893,15 +2893,15 @@ export default function App() {
         [style*="border-radius: 24px"],
         [style*="border-radius: 12px"] {
           border: 1px solid rgba(123,92,240,0.35) !important;
-          animation: softCardGlow 5s ease-in-out infinite !important;
-          transition: transform 0.25s ease, box-shadow 0.25s ease !important;
+          animation: softCardGlow 4s ease-in-out infinite !important;
+          transition: transform 0.15s ease, box-shadow 0.15s ease !important;
         }
         [style*="border-radius: 16px"]:hover,
         [style*="border-radius: 14px"]:hover,
         [style*="border-radius: 20px"]:hover,
         [style*="border-radius: 24px"]:hover,
         [style*="border-radius: 12px"]:hover {
-          transform: translateY(-4px) scale(1.01) !important;
+          transform: translateY(-3px) scale(1.01) !important;
           box-shadow: 0 8px 40px rgba(0,212,255,0.4), 0 0 80px rgba(255,45,155,0.15) !important;
           border-color: rgba(0,212,255,0.6) !important;
           animation: none !important;
@@ -2951,7 +2951,7 @@ export default function App() {
           border-radius: 16px !important;
           padding: 13px 18px !important;
           font-size: 15px !important;
-          transition: all 0.3s ease !important;
+          transition: all 0.15s ease !important;
         }
         .neon-input:focus {
           border-color: #00D4FF !important;
@@ -2964,7 +2964,7 @@ export default function App() {
           border: 1.5px solid rgba(123,92,240,0.35) !important;
           border-radius: 14px !important;
           font-size: 15px !important;
-          transition: all 0.3s ease !important;
+          transition: all 0.15s ease !important;
         }
         input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):focus,
         textarea:focus, select:focus {
@@ -2982,7 +2982,7 @@ export default function App() {
           font-size: 15px !important;
           font-weight: 600 !important;
           letter-spacing: 0.2px !important;
-          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+          transition: transform 0.12s ease, box-shadow 0.12s ease !important;
           position: relative !important;
           overflow: hidden !important;
         }
@@ -3029,7 +3029,7 @@ export default function App() {
         }
         img[style*="object-fit: cover"]:hover, img[style*="object-fit: contain"]:hover {
           box-shadow: 0 0 32px rgba(0,229,204,0.55) !important;
-          transition: all 0.3s ease !important;
+          transition: all 0.15s ease !important;
         }
 
         /* ══════════════════════════════════════
