@@ -2777,37 +2777,46 @@ export default function App() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap');
 
         /* ── Base keyframes ── */
         @keyframes pulse        { 0%,100%{opacity:.3} 50%{opacity:1} }
         @keyframes gradientShift{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
 
-        /* ── Neon border rotation (chat panel, widget) ── */
-        @keyframes rotateBorder {
-          0%   { box-shadow: -8px 0 35px 4px #00D4FF, 0 -8px 35px 4px #FF2D9B, 8px 0 35px 4px #00D4FF, 0 8px 35px 4px #FF2D9B; border-color: #00D4FF !important; }
-          33%  { box-shadow: -8px 0 35px 4px #FF2D9B, 0 -8px 35px 4px #7B5CF0, 8px 0 35px 4px #FF2D9B, 0 8px 35px 4px #7B5CF0; border-color: #FF2D9B !important; }
-          66%  { box-shadow: -8px 0 35px 4px #7B5CF0, 0 -8px 35px 4px #00E5CC, 8px 0 35px 4px #7B5CF0, 0 8px 35px 4px #00E5CC; border-color: #7B5CF0 !important; }
-          100% { box-shadow: -8px 0 35px 4px #00D4FF, 0 -8px 35px 4px #FF2D9B, 8px 0 35px 4px #00D4FF, 0 8px 35px 4px #FF2D9B; border-color: #00D4FF !important; }
+        /* ── Dream cloud glow (chat panel, widget) ── */
+        @keyframes dreamCloud {
+          0%   { box-shadow: 0 0 40px 8px rgba(0,212,255,0.5), 0 0 80px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.7) !important; }
+          33%  { box-shadow: 0 0 40px 8px rgba(255,45,155,0.5), 0 0 80px rgba(255,45,155,0.2); border-color: rgba(255,45,155,0.7) !important; }
+          66%  { box-shadow: 0 0 40px 8px rgba(123,92,240,0.5), 0 0 80px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.7) !important; }
+          100% { box-shadow: 0 0 40px 8px rgba(0,212,255,0.5), 0 0 80px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.7) !important; }
         }
 
-        /* ── Card glow pulse ── */
-        @keyframes cardGlow {
-          0%,100% { box-shadow: 0 0 14px rgba(123,92,240,0.55), 0 0 28px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.55) !important; }
-          50%     { box-shadow: 0 0 20px rgba(0,212,255,0.55), 0 0 40px rgba(0,212,255,0.2);   border-color: rgba(0,212,255,0.55) !important; }
+        /* ── Soft card glow ── */
+        @keyframes softCardGlow {
+          0%,100% { box-shadow: 0 4px 24px rgba(123,92,240,0.3), 0 0 0 1px rgba(123,92,240,0.3); border-color: rgba(123,92,240,0.35) !important; }
+          50%     { box-shadow: 0 4px 32px rgba(0,212,255,0.3), 0 0 0 1px rgba(0,212,255,0.3);   border-color: rgba(0,212,255,0.35) !important; }
         }
 
-        /* ── Button glows ── */
-        @keyframes btnGlow  { 0%,100%{box-shadow:0 0 16px rgba(123,92,240,0.8),0 0 32px rgba(123,92,240,0.35)} 50%{box-shadow:0 0 28px rgba(123,92,240,1),0 0 56px rgba(123,92,240,0.55)} }
-        @keyframes tealGlow { 0%,100%{box-shadow:0 0 16px rgba(0,212,255,0.8),0 0 32px rgba(0,212,255,0.35)}   50%{box-shadow:0 0 28px rgba(0,212,255,1),0 0 56px rgba(0,212,255,0.55)}   }
+        /* ── Dreamy button pulse ── */
+        @keyframes dreamBtn {
+          0%,100% { box-shadow: 0 4px 20px rgba(123,92,240,0.6), 0 0 40px rgba(123,92,240,0.2); }
+          50%     { box-shadow: 0 6px 32px rgba(123,92,240,0.9), 0 0 60px rgba(123,92,240,0.35); }
+        }
+        @keyframes dreamBtnTeal {
+          0%,100% { box-shadow: 0 4px 20px rgba(0,212,255,0.6), 0 0 40px rgba(0,212,255,0.2); }
+          50%     { box-shadow: 0 6px 32px rgba(0,212,255,0.9), 0 0 60px rgba(0,212,255,0.35); }
+        }
 
-        /* ── Input focus ── */
-        @keyframes inputFocus { 0%,100%{box-shadow:0 0 12px rgba(0,212,255,0.5)} 50%{box-shadow:0 0 28px #00D4FF,0 0 56px rgba(0,212,255,0.4)} }
+        /* ── Input glow ── */
+        @keyframes inputDream {
+          0%,100% { box-shadow: 0 0 14px rgba(0,212,255,0.4); }
+          50%     { box-shadow: 0 0 28px rgba(0,212,255,0.7), 0 0 56px rgba(0,212,255,0.2); }
+        }
 
         /* ── Navbar ── */
-        @keyframes navGlow {
-          0%,100% { box-shadow: 0 2px 24px rgba(0,212,255,0.2);  border-bottom-color: rgba(0,212,255,0.35) !important; }
-          50%     { box-shadow: 0 2px 32px rgba(255,45,155,0.25); border-bottom-color: rgba(255,45,155,0.35) !important; }
+        @keyframes navDream {
+          0%,100% { box-shadow: 0 2px 30px rgba(0,212,255,0.15); border-bottom-color: rgba(0,212,255,0.25) !important; }
+          50%     { box-shadow: 0 2px 40px rgba(255,45,155,0.18); border-bottom-color: rgba(255,45,155,0.25) !important; }
         }
 
         /* ── Online dot ── */
@@ -2818,300 +2827,265 @@ export default function App() {
 
         /* ── Heading glow ── */
         @keyframes headingGlow {
-          0%,100% { text-shadow: 0 0 20px rgba(123,92,240,0.6), 0 0 40px rgba(123,92,240,0.3); }
-          50%     { text-shadow: 0 0 30px rgba(0,212,255,0.7),  0 0 60px rgba(0,212,255,0.35); }
+          0%,100% { text-shadow: 0 0 30px rgba(123,92,240,0.5), 0 0 60px rgba(123,92,240,0.2); }
+          50%     { text-shadow: 0 0 40px rgba(0,212,255,0.6), 0 0 80px rgba(0,212,255,0.25); }
         }
 
         /* ── Floating particles ── */
         @keyframes floatUp {
-          0%   { transform: translateY(100vh) scale(0) rotate(0deg);   opacity: 0; }
+          0%   { transform: translateY(100vh) scale(0) rotate(0deg); opacity: 0; }
           10%  { opacity: 1; }
-          90%  { opacity: 0.6; }
+          90%  { opacity: 0.5; }
           100% { transform: translateY(-20px) scale(1) rotate(360deg); opacity: 0; }
         }
 
         /* ── Image reveal ── */
         @keyframes imageReveal {
-          0%   { opacity: 0; transform: scale(0.92); box-shadow: 0 0 60px #00D4FF, 0 0 120px rgba(0,212,255,0.5); }
-          60%  { box-shadow: 0 0 30px #00E5CC, 0 0 60px rgba(0,229,204,0.4); }
-          100% { opacity: 1; transform: scale(1); box-shadow: 0 0 20px rgba(0,229,204,0.5); }
+          0%   { opacity: 0; transform: scale(0.95); box-shadow: 0 0 60px rgba(0,212,255,0.6); }
+          100% { opacity: 1; transform: scale(1); box-shadow: 0 0 24px rgba(0,229,204,0.4); }
         }
 
         /* ── Ripple ── */
         @keyframes ripple {
-          0%   { transform: scale(0); opacity: 0.6; }
+          0%   { transform: scale(0); opacity: 0.5; }
           100% { transform: scale(4); opacity: 0; }
         }
 
-        /* ── Shimmer skeleton ── */
-        @keyframes skeletonShimmer {
-          0%   { background-position: -200% 0; }
-          100% { background-position:  200% 0; }
-        }
-
-        /* ── Hero ring pulse ── */
-        @keyframes ringPulse {
-          0%   { transform: scale(1);    opacity: 0.6; }
-          100% { transform: scale(1.8);  opacity: 0; }
-        }
-
-        /* ── Base resets ── */
+        /* ══════════════════════════════════════
+           BASE — bigger, friendlier, more readable
+        ══════════════════════════════════════ */
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #06040f; font-size: 15px; }
+        body { background: #06040f; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
         a { -webkit-tap-highlight-color: transparent; }
-        button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
+        button { -webkit-tap-highlight-color: transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
+        p, li, label, span, div { line-height: 1.65; }
 
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            NAVBAR
-        ════════════════════════════════════════ */
+        ══════════════════════════════════════ */
         nav {
-          animation: navGlow 4s ease-in-out infinite !important;
-          border-bottom: 1px solid rgba(0,212,255,0.3) !important;
+          animation: navDream 5s ease-in-out infinite !important;
+          border-bottom: 1px solid rgba(0,212,255,0.25) !important;
         }
-
-        /* Nav link hover neon trail */
+        nav a { font-size: 15px !important; font-weight: 500 !important; transition: all 0.2s ease !important; }
         nav a:hover {
           color: #00D4FF !important;
-          text-shadow: 0 0 12px #00D4FF, 0 0 24px rgba(0,212,255,0.5) !important;
-          transition: color 0.2s ease, text-shadow 0.2s ease !important;
+          text-shadow: 0 0 14px #00D4FF !important;
+          background: rgba(0,212,255,0.08) !important;
+          border-radius: 24px !important;
         }
 
-        /* ════════════════════════════════════════
-           NEON PANEL — chat + widget
-        ════════════════════════════════════════ */
+        /* ══════════════════════════════════════
+           DREAM PANEL — chat + widget
+        ══════════════════════════════════════ */
         .neon-panel {
-          border: 2px solid #00D4FF !important;
-          animation: rotateBorder 5s ease-in-out infinite !important;
-          border-radius: 16px !important;
+          border: 2px solid rgba(0,212,255,0.6) !important;
+          border-radius: 24px !important;
+          animation: dreamCloud 6s ease-in-out infinite !important;
         }
 
-        /* ════════════════════════════════════════
-           ALL CARDS SITE-WIDE
-           FIXED: using DOM kebab-case selectors
-        ════════════════════════════════════════ */
+        /* ══════════════════════════════════════
+           ALL CARDS — soft dreamy borders
+        ══════════════════════════════════════ */
         [style*="border-radius: 16px"],
         [style*="border-radius: 14px"],
         [style*="border-radius: 20px"],
         [style*="border-radius: 24px"],
         [style*="border-radius: 12px"] {
-          border: 1px solid rgba(123,92,240,0.5) !important;
-          animation: cardGlow 4s ease-in-out infinite !important;
-          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+          border: 1px solid rgba(123,92,240,0.35) !important;
+          animation: softCardGlow 5s ease-in-out infinite !important;
+          transition: transform 0.25s ease, box-shadow 0.25s ease !important;
         }
         [style*="border-radius: 16px"]:hover,
         [style*="border-radius: 14px"]:hover,
         [style*="border-radius: 20px"]:hover,
         [style*="border-radius: 24px"]:hover,
         [style*="border-radius: 12px"]:hover {
-          transform: translateY(-3px) !important;
-          box-shadow: 0 0 32px rgba(0,212,255,0.6), 0 0 64px rgba(255,45,155,0.25) !important;
-          border-color: rgba(0,212,255,0.85) !important;
+          transform: translateY(-4px) scale(1.01) !important;
+          box-shadow: 0 8px 40px rgba(0,212,255,0.4), 0 0 80px rgba(255,45,155,0.15) !important;
+          border-color: rgba(0,212,255,0.6) !important;
           animation: none !important;
         }
 
-        /* ════════════════════════════════════════
-           HEADINGS — neon glow
-        ════════════════════════════════════════ */
-        h1 {
-          animation: headingGlow 4s ease-in-out infinite !important;
-        }
-        h2 { text-shadow: 0 0 16px rgba(123,92,240,0.5) !important; }
-        h3 { text-shadow: 0 0 12px rgba(0,212,255,0.4) !important; }
+        /* ══════════════════════════════════════
+           HEADINGS
+        ══════════════════════════════════════ */
+        h1 { animation: headingGlow 5s ease-in-out infinite !important; letter-spacing: -0.5px; }
+        h2 { text-shadow: 0 0 20px rgba(123,92,240,0.45) !important; }
+        h3 { text-shadow: 0 0 14px rgba(0,212,255,0.35) !important; }
 
-        /* ════════════════════════════════════════
-           FROSTED GLASS on modals/overlays
-        ════════════════════════════════════════ */
+        /* ══════════════════════════════════════
+           FROSTED GLASS
+        ══════════════════════════════════════ */
         [style*="backdrop-filter"],
         [style*="backdropFilter"] {
-          backdrop-filter: blur(20px) saturate(1.8) !important;
-          -webkit-backdrop-filter: blur(20px) saturate(1.8) !important;
+          backdrop-filter: blur(24px) saturate(1.6) !important;
+          -webkit-backdrop-filter: blur(24px) saturate(1.6) !important;
         }
 
-        /* ════════════════════════════════════════
-           CHAT BUBBLES
-        ════════════════════════════════════════ */
+        /* ══════════════════════════════════════
+           CHAT BUBBLES — soft, rounder, dreamier
+        ══════════════════════════════════════ */
         .bubble-user {
-          box-shadow:
-            5px 0 24px #FF2D9B,
-            0 5px 18px #7B5CF0,
-            0 0 12px rgba(255,45,155,0.35) inset !important;
-          border: 1px solid rgba(255,45,155,0.55) !important;
+          border-radius: 20px 20px 6px 20px !important;
+          box-shadow: 0 4px 20px rgba(255,45,155,0.5), 0 0 40px rgba(123,92,240,0.2) !important;
+          border: 1px solid rgba(255,45,155,0.4) !important;
+          padding: 12px 16px !important;
+          font-size: 15px !important;
+          line-height: 1.65 !important;
         }
         .bubble-ai {
-          box-shadow:
-            -5px 0 24px #00D4FF,
-            0 -5px 18px #00E5CC,
-            0 0 12px rgba(0,212,255,0.25) inset !important;
-          border: 1px solid rgba(0,212,255,0.5) !important;
+          border-radius: 20px 20px 20px 6px !important;
+          box-shadow: 0 4px 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,229,204,0.2) !important;
+          border: 1px solid rgba(0,212,255,0.35) !important;
+          padding: 12px 16px !important;
+          font-size: 15px !important;
+          line-height: 1.65 !important;
         }
 
-        /* ════════════════════════════════════════
-           INPUT FIELDS — all inputs site-wide
-        ════════════════════════════════════════ */
+        /* ══════════════════════════════════════
+           INPUT FIELDS — bigger, rounder
+        ══════════════════════════════════════ */
         .neon-input {
-          border: 1px solid rgba(123,92,240,0.55) !important;
-          transition: box-shadow 0.3s ease, border-color 0.3s ease !important;
+          border: 1.5px solid rgba(123,92,240,0.45) !important;
+          border-radius: 16px !important;
+          padding: 13px 18px !important;
+          font-size: 15px !important;
+          transition: all 0.3s ease !important;
         }
         .neon-input:focus {
           border-color: #00D4FF !important;
-          box-shadow: 0 0 0 2px rgba(0,212,255,0.18), 0 0 32px #00D4FF, 0 0 64px rgba(0,212,255,0.35) !important;
+          box-shadow: 0 0 0 3px rgba(0,212,255,0.15), 0 0 30px rgba(0,212,255,0.5) !important;
           outline: none !important;
-          animation: inputFocus 2s ease-in-out infinite !important;
+          animation: inputDream 2s ease-in-out infinite !important;
         }
-
         input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]),
-        textarea,
-        select {
-          border: 1px solid rgba(123,92,240,0.4) !important;
-          transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+        textarea, select {
+          border: 1.5px solid rgba(123,92,240,0.35) !important;
+          border-radius: 14px !important;
+          font-size: 15px !important;
+          transition: all 0.3s ease !important;
         }
         input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):focus,
-        textarea:focus,
-        select:focus {
+        textarea:focus, select:focus {
           border-color: #00D4FF !important;
-          box-shadow: 0 0 0 2px rgba(0,212,255,0.15), 0 0 26px #00D4FF, 0 0 52px rgba(0,212,255,0.3) !important;
+          box-shadow: 0 0 0 3px rgba(0,212,255,0.12), 0 0 24px rgba(0,212,255,0.45) !important;
           outline: none !important;
         }
 
-        /* ════════════════════════════════════════
-           BUTTONS — glow + ripple
-        ════════════════════════════════════════ */
-        /* Purple gradient buttons */
-        button[style*="7B5CF0"],
-        button[style*="7C5CFC"],
-        button[style*="4B2FD0"] {
-          animation: btnGlow 2.5s ease-in-out infinite !important;
-          transition: transform 0.15s ease !important;
+        /* ══════════════════════════════════════
+           BUTTONS — pill shaped, bubbly, dreamy
+        ══════════════════════════════════════ */
+        button {
+          border-radius: 28px !important;
+          min-height: 44px !important;
+          font-size: 15px !important;
+          font-weight: 600 !important;
+          letter-spacing: 0.2px !important;
+          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
           position: relative !important;
           overflow: hidden !important;
         }
-        button[style*="7B5CF0"]:hover,
-        button[style*="7C5CFC"]:hover,
-        button[style*="4B2FD0"]:hover { transform: translateY(-2px) scale(1.02) !important; }
-
-        /* Teal buttons */
-        button[style*="00A884"],
-        button[style*="00D4FF"],
-        button[style*="00E5CC"] {
-          animation: tealGlow 2.5s ease-in-out infinite !important;
-          position: relative !important;
-          overflow: hidden !important;
+        button[style*="7B5CF0"], button[style*="7C5CFC"], button[style*="4B2FD0"] {
+          animation: dreamBtn 3s ease-in-out infinite !important;
+          padding: 12px 28px !important;
         }
-
-        /* Ripple effect on all buttons */
+        button[style*="7B5CF0"]:hover, button[style*="7C5CFC"]:hover, button[style*="4B2FD0"]:hover {
+          transform: translateY(-3px) scale(1.03) !important;
+          box-shadow: 0 8px 40px rgba(123,92,240,0.8) !important;
+        }
+        button[style*="00A884"], button[style*="00D4FF"], button[style*="00E5CC"] {
+          animation: dreamBtnTeal 3s ease-in-out infinite !important;
+          padding: 12px 28px !important;
+        }
+        button[style*="00A884"]:hover, button[style*="00D4FF"]:hover, button[style*="00E5CC"]:hover {
+          transform: translateY(-3px) scale(1.03) !important;
+          box-shadow: 0 8px 40px rgba(0,212,255,0.8) !important;
+        }
         button::after {
-          content: '';
-          position: absolute;
-          top: 50%; left: 50%;
-          width: 10px; height: 10px;
-          margin: -5px 0 0 -5px;
-          border-radius: 50%;
-          background: rgba(255,255,255,0.4);
-          transform: scale(0);
-          opacity: 0;
-          pointer-events: none;
+          content: ''; position: absolute; top: 50%; left: 50%;
+          width: 10px; height: 10px; margin: -5px 0 0 -5px;
+          border-radius: 50%; background: rgba(255,255,255,0.35);
+          transform: scale(0); opacity: 0; pointer-events: none;
         }
-        button:active::after {
-          animation: ripple 0.5s ease-out forwards !important;
-        }
+        button:active::after { animation: ripple 0.5s ease-out forwards !important; }
+        button:active { transform: scale(0.97) !important; }
 
-        /* ════════════════════════════════════════
+        /* Links styled as buttons */
+        a[style*="border-radius"] { border-radius: 28px !important; font-size: 15px !important; }
+
+        /* ══════════════════════════════════════
            IMAGE GLOW
-        ════════════════════════════════════════ */
+        ══════════════════════════════════════ */
         .neon-img-frame {
-          box-shadow: 0 0 24px rgba(0,229,204,0.7), 0 0 12px rgba(0,212,255,0.5) !important;
-          border: 1px solid rgba(0,229,204,0.6) !important;
-          animation: imageReveal 0.8s ease-out !important;
+          box-shadow: 0 0 28px rgba(0,229,204,0.65), 0 0 14px rgba(0,212,255,0.4) !important;
+          border: 1.5px solid rgba(0,229,204,0.55) !important;
+          border-radius: 16px !important;
+          animation: imageReveal 0.6s ease-out !important;
         }
         .neon-img-frame:hover {
-          box-shadow: 0 0 40px rgba(0,229,204,1), 0 0 20px rgba(0,212,255,0.7) !important;
+          box-shadow: 0 0 44px rgba(0,229,204,0.9), 0 0 22px rgba(0,212,255,0.6) !important;
+          transform: scale(1.02) !important;
+        }
+        img[style*="object-fit: cover"]:hover, img[style*="object-fit: contain"]:hover {
+          box-shadow: 0 0 32px rgba(0,229,204,0.55) !important;
+          transition: all 0.3s ease !important;
         }
 
-        img[style*="object-fit: cover"]:hover,
-        img[style*="object-fit: contain"]:hover {
-          box-shadow: 0 0 30px rgba(0,229,204,0.65), 0 0 60px rgba(0,212,255,0.3) !important;
-          transition: box-shadow 0.3s ease !important;
-        }
-
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            STATUS DOT
-        ════════════════════════════════════════ */
-        .status-dot-online {
-          animation: onlinePulse 2s ease-in-out infinite !important;
-        }
+        ══════════════════════════════════════ */
+        .status-dot-online { animation: onlinePulse 2.5s ease-in-out infinite !important; font-size: 12px !important; }
 
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            LOGO LOCK
-        ════════════════════════════════════════ */
+        ══════════════════════════════════════ */
         .logo-icon ~ span span:first-child {
-          color: #7B5CF0 !important;
-          -webkit-text-fill-color: #7B5CF0 !important;
-          text-shadow: 0 0 16px rgba(123,92,240,0.95), 0 0 32px rgba(123,92,240,0.45) !important;
-          background: none !important;
-          animation: none !important;
+          color: #7B5CF0 !important; -webkit-text-fill-color: #7B5CF0 !important;
+          text-shadow: 0 0 16px rgba(123,92,240,0.9), 0 0 32px rgba(123,92,240,0.4) !important;
+          background: none !important; animation: none !important;
         }
         .logo-icon ~ span span:last-child {
-          color: #E8EAF0 !important;
-          -webkit-text-fill-color: #E8EAF0 !important;
-          background: none !important;
-          animation: none !important;
+          color: #E8EAF0 !important; -webkit-text-fill-color: #E8EAF0 !important;
+          background: none !important; animation: none !important;
         }
 
-        /* ════════════════════════════════════════
-           SKELETON SHIMMER (loading states)
-        ════════════════════════════════════════ */
-        .skeleton {
-          background: linear-gradient(90deg, rgba(123,92,240,0.1) 25%, rgba(0,212,255,0.2) 50%, rgba(255,45,155,0.1) 75%);
-          background-size: 200% 100%;
-          animation: skeletonShimmer 2s infinite !important;
-          border-radius: 8px;
-        }
-
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            FLOATING PARTICLES
-        ════════════════════════════════════════ */
+        ══════════════════════════════════════ */
         .ds-particle {
-          position: fixed;
-          bottom: -20px;
-          width: 6px; height: 6px;
-          border-radius: 50%;
-          pointer-events: none;
-          z-index: 0;
+          position: fixed; bottom: -20px; border-radius: 50%;
+          pointer-events: none; z-index: 0;
           animation: floatUp linear infinite;
         }
 
-        /* ════════════════════════════════════════
-           HERO NEON RINGS
-        ════════════════════════════════════════ */
-        .hero-ring {
-          position: absolute;
-          border-radius: 50%;
-          border: 2px solid rgba(123,92,240,0.4);
-          animation: ringPulse 3s ease-out infinite;
-          pointer-events: none;
-        }
-
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            GOLD GLOW
-        ════════════════════════════════════════ */
-        [style*="F5C842"] { text-shadow: 0 0 12px rgba(245,200,66,0.7) !important; }
+        ══════════════════════════════════════ */
+        [style*="F5C842"] { text-shadow: 0 0 14px rgba(245,200,66,0.65) !important; }
 
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            SCROLLBAR
-        ════════════════════════════════════════ */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ══════════════════════════════════════ */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb {
-          background: linear-gradient(180deg, #00D4FF, #7B5CF0, #FF2D9B);
-          border-radius: 3px;
-        }
+        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #7B5CF0, #00D4FF, #FF2D9B); border-radius: 8px; }
 
-        /* ════════════════════════════════════════
+        /* ══════════════════════════════════════
            SELECTION
-        ════════════════════════════════════════ */
-        ::selection { background: rgba(123,92,240,0.5); color: #fff; }
+        ══════════════════════════════════════ */
+        ::selection { background: rgba(123,92,240,0.4); color: #fff; }
 
-        @media (max-width: 640px) { .nav-links { display: none !important; } .mobile-menu-btn { display: flex !important; } }
+        /* ══════════════════════════════════════
+           MOBILE — bigger tap targets
+        ══════════════════════════════════════ */
+        @media (max-width: 640px) {
+          .nav-links { display: none !important; }
+          .mobile-menu-btn { display: flex !important; }
+          body { font-size: 16px; }
+          button { min-height: 48px !important; font-size: 16px !important; }
+          input, textarea, select { font-size: 16px !important; padding: 14px 18px !important; }
+        }
       `}</style>
 
       <CosmicBackground />
