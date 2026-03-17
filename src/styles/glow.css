@@ -322,3 +322,19 @@ img[style*="objectFit: contain"]:hover {
   background: none !important;
   animation: none !important;
 }
+/* ── Force glowing borders on all cards and panels ──────────── */
+[style*="borderRadius: 16"],
+[style*="borderRadius: 14"],
+[style*="borderRadius: 20"],
+[style*="borderRadius: 24"] {
+  border: 1px solid rgba(123,92,240,0.3) !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+[style*="borderRadius: 16"]:hover,
+[style*="borderRadius: 14"]:hover,
+[style*="borderRadius: 20"]:hover,
+[style*="borderRadius: 24"]:hover {
+  border-color: rgba(0,212,255,0.6) !important;
+  box-shadow: 0 0 20px rgba(0,212,255,0.25), 0 0 40px rgba(255,45,155,0.15) !important;
+}
