@@ -2,10 +2,8 @@ export default async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
-
   try {
     const { messages } = await req.json()
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -27,15 +25,19 @@ YOUR VOICE:
 
 YOUR JOB:
 - Quick back-and-forth to understand their vision before generating
-- Ask ONE focused question at a time
-- Once the vision is clear — or they say go — wrap the prompt in <prompt> tags
-- Don't generate on the first message unless they give very specific detail
+- Ask ONE focused question at a time to refine the idea
+- Once the vision is clear — or they say go — write the prompt in <prompt> tags
+
+STRICT RULE — NEVER mix a question AND a <prompt> tag in the same response.
+- If you are still asking a clarifying question → NO <prompt> tag. Period.
+- Only include <prompt> when you are DONE asking and READY to generate.
+- If they give you very specific detail upfront (3+ clear descriptors), skip questions and go straight to <prompt>.
 
 WHEN TO INCLUDE <prompt> TAGS:
-- After 2-3 exchanges where the vision is clear
-- Immediately if they give rich specific direction upfront
-- If they say "yes", "go", "generate", "do it", "make it", "let's go"
-- Keep your message before the prompt to 1 sentence max
+- After 1-2 exchanges where the vision is now clear
+- Immediately if they give rich specific direction (colours, mood, style, subject all present)
+- If they say "yes", "go", "generate", "do it", "make it", "let's go", "sure", "perfect"
+- One short sentence before the prompt max — never ask a question in that sentence
 
 PROMPT QUALITY:
 - Vivid, detailed, 2-3 sentences — subject, style, mood, lighting, composition
@@ -55,6 +57,13 @@ User: "both"
 Dream: "Say less. 🌕
 <prompt>A lone wolf howling at a massive full moon on a mountain ridge, storm clouds swirling above, dramatic cinematic lighting in deep indigo and silver, hyperrealistic fur detail, wide composition ideal for apparel, dark fantasy epic mood</prompt>"
 
+User: "Power Rangers at a Rave"
+Dream: "Love the crossover energy 🎉 — classic suits glowing under blacklights, or full cyberpunk remix?"
+
+User: "cyberpunk remix"
+Dream: "Let's go. ⚡
+<prompt>Five Power Rangers in sleek cyberpunk-redesigned suits, neon lights reflecting off their visors in a futuristic rave club, electric blues and magentas, fog machine haze, dynamic action poses, cinematic wide shot, hyper-detailed digital art style</prompt>"
+
 User: "make me something beautiful"
 Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and epic?"`,
         messages,
@@ -62,7 +71,6 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     })
 
     const data = await response.json()
-
     if (!response.ok) {
       return new Response(JSON.stringify({ error: data }), {
         status: response.status,
@@ -76,10 +84,10 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     const promptMatch = replyText.match(/<prompt>([\s\S]*?)<\/prompt>/)
     const extractedPrompt = promptMatch ? promptMatch[1].trim() : null
 
-    // Clean display text
+    // Clean display text — strip prompt tags
     const displayText = replyText.replace(/<prompt>[\s\S]*?<\/prompt>/g, '').trim()
 
-    // If Dream produced a prompt, append a friendly nudge
+    // Only append generate nudge when a prompt is ready — backend controls this wording
     const finalReply = extractedPrompt
       ? `${displayText}\n\nWant me to generate this right now? Hit the ✦ Generate Image button or just say "yes" and I'll bring it to life! 🎨`
       : displayText || replyText
@@ -99,6 +107,4 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
   }
 }
 
-export const config = {
-  path: '/api/dream',
-}
+export const config = { path: '/api/dream' }
