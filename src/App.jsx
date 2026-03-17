@@ -186,158 +186,186 @@ async function checkProductLimit(userId, tier) {
 
 
 // ── Starfield Background ──────────────────────────────────────
-// Stars generated once at module load — never regenerate on re-render
 const STARS = (() => {
   const stars = []
-  let attempts = 0
-  while (stars.length < 40 && attempts < 500) {
-    attempts++
-    const top = Math.random() * 100
-    const left = Math.random() * 100
-    const inTopStrip = top < 18
-    const inBottomStrip = top > 82
-    const inLeftStrip = left < 12
-    const inRightStrip = left > 88
-    const inCorner = (top < 30 && left < 20) || (top < 30 && left > 80) || (top > 70 && left < 20) || (top > 70 && left > 80)
-    if (inTopStrip || inBottomStrip || inLeftStrip || inRightStrip || inCorner) {
-      stars.push({
-        id: stars.length, top, left,
-        size: Math.random() * 16 + 6,
-        duration: Math.random() * 6 + 4,
-        delay: Math.random() * 8,
-        opacity: Math.random() * 0.2 + 0.04,
-        grow: Math.random() * 1.6 + 1.2,
-      })
-    }
+  for (let i = 0; i < 80; i++) {
+    stars.push({
+      id: i,
+      top: Math.random() * 100,
+      left: Math.random() * 100,
+      size: Math.random() * 2.5 + 0.5,
+      duration: Math.random() * 4 + 2,
+      delay: Math.random() * 8,
+      opacity: Math.random() * 0.7 + 0.2,
+      color: ['#ffffff', '#c4b5fd', '#67e8f9', '#f0abfc', '#fde68a'][Math.floor(Math.random() * 5)],
+    })
   }
   return stars
 })()
 
 function StarField() {
-  const stars = STARS
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#04060f' }}>
       <style>{`
         @keyframes twinkle {
-          0%, 100% { opacity: var(--base-opacity); transform: scale(1) rotate(0deg); }
-          50% { opacity: calc(var(--base-opacity) * 3); transform: scale(var(--grow)) rotate(20deg); }
-        }
-        @keyframes gradientShift {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+          0%,100% { opacity: var(--op); transform: scale(1); }
+          50%      { opacity: calc(var(--op) * 2.5); transform: scale(1.4); filter: blur(0.5px); }
         }
         @keyframes drift1 {
-          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
-          25%  { transform: translate(30px, -20px) scale(1.06) rotate(5deg); }
-          50%  { transform: translate(-20px, 35px) scale(0.96) rotate(-4deg); }
-          75%  { transform: translate(25px, 15px) scale(1.04) rotate(8deg); }
-          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          0%   { transform: translate(0,0) rotate(0deg); }
+          33%  { transform: translate(28px,-18px) rotate(4deg); }
+          66%  { transform: translate(-18px,26px) rotate(-3deg); }
+          100% { transform: translate(0,0) rotate(0deg); }
         }
         @keyframes drift2 {
-          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
-          33%  { transform: translate(-40px, 25px) scale(1.08) rotate(-6deg); }
-          66%  { transform: translate(30px, -30px) scale(0.94) rotate(4deg); }
-          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          0%   { transform: translate(0,0) scale(1); }
+          40%  { transform: translate(-32px,20px) scale(1.06); }
+          70%  { transform: translate(22px,-28px) scale(0.96); }
+          100% { transform: translate(0,0) scale(1); }
         }
         @keyframes drift3 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          50%  { transform: translate(20px, -40px) scale(1.1); }
-          100% { transform: translate(0px, 0px) scale(1); }
+          0%   { transform: translate(0,0) scale(1) rotate(0deg); }
+          50%  { transform: translate(16px,-36px) scale(1.08) rotate(6deg); }
+          100% { transform: translate(0,0) scale(1) rotate(0deg); }
+        }
+        @keyframes nebulaPulse {
+          0%,100% { opacity: 0.85; }
+          50%      { opacity: 1; }
+        }
+        @keyframes shootingStar {
+          0%   { transform: translateX(0) translateY(0); opacity: 1; }
+          100% { transform: translateX(300px) translateY(150px); opacity: 0; }
+        }
+        @keyframes planetFloat {
+          0%,100% { transform: translateY(0px); }
+          50%      { transform: translateY(-12px); }
+        }
+        @keyframes moonGlow {
+          0%,100% { box-shadow: 0 0 30px rgba(180,160,255,0.3), 0 0 60px rgba(124,92,252,0.2); }
+          50%      { box-shadow: 0 0 50px rgba(180,160,255,0.5), 0 0 100px rgba(124,92,252,0.35); }
         }
         @keyframes colorShift {
           0%   { filter: hue-rotate(0deg) brightness(1); }
-          20%  { filter: hue-rotate(45deg) brightness(1.2); }
-          40%  { filter: hue-rotate(120deg) brightness(0.9); }
-          60%  { filter: hue-rotate(200deg) brightness(1.1); }
-          80%  { filter: hue-rotate(280deg) brightness(1.3); }
+          25%  { filter: hue-rotate(60deg) brightness(1.1); }
+          50%  { filter: hue-rotate(150deg) brightness(0.95); }
+          75%  { filter: hue-rotate(240deg) brightness(1.1); }
           100% { filter: hue-rotate(360deg) brightness(1); }
         }
       `}</style>
 
-      {/* Deep nebula layer — very visible */}
-      <div style={{ position: 'absolute', inset: 0, animation: 'colorShift 25s ease-in-out infinite' }}>
+      {/* ── Deep nebula layer ── */}
+      <div style={{ position: 'absolute', inset: 0, animation: 'colorShift 30s ease-in-out infinite' }}>
+        {/* Giant purple nebula — top left */}
+        <div style={{ position: 'absolute', top: '-20%', left: '-15%', width: '80%', height: '80%',
+          background: 'radial-gradient(ellipse 60% 50% at 45% 45%, rgba(124,92,252,0.75) 0%, rgba(75,47,208,0.5) 25%, rgba(124,92,252,0.3) 50%, rgba(0,212,170,0.12) 70%, transparent 85%)',
+          filter: 'blur(40px)', animation: 'drift1 28s ease-in-out infinite, nebulaPulse 8s ease-in-out infinite' }} />
 
-        {/* GIANT nebula cloud — top left, dominant purple */}
-        <div style={{
-          position: 'absolute', top: '-20%', left: '-15%',
-          width: '80%', height: '80%',
-          background: 'radial-gradient(ellipse 60% 50% at 45% 45%, rgba(124,92,252,0.7) 0%, rgba(75,47,208,0.5) 25%, rgba(124,92,252,0.3) 50%, rgba(0,212,170,0.15) 70%, transparent 85%)',
-          filter: 'blur(30px)',
-          animation: 'drift1 28s ease-in-out infinite',
-        }} />
+        {/* Pink/magenta — bottom right */}
+        <div style={{ position: 'absolute', bottom: '-25%', right: '-20%', width: '85%', height: '75%',
+          background: 'radial-gradient(ellipse 55% 60% at 55% 55%, rgba(255,80,140,0.65) 0%, rgba(200,50,200,0.4) 25%, rgba(124,92,252,0.25) 55%, transparent 85%)',
+          filter: 'blur(40px)', animation: 'drift2 35s ease-in-out infinite, nebulaPulse 12s ease-in-out infinite 2s' }} />
 
-        {/* GIANT nebula cloud — bottom right, pink/magenta */}
-        <div style={{
-          position: 'absolute', bottom: '-25%', right: '-20%',
-          width: '85%', height: '75%',
-          background: 'radial-gradient(ellipse 55% 60% at 55% 55%, rgba(255,107,157,0.6) 0%, rgba(200,50,200,0.4) 25%, rgba(124,92,252,0.25) 55%, rgba(0,180,216,0.1) 75%, transparent 90%)',
-          filter: 'blur(35px)',
-          animation: 'drift2 35s ease-in-out infinite',
-        }} />
+        {/* Teal center */}
+        <div style={{ position: 'absolute', top: '20%', left: '25%', width: '65%', height: '60%',
+          background: 'radial-gradient(ellipse 50% 55% at 50% 50%, rgba(0,212,170,0.3) 0%, rgba(0,180,216,0.2) 35%, rgba(124,92,252,0.15) 65%, transparent 85%)',
+          filter: 'blur(50px)', animation: 'drift3 22s ease-in-out infinite' }} />
 
-        {/* Center cosmic cloud — teal/cyan */}
-        <div style={{
-          position: 'absolute', top: '20%', left: '25%',
-          width: '65%', height: '60%',
-          background: 'radial-gradient(ellipse 50% 55% at 50% 50%, rgba(0,212,170,0.35) 0%, rgba(0,180,216,0.25) 30%, rgba(124,92,252,0.2) 60%, transparent 85%)',
-          filter: 'blur(40px)',
-          animation: 'drift3 22s ease-in-out infinite',
-        }} />
+        {/* Electric blue — top right */}
+        <div style={{ position: 'absolute', top: '-10%', right: '-5%', width: '55%', height: '60%',
+          background: 'radial-gradient(ellipse 60% 50% at 50% 40%, rgba(0,140,255,0.5) 0%, rgba(0,212,170,0.3) 35%, rgba(124,92,252,0.2) 65%, transparent 85%)',
+          filter: 'blur(35px)', animation: 'drift1 30s ease-in-out infinite reverse' }} />
 
-        {/* Top right — electric blue */}
-        <div style={{
-          position: 'absolute', top: '-10%', right: '-5%',
-          width: '55%', height: '60%',
-          background: 'radial-gradient(ellipse 60% 50% at 50% 40%, rgba(0,150,255,0.45) 0%, rgba(0,212,170,0.3) 35%, rgba(124,92,252,0.2) 65%, transparent 85%)',
-          filter: 'blur(28px)',
-          animation: 'drift1 30s ease-in-out infinite reverse',
-        }} />
+        {/* Gold/amber — bottom left */}
+        <div style={{ position: 'absolute', bottom: '-10%', left: '-5%', width: '60%', height: '55%',
+          background: 'radial-gradient(ellipse 55% 50% at 45% 60%, rgba(245,200,66,0.3) 0%, rgba(255,140,0,0.2) 35%, rgba(255,80,140,0.15) 60%, transparent 85%)',
+          filter: 'blur(38px)', animation: 'drift2 26s ease-in-out infinite reverse' }} />
 
-        {/* Bottom left — gold/amber */}
-        <div style={{
-          position: 'absolute', bottom: '-10%', left: '-5%',
-          width: '60%', height: '55%',
-          background: 'radial-gradient(ellipse 55% 50% at 45% 60%, rgba(245,200,66,0.35) 0%, rgba(255,140,0,0.25) 30%, rgba(255,107,157,0.2) 60%, transparent 85%)',
-          filter: 'blur(32px)',
-          animation: 'drift2 26s ease-in-out infinite reverse',
-        }} />
+        {/* Deep violet — center left */}
+        <div style={{ position: 'absolute', top: '40%', left: '-5%', width: '45%', height: '50%',
+          background: 'radial-gradient(ellipse 50% 60% at 40% 50%, rgba(150,0,255,0.45) 0%, rgba(124,92,252,0.3) 40%, transparent 75%)',
+          filter: 'blur(42px)', animation: 'drift3 18s ease-in-out infinite reverse' }} />
 
-        {/* Center-left accent — deep violet */}
-        <div style={{
-          position: 'absolute', top: '40%', left: '-5%',
-          width: '45%', height: '50%',
-          background: 'radial-gradient(ellipse 50% 60% at 40% 50%, rgba(150,0,255,0.4) 0%, rgba(124,92,252,0.3) 35%, transparent 75%)',
-          filter: 'blur(36px)',
-          animation: 'drift3 18s ease-in-out infinite reverse',
-        }} />
-
-        {/* Bright core glow — center */}
-        <div style={{
-          position: 'absolute', top: '35%', left: '40%',
-          width: '30%', height: '30%',
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.08) 0%, rgba(124,92,252,0.2) 40%, transparent 70%)',
-          filter: 'blur(20px)',
-          animation: 'drift1 15s ease-in-out infinite',
-        }} />
+        {/* Bright core */}
+        <div style={{ position: 'absolute', top: '35%', left: '40%', width: '30%', height: '30%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(124,92,252,0.18) 45%, transparent 70%)',
+          filter: 'blur(24px)', animation: 'drift1 15s ease-in-out infinite' }} />
       </div>
 
-      {/* Stars on top */}
-      {stars.map(s => (
+      {/* ── Moon ── */}
+      <div style={{ position: 'absolute', top: '6%', right: '8%', width: 64, height: 64, borderRadius: '50%',
+        background: 'radial-gradient(circle at 38% 35%, #e8e0ff 0%, #c4b5fd 30%, #9d7fea 60%, #6d28d9 100%)',
+        animation: 'moonGlow 5s ease-in-out infinite, planetFloat 9s ease-in-out infinite',
+        boxShadow: '0 0 30px rgba(180,160,255,0.3), 0 0 60px rgba(124,92,252,0.2)',
+      }}>
+        {/* Crescent shadow */}
+        <div style={{ position: 'absolute', top: '10%', right: '5%', width: '70%', height: '80%', borderRadius: '50%',
+          background: 'rgba(20,10,40,0.45)', filter: 'blur(3px)' }} />
+      </div>
+
+      {/* ── Planet 1 — teal ringed ── */}
+      <div style={{ position: 'absolute', bottom: '12%', left: '5%', animation: 'planetFloat 13s ease-in-out infinite 2s' }}>
+        <div style={{ position: 'relative', width: 44, height: 44 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%',
+            background: 'radial-gradient(circle at 35% 30%, #67e8f9 0%, #06b6d4 40%, #0e7490 80%, #083344 100%)',
+            boxShadow: '0 0 20px rgba(0,212,170,0.4), 0 0 40px rgba(0,212,170,0.2)' }} />
+          {/* Ring */}
+          <div style={{ position: 'absolute', top: '35%', left: '-28%', width: '155%', height: '30%',
+            border: '2px solid rgba(103,232,249,0.5)', borderRadius: '50%',
+            transform: 'rotateX(70deg)', boxShadow: '0 0 8px rgba(0,212,170,0.3)' }} />
+        </div>
+      </div>
+
+      {/* ── Planet 2 — small distant purple ── */}
+      <div style={{ position: 'absolute', top: '22%', left: '3%', width: 20, height: 20, borderRadius: '50%',
+        background: 'radial-gradient(circle at 35% 30%, #d8b4fe 0%, #9333ea 60%, #4c1d95 100%)',
+        boxShadow: '0 0 12px rgba(147,51,234,0.5)',
+        animation: 'planetFloat 7s ease-in-out infinite 1s' }} />
+
+      {/* ── Shooting stars ── */}
+      {[
+        { top: '15%', left: '10%', delay: '3s', dur: '2.5s', rot: '25deg' },
+        { top: '45%', left: '60%', delay: '9s', dur: '2s', rot: '20deg' },
+        { top: '70%', left: '20%', delay: '16s', dur: '3s', rot: '30deg' },
+      ].map((s, i) => (
+        <div key={i} style={{ position: 'absolute', top: s.top, left: s.left,
+          width: 80, height: 1.5,
+          background: 'linear-gradient(90deg, rgba(255,255,255,0.9), transparent)',
+          transform: `rotate(${s.rot})`,
+          animation: `shootingStar ${s.dur} ease-out infinite`,
+          animationDelay: s.delay,
+          borderRadius: 2,
+          opacity: 0,
+          boxShadow: '0 0 4px rgba(255,255,255,0.8)',
+        }} />
+      ))}
+
+      {/* ── Point stars ── */}
+      {STARS.map(s => (
         <div key={s.id} style={{
-          position: 'absolute',
-          top: `${s.top}%`,
-          left: `${s.left}%`,
-          fontSize: `${s.size}px`,
-          color: '#fff',
-          '--base-opacity': s.opacity,
-          '--grow': s.grow,
+          position: 'absolute', top: `${s.top}%`, left: `${s.left}%`,
+          width: s.size, height: s.size, borderRadius: '50%',
+          background: s.color,
+          '--op': s.opacity,
           opacity: s.opacity,
+          boxShadow: `0 0 ${s.size * 2}px ${s.color}`,
           animation: `twinkle ${s.duration}s ease-in-out infinite`,
           animationDelay: `${s.delay}s`,
-          userSelect: 'none',
-          lineHeight: 1,
-          textShadow: '0 0 8px rgba(124,92,252,0.8)',
+        }} />
+      ))}
+
+      {/* ── Sparkle ✦ stars scattered ── */}
+      {[...Array(20)].map((_, i) => (
+        <div key={`sp${i}`} style={{
+          position: 'absolute',
+          top: `${Math.random() * 100}%`,
+          left: `${Math.random() * 100}%`,
+          fontSize: `${Math.random() * 10 + 6}px`,
+          color: ['#c4b5fd','#67e8f9','#f0abfc','#fde68a','#ffffff'][i % 5],
+          opacity: Math.random() * 0.25 + 0.05,
+          textShadow: '0 0 8px currentColor',
+          animation: `twinkle ${Math.random() * 5 + 3}s ease-in-out infinite`,
+          animationDelay: `${Math.random() * 6}s`,
+          userSelect: 'none', lineHeight: 1,
         }}>✦</div>
       ))}
     </div>
@@ -903,7 +931,22 @@ function DreamChat({ user, onSignIn }) {
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', boxShadow: `0 0 0 1px ${C.accent}22, 0 8px 40px rgba(124,92,252,0.15)` }}>
+      <div style={{ position: 'relative', borderRadius: 18 }}>
+        {/* Animated chromatic border — wraps the card */}
+        <div style={{
+          position: 'absolute', inset: -2, borderRadius: 18, zIndex: 0,
+          background: 'linear-gradient(135deg, #7C5CFC, #00D4AA, #FF6B9D, #F5C842, #7C5CFC)',
+          backgroundSize: '300% 300%',
+          animation: 'chromaticBorder 4s ease-in-out infinite',
+          filter: 'blur(1px)',
+        }} />
+        <div style={{ position: 'absolute', inset: -4, borderRadius: 20, zIndex: -1,
+          background: 'linear-gradient(135deg, #7C5CFC88, #00D4AA44, #FF6B9D44, #7C5CFC88)',
+          backgroundSize: '300% 300%',
+          animation: 'chromaticBorder 4s ease-in-out infinite reverse',
+          filter: 'blur(12px)',
+        }} />
+      <div style={{ background: C.card, border: 'none', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1178,6 +1221,8 @@ function DreamChat({ user, onSignIn }) {
           onSuccess={() => setCreateProductImage(null)}
         />
       )}
+      </div>{/* close inner card */}
+      </div>{/* close chromatic wrapper */}
     </>
   )
 }
@@ -4038,6 +4083,15 @@ function RoutedErrorBoundary({ children }) {
 export default function App() {
   usePageTracking()
   const { user, profile, setProfile, signOut, loading } = useAuth()
+
+  // ── Global right-click disable ────────────────────────────────
+  // Prevents casual "Save Image As" on artwork. Screenshots can't be
+  // blocked at the browser level but this removes the obvious path.
+  useEffect(() => {
+    const block = (e) => e.preventDefault()
+    document.addEventListener('contextmenu', block)
+    return () => document.removeEventListener('contextmenu', block)
+  }, [])
   const [showAuth, setShowAuth] = useState(false)
   const needsProfileSetup = user && !profile?.username
   const { isVerified, isBlockedU13, isBlockedU18, pass } = useAgeGate()
@@ -4080,11 +4134,18 @@ export default function App() {
           0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.55), 0 0 24px rgba(124,92,252,0.25); }
           50%     { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 0 40px rgba(124,92,252,0.45); }
         }
+        @keyframes chromaticBorder {
+          0%   { background-position: 0% 50%; }
+          50%  { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #080B14; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
         button { -webkit-tap-highlight-color: transparent; }
-        /* Vivid accent borders on cards and interactive elements */
+        /* ── Image protection ── */
+        img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }
+        /* ── Vivid accent borders on cards and interactive elements ── */
         .glow-accent { box-shadow: 0 0 12px rgba(124,92,252,0.4), inset 0 1px 0 rgba(124,92,252,0.15); }
         .glow-teal   { box-shadow: 0 0 12px rgba(0,212,170,0.4),  inset 0 1px 0 rgba(0,212,170,0.15); }
         @media (max-width: 640px) {
