@@ -7,17 +7,26 @@
     <link rel="canonical" href="https://trydreamscape.com" />
     <title>Dreamscape — Artist Social Media & AI Marketplace</title>
     <meta name="description" content="Generate stunning artwork with AI, build your artist profile, and sell merchandise globally through Printful." />
+
+    <!-- Open Graph — homepage defaults, edge function overrides for dynamic pages -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Dreamscape" />
     <meta property="og:url" content="https://trydreamscape.com" />
     <meta property="og:title" content="Dreamscape — Where Artists Create & Thrive" />
     <meta property="og:description" content="AI-powered art creation, artist profiles, and a global print-on-demand marketplace." />
     <meta property="og:image" content="https://trydreamscape.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Dreamscape — Where Artists Create & Thrive" />
+
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@trydreamscape" />
     <meta name="twitter:title" content="Dreamscape — Where Artists Create & Thrive" />
     <meta name="twitter:description" content="AI-powered art creation, artist profiles, and a global print-on-demand marketplace." />
     <meta name="twitter:image" content="https://trydreamscape.com/og-image.png" />
+    <meta name="twitter:image:alt" content="Dreamscape — Where Artists Create & Thrive" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -212,15 +221,11 @@
         to   { opacity: 1; transform: translateY(0); }
       }
 
-      /* App hidden until splash dismissed — opacity only, never display:none so crawlers see content */
       #root { opacity: 1; min-height: 100vh; }
-      /* Always allow scroll once app is ready */
-      /* body overflow managed by JS only, never in CSS */
       body.app-ready { overflow: auto; }
     </style>
   </head>
   <body>
-    <!-- Splash — renders instantly before any JS -->
     <div id="splash">
       <div class="nebula n1"></div>
       <div class="nebula n2"></div>
@@ -256,24 +261,17 @@
         const FIFTEEN_MINS = 15 * 60 * 1000
         const splash = document.getElementById('splash')
 
-        // Check if we should show splash BEFORE making it visible
-        // This prevents any flash — splash stays hidden (display:none) until we decide
-
-        // Always skip for bots
         const bots = /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|msnbot|crawler|spider|bot|prerender/i
         if (bots.test(navigator.userAgent)) return
 
-        // Skip if visited within last 15 minutes
         try {
           const last = localStorage.getItem(SPLASH_KEY)
           if (last && (Date.now() - parseInt(last)) < FIFTEEN_MINS) return
         } catch(e) {}
 
-        // Decision: show splash — lock scroll and make it visible
         document.body.style.overflow = 'hidden'
         splash.classList.add('visible')
 
-        // Generate stars
         const el = document.getElementById('splash-stars')
         for (let i = 0; i < 55; i++) {
           const s = document.createElement('div')
