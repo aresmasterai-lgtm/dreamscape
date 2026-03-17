@@ -13,7 +13,7 @@ export default async (req) => {
       return new Response(JSON.stringify({ success: false, error: 'Prompt is required' }), { status: 400, headers })
     }
 
-    const attemptGenerate = async (attemptPrompt) => {
+    const buildParts = (attemptPrompt) => {
       const parts = []
       if (referenceImage) {
         const match = referenceImage.match(/^data:(image\/[^;]+);base64,(.+)$/)
@@ -26,41 +26,72 @@ export default async (req) => {
       } else {
         parts.push({ text: `Generate a high quality artwork image: ${attemptPrompt}` })
       }
+      return parts
+    }
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    // Try models in order — first one that works wins
+    // Gemini image generation model names change frequently; this list is ordered newest to oldest
+    const MODELS_TO_TRY = [
+      'gemini-2.0-flash-exp',
+      'gemini-2.0-flash-preview-image-generation',
+      'gemini-2.0-flash',
+    ]
+
+    const attemptWithModel = async (model, attemptPrompt) => {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts }],
+            contents: [{ parts: buildParts(attemptPrompt) }],
             generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
           }),
         }
       )
+      const data = await res.json()
 
-      const data = await response.json()
-
-      if (!response.ok || data.error) {
-        const msg = data.error?.message || `Gemini API error ${response.status}`
-        throw new Error(msg)
+      // Model not found or not supported — signal to try next model
+      if (data.error?.code === 404 || data.error?.status === 'NOT_FOUND' ||
+          (data.error?.message || '').includes('not found') ||
+          (data.error?.message || '').includes('not supported')) {
+        return { notFound: true, model }
       }
 
-      const responseParts = data.candidates?.[0]?.content?.parts || []
+      if (!res.ok || data.error) {
+        throw new Error(data.error?.message || `Gemini error ${res.status}`)
+      }
+
       const finishReason = data.candidates?.[0]?.finishReason
       if (finishReason && finishReason !== 'STOP') {
-        console.warn('Gemini non-STOP finish reason:', finishReason)
+        console.warn(`Model ${model} finish reason:`, finishReason)
       }
 
-      return responseParts.find(p => p.inlineData) || null
+      const parts = data.candidates?.[0]?.content?.parts || []
+      return { imagePart: parts.find(p => p.inlineData) || null, model }
     }
 
-    let imagePart = await attemptGenerate(prompt)
+    // Try each model until one works
+    let imagePart = null
+    let workingModel = null
 
-    if (!imagePart) {
-      console.warn('First attempt returned no image — retrying with simplified prompt')
+    for (const model of MODELS_TO_TRY) {
+      const result = await attemptWithModel(model, prompt)
+      if (result.notFound) {
+        console.warn(`Model ${result.model} not found, trying next...`)
+        continue
+      }
+      imagePart = result.imagePart
+      workingModel = result.model
+      break
+    }
+
+    // Retry with simplified prompt if no image returned
+    if (workingModel && !imagePart) {
+      console.warn(`${workingModel} returned no image — retrying with simplified prompt`)
       const simplified = `Digital artwork, highly detailed, vibrant colors, professional quality: ${prompt.slice(0, 300)}`
-      imagePart = await attemptGenerate(simplified)
+      const retry = await attemptWithModel(workingModel, simplified)
+      imagePart = retry.imagePart
     }
 
     if (!imagePart) {
