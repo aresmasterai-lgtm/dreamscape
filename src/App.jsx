@@ -17,8 +17,6 @@ import Blog from './components/Blog'
 import Terms from './components/Terms'
 import Contact from './components/Contact'
 import BlogPost from './components/BlogPost'
-import CosmicBackground from './components/CosmicBackground'
-import { C } from './config/theme'
 
 
 // ── Error Boundary ────────────────────────────────────────────
@@ -34,6 +32,7 @@ class ErrorBoundary extends Component {
     console.error('Page crashed:', error, info)
   }
   componentDidUpdate(prevProps) {
+    // Reset error when route changes
     if (prevProps.routeKey !== this.props.routeKey) {
       this.setState({ hasError: false, error: null })
     }
@@ -58,11 +57,19 @@ class ErrorBoundary extends Component {
   }
 }
 
-// ── Pricing constants (shared across create + edit flows) ─────
-const DS_FEE   = 0.10
-const ST_PCT   = 0.029
-const ST_FIXED = 0.30
+const C = {
+  bg: '#080B14', panel: '#0E1220', card: '#131826',
+  border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
+  gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
+}
 
+
+// ── Pricing constants (shared across create + edit flows) ─────
+const DS_FEE   = 0.10   // 10% Dreamscape platform fee
+const ST_PCT   = 0.029  // Stripe 2.9%
+const ST_FIXED = 0.30   // Stripe $0.30
+
+// Approximate Printful wholesale costs by product type (2025)
 const PRINTFUL_BASE_COSTS = {
   'T-SHIRT': 12.95, 'SHIRT': 12.95, 'HOODIE': 27.95, 'SWEATSHIRT': 24.95,
   'LONG SLEEVE': 17.95, 'CROP': 15.95, 'TANK': 12.95, 'POLO': 19.95,
@@ -125,6 +132,166 @@ async function checkProductLimit(userId, tier) {
   return { allowed: (count || 0) < limit, used: count || 0, limit }
 }
 
+
+// ── Starfield Background ──────────────────────────────────────
+// Stars generated once at module load — never regenerate on re-render
+const STARS = (() => {
+  const stars = []
+  let attempts = 0
+  while (stars.length < 40 && attempts < 500) {
+    attempts++
+    const top = Math.random() * 100
+    const left = Math.random() * 100
+    const inTopStrip = top < 18
+    const inBottomStrip = top > 82
+    const inLeftStrip = left < 12
+    const inRightStrip = left > 88
+    const inCorner = (top < 30 && left < 20) || (top < 30 && left > 80) || (top > 70 && left < 20) || (top > 70 && left > 80)
+    if (inTopStrip || inBottomStrip || inLeftStrip || inRightStrip || inCorner) {
+      stars.push({
+        id: stars.length, top, left,
+        size: Math.random() * 16 + 6,
+        duration: Math.random() * 6 + 4,
+        delay: Math.random() * 8,
+        opacity: Math.random() * 0.2 + 0.04,
+        grow: Math.random() * 1.6 + 1.2,
+      })
+    }
+  }
+  return stars
+})()
+
+function StarField() {
+  const stars = STARS
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes twinkle {
+          0%, 100% { opacity: var(--base-opacity); transform: scale(1) rotate(0deg); }
+          50% { opacity: calc(var(--base-opacity) * 3); transform: scale(var(--grow)) rotate(20deg); }
+        }
+        @keyframes gradientShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes drift1 {
+          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          25%  { transform: translate(30px, -20px) scale(1.06) rotate(5deg); }
+          50%  { transform: translate(-20px, 35px) scale(0.96) rotate(-4deg); }
+          75%  { transform: translate(25px, 15px) scale(1.04) rotate(8deg); }
+          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+        }
+        @keyframes drift2 {
+          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+          33%  { transform: translate(-40px, 25px) scale(1.08) rotate(-6deg); }
+          66%  { transform: translate(30px, -30px) scale(0.94) rotate(4deg); }
+          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
+        }
+        @keyframes drift3 {
+          0%   { transform: translate(0px, 0px) scale(1); }
+          50%  { transform: translate(20px, -40px) scale(1.1); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        @keyframes colorShift {
+          0%   { filter: hue-rotate(0deg) brightness(1); }
+          20%  { filter: hue-rotate(45deg) brightness(1.2); }
+          40%  { filter: hue-rotate(120deg) brightness(0.9); }
+          60%  { filter: hue-rotate(200deg) brightness(1.1); }
+          80%  { filter: hue-rotate(280deg) brightness(1.3); }
+          100% { filter: hue-rotate(360deg) brightness(1); }
+        }
+      `}</style>
+
+      {/* Deep nebula layer — very visible */}
+      <div style={{ position: 'absolute', inset: 0, animation: 'colorShift 25s ease-in-out infinite' }}>
+
+        {/* GIANT nebula cloud — top left, dominant purple */}
+        <div style={{
+          position: 'absolute', top: '-20%', left: '-15%',
+          width: '80%', height: '80%',
+          background: 'radial-gradient(ellipse 60% 50% at 45% 45%, rgba(124,92,252,0.7) 0%, rgba(75,47,208,0.5) 25%, rgba(124,92,252,0.3) 50%, rgba(0,212,170,0.15) 70%, transparent 85%)',
+          filter: 'blur(30px)',
+          animation: 'drift1 28s ease-in-out infinite',
+        }} />
+
+        {/* GIANT nebula cloud — bottom right, pink/magenta */}
+        <div style={{
+          position: 'absolute', bottom: '-25%', right: '-20%',
+          width: '85%', height: '75%',
+          background: 'radial-gradient(ellipse 55% 60% at 55% 55%, rgba(255,107,157,0.6) 0%, rgba(200,50,200,0.4) 25%, rgba(124,92,252,0.25) 55%, rgba(0,180,216,0.1) 75%, transparent 90%)',
+          filter: 'blur(35px)',
+          animation: 'drift2 35s ease-in-out infinite',
+        }} />
+
+        {/* Center cosmic cloud — teal/cyan */}
+        <div style={{
+          position: 'absolute', top: '20%', left: '25%',
+          width: '65%', height: '60%',
+          background: 'radial-gradient(ellipse 50% 55% at 50% 50%, rgba(0,212,170,0.35) 0%, rgba(0,180,216,0.25) 30%, rgba(124,92,252,0.2) 60%, transparent 85%)',
+          filter: 'blur(40px)',
+          animation: 'drift3 22s ease-in-out infinite',
+        }} />
+
+        {/* Top right — electric blue */}
+        <div style={{
+          position: 'absolute', top: '-10%', right: '-5%',
+          width: '55%', height: '60%',
+          background: 'radial-gradient(ellipse 60% 50% at 50% 40%, rgba(0,150,255,0.45) 0%, rgba(0,212,170,0.3) 35%, rgba(124,92,252,0.2) 65%, transparent 85%)',
+          filter: 'blur(28px)',
+          animation: 'drift1 30s ease-in-out infinite reverse',
+        }} />
+
+        {/* Bottom left — gold/amber */}
+        <div style={{
+          position: 'absolute', bottom: '-10%', left: '-5%',
+          width: '60%', height: '55%',
+          background: 'radial-gradient(ellipse 55% 50% at 45% 60%, rgba(245,200,66,0.35) 0%, rgba(255,140,0,0.25) 30%, rgba(255,107,157,0.2) 60%, transparent 85%)',
+          filter: 'blur(32px)',
+          animation: 'drift2 26s ease-in-out infinite reverse',
+        }} />
+
+        {/* Center-left accent — deep violet */}
+        <div style={{
+          position: 'absolute', top: '40%', left: '-5%',
+          width: '45%', height: '50%',
+          background: 'radial-gradient(ellipse 50% 60% at 40% 50%, rgba(150,0,255,0.4) 0%, rgba(124,92,252,0.3) 35%, transparent 75%)',
+          filter: 'blur(36px)',
+          animation: 'drift3 18s ease-in-out infinite reverse',
+        }} />
+
+        {/* Bright core glow — center */}
+        <div style={{
+          position: 'absolute', top: '35%', left: '40%',
+          width: '30%', height: '30%',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.08) 0%, rgba(124,92,252,0.2) 40%, transparent 70%)',
+          filter: 'blur(20px)',
+          animation: 'drift1 15s ease-in-out infinite',
+        }} />
+      </div>
+
+      {/* Stars on top */}
+      {stars.map(s => (
+        <div key={s.id} style={{
+          position: 'absolute',
+          top: `${s.top}%`,
+          left: `${s.left}%`,
+          fontSize: `${s.size}px`,
+          color: '#fff',
+          '--base-opacity': s.opacity,
+          '--grow': s.grow,
+          opacity: s.opacity,
+          animation: `twinkle ${s.duration}s ease-in-out infinite`,
+          animationDelay: `${s.delay}s`,
+          userSelect: 'none',
+          lineHeight: 1,
+          textShadow: '0 0 8px rgba(124,92,252,0.8)',
+        }}>✦</div>
+      ))}
+    </div>
+  )
+}
+
 // ── Meta tag helper ───────────────────────────────────────────
 function useMeta({ title, description, image } = {}) {
   useEffect(() => {
@@ -161,12 +328,14 @@ function usePageTracking() {
     })
   }, [location])
 
+  // Aggressively fix overflow on every navigation — prevents blank page bug
   useEffect(() => {
     document.body.style.overflow = ''
     document.body.style.height = ''
     document.documentElement.style.overflow = ''
     document.documentElement.style.height = ''
     document.body.classList.add('app-ready')
+    // Double-check after a tick in case something re-sets it
     const t = setTimeout(() => {
       document.body.style.overflow = ''
       document.documentElement.style.overflow = ''
@@ -285,6 +454,7 @@ function DreamChat({ user, onSignIn }) {
   const [generatingIndex, setGeneratingIndex] = useState(null)
   const [generatedImages, setGeneratedImages] = useState({})
   const [pendingPrompt, setPendingPrompt] = useState(null)
+  const lastGenerationPromptRef = useRef(null) // persists real prompt across retries
   const [lightboxImage, setLightboxImage] = useState(null)
   const [createProductImage, setCreateProductImage] = useState(null)
   const bottomRef = useRef(null)
@@ -296,22 +466,26 @@ function DreamChat({ user, onSignIn }) {
   const [publishedIds, setPublishedIds] = useState(new Set())
   const inputRef = useRef(null)
 
+  // ── Session history ───────────────────────────────────────────
   const [currentSessionId, setCurrentSessionId] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [sessions, setSessions] = useState([])
   const [loadingSessions, setLoadingSessions] = useState(false)
   const autoSaveTimerRef = useRef(null)
 
+  // Auto-save current session to Supabase (debounced 2s)
   const autoSaveSession = useCallback(async (msgs, sessionId) => {
-    if (!user || msgs.length < 2) return
+    if (!user || msgs.length < 2) return // don't save empty sessions
     clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(async () => {
       if (!mountedRef.current) return
+      // Title = first user message, truncated
       const firstUser = msgs.find(m => m.role === 'user')
       const title = typeof firstUser?.content === 'string'
         ? firstUser.content.slice(0, 60)
         : firstUser?.content?.find?.(c => c.type === 'text')?.text?.slice(0, 60) || 'Dream Session'
 
+      // Strip base64 images from saved messages to keep DB lean
       const saveable = msgs.map(m => {
         if (Array.isArray(m.content)) {
           const text = m.content.find(c => c.type === 'text')
@@ -333,6 +507,7 @@ function DreamChat({ user, onSignIn }) {
     }, 2000)
   }, [user])
 
+  // Load session history list
   const loadSessions = async () => {
     if (!user) return
     setLoadingSessions(true)
@@ -345,6 +520,7 @@ function DreamChat({ user, onSignIn }) {
     if (mountedRef.current) { setSessions(data || []); setLoadingSessions(false) }
   }
 
+  // Resume a past session
   const resumeSession = async (session) => {
     const { data } = await supabase
       .from('dream_sessions')
@@ -363,6 +539,7 @@ function DreamChat({ user, onSignIn }) {
     setShowHistory(false)
   }
 
+  // Delete a session
   const deleteSession = async (e, sessionId) => {
     e.stopPropagation()
     await supabase.from('dream_sessions').delete().eq('id', sessionId)
@@ -370,10 +547,12 @@ function DreamChat({ user, onSignIn }) {
     if (currentSessionId === sessionId) resetChat()
   }
 
+  // Auto-save whenever messages change (after first user message)
   useEffect(() => {
     if (messages.length > 1) autoSaveSession(messages, currentSessionId)
   }, [messages])
 
+  // Track mounted state — prevent setState after unmount
   useEffect(() => {
     mountedRef.current = true
     const refinePrompt = sessionStorage.getItem('dreamRefinePrompt')
@@ -389,7 +568,15 @@ function DreamChat({ user, onSignIn }) {
     }
   }, [])
 
+
+
+
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
+
+
+
+
 
   const resetChat = () => {
     setMessages([INITIAL_MESSAGE])
@@ -406,6 +593,7 @@ function DreamChat({ user, onSignIn }) {
     setPublishedIds(new Set())
     setCurrentSessionId(null)
     setPendingPrompt(null)
+    lastGenerationPromptRef.current = null
   }
 
   const handleFileSelect = (e) => {
@@ -438,12 +626,14 @@ function DreamChat({ user, onSignIn }) {
   const send = async () => {
     if (!input.trim() || loading) return
 
+    // If user says yes/go after a prompt is ready — generate immediately
     const YES_TRIGGERS = ['yes', 'yeah', 'yep', 'go', 'do it', 'make it', 'generate', 'create it', "let's go", 'yes please', 'go ahead', 'absolutely', 'sure', 'perfect', 'love it']
     if (YES_TRIGGERS.includes(input.trim().toLowerCase()) && pendingPrompt) {
       setMessages(prev => [...prev, { role: 'user', content: input.trim() }])
       setInput('')
       const { prompt, refImage } = pendingPrompt
       setPendingPrompt(null)
+      lastGenerationPromptRef.current = prompt // persist for retries
       generateImage(prompt, messages.length + 1, refImage)
       return
     }
@@ -460,6 +650,8 @@ function DreamChat({ user, onSignIn }) {
     }
 
     const userMsg = { role: 'user', content: userContent, _refImage: referenceImage?.dataUrl }
+    // Strip base64 images from history — only the current message carries the image.
+    // Prevents payload from growing with every follow-up message, avoiding Netlify's 6MB body limit.
     const sanitizedHistory = messages
       .filter((_, i) => i > 0)
       .map(msg => {
@@ -489,12 +681,15 @@ function DreamChat({ user, onSignIn }) {
 
       if (!mountedRef.current) return
 
+      // Use the backend reply as-is — Dream's system prompt already tells the user to generate
       const replyContent = data.reply || "Tell me more about what you're imagining..."
       setMessages(prev => [...prev, { role: 'assistant', content: replyContent }])
       setLoading(false)
 
+      // Store the generation prompt silently — Generate button will appear
       if (data.generationPrompt && mountedRef.current) {
         setPendingPrompt({ prompt: data.generationPrompt, refImage: currentRef })
+        lastGenerationPromptRef.current = data.generationPrompt // persist for retries
       }
     } catch {
       if (mountedRef.current) {
@@ -516,6 +711,7 @@ function DreamChat({ user, onSignIn }) {
   const generateImage = async (prompt, index, refImage = null) => {
     if (!prompt || typeof prompt !== 'string') return
     if (!mountedRef.current) return
+    // Check generation limit
     if (user) {
       try {
         const { data: profData } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
@@ -548,6 +744,7 @@ function DreamChat({ user, onSignIn }) {
       if (data.success) {
         const imageDataUrl = `data:${data.mimeType};base64,${data.imageData}`
         setGeneratedImages(prev => ({ ...prev, [index]: imageDataUrl }))
+        // Auto-save to artwork as private (user can publish later)
         if (user) {
           const promptText = typeof prompt === 'string' ? prompt : ''
           const { data: savedArt } = await supabase.from('artwork').insert({
@@ -612,14 +809,16 @@ function DreamChat({ user, onSignIn }) {
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
-      <div className="neon-panel" style={{ background: C.card, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
+        {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
-            <div className="status-dot-online" style={{ fontSize: 11 }}>● online</div>
+            <div style={{ fontSize: 11, color: C.teal }}>● online</div>
           </div>
+          {/* History button */}
           <button onClick={() => { setShowHistory(h => { if (!h) loadSessions(); return !h }) }}
             title="Conversation history"
             style={{ background: showHistory ? `${C.accent}30` : `${C.accent}18`, border: `1px solid ${showHistory ? C.accent + '88' : C.accent + '44'}`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -634,6 +833,7 @@ function DreamChat({ user, onSignIn }) {
           )}
         </div>
 
+        {/* History panel — slides in over the chat */}
         {showHistory && (
           <div style={{ position: 'absolute', inset: '57px 0 0 0', background: C.card, zIndex: 10, display: 'flex', flexDirection: 'column', borderTop: `1px solid ${C.border}` }}>
             <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -693,7 +893,6 @@ function DreamChat({ user, onSignIn }) {
             )}
           </div>
         )}
-
         <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 300, maxHeight: '55vh' }}>
           {messages.map((msg, i) => {
             const isUser = msg.role === 'user'
@@ -701,10 +900,11 @@ function DreamChat({ user, onSignIn }) {
             return (
               <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
                 <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 6 }}>
+                  {/* Reference image thumbnail in message */}
                   {isUser && msg._refImage && (
                     <img src={msg._refImage} alt="Reference" style={{ width: 120, height: 120, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.accent}55` }} />
                   )}
-                  <div className={msg.isError || msg.isLimit ? '' : isUser ? 'bubble-user' : 'bubble-ai'} style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.isError ? `${C.red}18` : msg.isLimit ? `${C.gold}12` : isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.isError ? `1px solid ${C.red}44` : msg.isLimit ? `1px solid ${C.gold}44` : isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: msg.isError ? '#FF6B6B' : msg.isLimit ? C.gold : C.text, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px', background: msg.isError ? `${C.red}18` : msg.isLimit ? `${C.gold}12` : isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: msg.isError ? `1px solid ${C.red}44` : msg.isLimit ? `1px solid ${C.gold}44` : isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: msg.isError ? '#FF6B6B' : msg.isLimit ? C.gold : C.text, whiteSpace: 'pre-wrap' }}>
                     {textContent}
                     {msg.isLimit && (
                       <a href="/pricing" style={{ display: 'inline-block', marginTop: 8, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>⬆ Upgrade Plan</a>
@@ -729,24 +929,25 @@ function DreamChat({ user, onSignIn }) {
           )}
           <div ref={bottomRef} />
         </div>
-
-        {lastAiIndex >= 0 && !loading && (
+        {(lastAiIndex >= 0 || lastGenerationPromptRef.current) && !loading && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <img src={generatedImages[lastAiIndex]} alt={`AI generated artwork — ${(messages[lastAiIndex]?.content || '').slice(0, 100)}`} onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
-                  className="neon-img-frame"
-                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in', flexShrink: 0 }} />
+                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in', flexShrink: 0 }} />
+                {/* Regenerate */}
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
                   title="Generate again"
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer' }}>
                   🔄
                 </button>
+                {/* Refine */}
                 <button onClick={() => refineImage(lastAiIndex)}
                   title="Refine with Dream AI"
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
                   ✏️ Refine
                 </button>
+                {/* Publish toggle */}
                 {autoSavedIds[lastAiIndex] && (
                   <button onClick={() => togglePublish(lastAiIndex)}
                     title={publishedIds.has(autoSavedIds[lastAiIndex]) ? 'Remove from public gallery' : 'Publish to gallery'}
@@ -754,15 +955,18 @@ function DreamChat({ user, onSignIn }) {
                     {publishedIds.has(autoSavedIds[lastAiIndex]) ? '🌐 Public' : '🔒 Private'}
                   </button>
                 )}
+                {/* Sell */}
                 <button onClick={() => setCreateProductImage(generatedImages[lastAiIndex])}
                   style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                   🛍 Sell
                 </button>
+                {/* Download */}
                 <a href={generatedImages[lastAiIndex]} download="dreamscape-art.png" target="_blank"
                   title="Download"
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'none' }}>
                   ↓
                 </a>
+                {/* Auto-save indicator */}
                 <span style={{ fontSize: 10, color: autoSavedIds[lastAiIndex] ? C.teal : C.muted, marginLeft: 'auto' }}>
                   {autoSavedIds[lastAiIndex] ? '✅ Saved to profile' : '💾 Saving...'}
                 </span>
@@ -773,12 +977,16 @@ function DreamChat({ user, onSignIn }) {
                 <button onClick={() => {
                   if (generatingIndex !== null) return
                   if (pendingPrompt) {
+                    // First click — use pending prompt and store it for retries
                     const { prompt, refImage } = pendingPrompt
                     setPendingPrompt(null)
+                    lastGenerationPromptRef.current = prompt
                     generateImage(prompt, messages.length - 1, refImage)
-                  } else {
-                    generateImage(messages[lastAiIndex].content, lastAiIndex)
+                  } else if (lastGenerationPromptRef.current) {
+                    // Retry after error — use the stored real prompt, never Dream's chat text
+                    generateImage(lastGenerationPromptRef.current, messages.length - 1)
                   }
+                  // If neither exists the button won't be visible anyway
                 }} disabled={generatingIndex !== null}
                   style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer', animation: generatingIndex === null ? 'generatePulse 2s ease-in-out infinite' : 'none', minWidth: 180, textAlign: 'center' }}>
                   {generatingIndex !== null ? [
@@ -800,8 +1008,8 @@ function DreamChat({ user, onSignIn }) {
             )}
           </div>
         )}
-
         <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+          {/* Reference image preview */}
           {referenceImage && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, background: C.bg, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 12px' }}>
               <img src={referenceImage.dataUrl} alt="Reference" style={{ width: 40, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
@@ -821,9 +1029,8 @@ function DreamChat({ user, onSignIn }) {
             </button>
             <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Describe your vision or ask Dream anything..."
-              className="neon-input"
-              style={{ flex: 1, background: C.bg, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-            <button onClick={send} disabled={loading || !input.trim()} className={loading || !input.trim() ? '' : 'neon-btn-primary'} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
+              style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+            <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
           </div>
         </div>
       </div>
@@ -857,17 +1064,23 @@ function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true 
   }, [onClose])
 
   return (
-    <div onClick={onClose}
+    <div
+      onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
       <style>{`@keyframes lbIn { from { opacity:0; transform: scale(0.94) } to { opacity:1; transform: scale(1) } }`}</style>
       <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
+        {/* Close */}
         <button onClick={onClose}
           style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           ✕
         </button>
-        <img src={image.src} alt={image.alt}
+        {/* Image */}
+        <img
+          src={image.src}
+          alt={image.alt}
           style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '75vh', objectFit: 'contain', background: C.panel }}
         />
+        {/* Caption */}
         {(image.title || image.prompt) && (
           <div style={{ marginTop: 14, textAlign: 'center' }}>
             {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
@@ -875,6 +1088,7 @@ function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true 
             {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '…' : ''}</div>}
           </div>
         )}
+        {/* Actions */}
         {showActions && (
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
             {onSell && (
@@ -910,7 +1124,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
   const [expanded, setExpanded] = useState(null)
   const [hover, setHover] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
-  const [lightbox, setLightbox] = useState(null)
+  const [lightbox, setLightbox] = useState(null) // { src, alt, title, prompt, username }
 
   if (loading) return <Spinner />
   if (!artworks.length) return (
@@ -930,7 +1144,14 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
   const openLightbox = (e, art) => {
     if (!art.image_url) return
     e.stopPropagation()
-    setLightbox({ src: art.image_url, alt: artAltTag(art), title: art.title, prompt: art.prompt, username: art.profiles?.username, art })
+    setLightbox({
+      src: art.image_url,
+      alt: artAltTag(art),
+      title: art.title,
+      prompt: art.prompt,
+      username: art.profiles?.username,
+      art,
+    })
   }
 
   return (
@@ -953,68 +1174,71 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
               {art.image_url
                 ? <img src={art.image_url} alt={artAltTag(art)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
                 : '🎨'}
+              {/* Zoom hint on hover */}
               {art.image_url && hover === art.id && !isOwner && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ background: 'rgba(8,11,20,0.75)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#fff' }}>🔍 View</div>
                 </div>
               )}
-              <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
-                {art.is_public ? '🌐 Public' : '🔒 Private'}
+            {/* Public/private badge */}
+            <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
+              {art.is_public ? '🌐 Public' : '🔒 Private'}
+            </div>
+            {/* Owner quick actions on hover */}
+            {isOwner && hover === art.id && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
+                onClick={e => e.stopPropagation()}>
+                <button onClick={(e) => handlePublish(e, art)} disabled={togglingId === art.id}
+                  style={{ background: art.is_public ? `${C.teal}30` : `${C.accent}30`, border: `1px solid ${art.is_public ? C.teal + '66' : C.accent + '66'}`, borderRadius: 8, padding: '7px 12px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Make Private' : '🌐 Publish'}
+                </button>
+                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
+                  style={{ background: `${C.accent}30`, border: `1px solid ${C.accent}66`, borderRadius: 8, padding: '7px 12px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell
+                </button>
               </div>
-              {isOwner && hover === art.id && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
-                  onClick={e => e.stopPropagation()}>
-                  <button onClick={(e) => handlePublish(e, art)} disabled={togglingId === art.id}
-                    style={{ background: art.is_public ? `${C.teal}30` : `${C.accent}30`, border: `1px solid ${art.is_public ? C.teal + '66' : C.accent + '66'}`, borderRadius: 8, padding: '7px 12px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                    {togglingId === art.id ? '...' : art.is_public ? '🔒 Make Private' : '🌐 Publish'}
-                  </button>
-                  <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
-                    style={{ background: `${C.accent}30`, border: `1px solid ${C.accent}66`, borderRadius: 8, padding: '7px 12px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                    🛍 Sell
-                  </button>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: '14px 16px' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{art.title}</div>
-              {art.profiles?.username && (
-                <div onClick={e => { e.stopPropagation(); navigate(`/u/${art.profiles.username}`) }}
-                  style={{ fontSize: 11, color: C.accent, marginBottom: 6, cursor: 'pointer' }}>@{art.profiles.username}</div>
-              )}
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? 300 : 36, transition: 'max-height 0.3s' }}>{art.prompt}</div>
-              {art.style_tags?.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                  {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
-                </div>
-              )}
-              {isOwner && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={e => { e.stopPropagation(); handlePublish(e, art) }} disabled={togglingId === art.id}
-                    style={{ flex: 1, background: art.is_public ? `${C.teal}18` : `${C.accent}18`, border: `1px solid ${art.is_public ? C.teal + '33' : C.accent + '33'}`, borderRadius: 8, padding: '6px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 80 }}>
-                    {togglingId === art.id ? '...' : art.is_public ? '🔒 Private' : '🌐 Publish'}
-                  </button>
-                  <button onClick={e => { e.stopPropagation(); onRefine && onRefine(art) }}
-                    style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 70 }}>
-                    ✏️ Refine
-                  </button>
-                  <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
-                    style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 60 }}>
-                    🛍 Sell
-                  </button>
-                  {onDelete && (
-                    <button onClick={e => { e.stopPropagation(); onDelete && onDelete(art) }}
-                      title="Delete artwork"
-                      style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
-                      🗑
-                    </button>
-                  )}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-            </div>
+            )}
           </div>
-        ))}
-      </div>
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{art.title}</div>
+            {art.profiles?.username && (
+              <div onClick={e => { e.stopPropagation(); navigate(`/u/${art.profiles.username}`) }}
+                style={{ fontSize: 11, color: C.accent, marginBottom: 6, cursor: 'pointer' }}>@{art.profiles.username}</div>
+            )}
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? 300 : 36, transition: 'max-height 0.3s' }}>{art.prompt}</div>
+            {art.style_tags?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
+              </div>
+            )}
+            {isOwner && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                <button onClick={e => { e.stopPropagation(); handlePublish(e, art) }} disabled={togglingId === art.id}
+                  style={{ flex: 1, background: art.is_public ? `${C.teal}18` : `${C.accent}18`, border: `1px solid ${art.is_public ? C.teal + '33' : C.accent + '33'}`, borderRadius: 8, padding: '6px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 80 }}>
+                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Private' : '🌐 Publish'}
+                </button>
+                <button onClick={e => { e.stopPropagation(); onRefine && onRefine(art) }}
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 70 }}>
+                  ✏️ Refine
+                </button>
+                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 60 }}>
+                  🛍 Sell
+                </button>
+                {onDelete && (
+                  <button onClick={e => { e.stopPropagation(); onDelete && onDelete(art) }}
+                    title="Delete artwork"
+                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+                    🗑
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          </div>
+        </div>
+      ))}
+    </div>
     </>
   )
 }
@@ -1042,7 +1266,7 @@ function AgeGate({ onPass }) {
   const [day, setDay] = useState('')
   const [year, setYear] = useState('')
   const [error, setError] = useState('')
-  const [blocked, setBlocked] = useState(null)
+  const [blocked, setBlocked] = useState(null) // null | 'u13' | 'u18'
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 100 }, (_, i) => currentYear - i)
@@ -1078,7 +1302,9 @@ function AgeGate({ onPass }) {
       <div style={{ textAlign: 'center', maxWidth: 400 }}>
         <div style={{ fontSize: 64, marginBottom: 20 }}>🎨</div>
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: C.text, marginBottom: 12 }}>Come Back Soon!</h2>
-        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7 }}>Dreamscape is for artists aged 13 and over. We can't wait to see what you create when you're older! 🌟</p>
+        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7 }}>
+          Dreamscape is for artists aged 13 and over. We can't wait to see what you create when you're older! 🌟
+        </p>
       </div>
     </div>
   )
@@ -1088,16 +1314,21 @@ function AgeGate({ onPass }) {
       <div style={{ textAlign: 'center', maxWidth: 440 }}>
         <div style={{ fontSize: 64, marginBottom: 20 }}>✦</div>
         <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, color: C.text, marginBottom: 12 }}>Almost There!</h2>
-        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, marginBottom: 24 }}>Dreamscape is currently available to artists 18 and over. We're working on a version for younger creators — check back on your 18th birthday! 🎂</p>
-        <p style={{ color: C.muted, fontSize: 12 }}>In the meantime, explore AI art at <a href="https://google.com" style={{ color: C.accent }}>Google's Arts & Culture</a>.</p>
+        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, marginBottom: 24 }}>
+          Dreamscape is currently available to artists 18 and over. We're working on a version for younger creators — check back on your 18th birthday! 🎂
+        </p>
+        <p style={{ color: C.muted, fontSize: 12 }}>
+          In the meantime, explore AI art at <a href="https://google.com" style={{ color: C.accent }}>Google's Arts & Culture</a>.
+        </p>
       </div>
     </div>
   )
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(8,11,20,0.98)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <CosmicBackground />
+      <StarField />
       <div style={{ position: 'relative', zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, padding: '40px 36px', maxWidth: 440, width: '100%', textAlign: 'center' }}>
+        {/* Logo */}
         <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: '#fff', margin: '0 auto 20px' }}>✦</div>
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 8 }}>
           Welcome to <span style={{ color: C.accent }}>Dream</span>scape
@@ -1106,6 +1337,8 @@ function AgeGate({ onPass }) {
           To continue, please enter your date of birth.<br />
           <span style={{ fontSize: 12 }}>Dreamscape is for users aged 18 and over.</span>
         </p>
+
+        {/* DOB dropdowns */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: 10, marginBottom: 20 }}>
           <select value={month} onChange={e => setMonth(e.target.value)} style={sel}>
             <option value="" disabled>Month</option>
@@ -1120,13 +1353,18 @@ function AgeGate({ onPass }) {
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
+
         {error && (
-          <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '9px 14px', marginBottom: 16, fontSize: 13, color: '#ff6b6b' }}>{error}</div>
+          <div style={{ background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '9px 14px', marginBottom: 16, fontSize: 13, color: '#ff6b6b' }}>
+            {error}
+          </div>
         )}
+
         <button onClick={handleConfirm}
           style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
           Continue ✦
         </button>
+
         <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.6 }}>
           By continuing you confirm you are 18+ and agree to our{' '}
           <a href="/terms" style={{ color: C.accent }}>Terms of Service</a> and{' '}
@@ -1144,6 +1382,7 @@ function AgeGate({ onPass }) {
 
 // ── Image Crop / Pan / Zoom Editor ───────────────────────────
 function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect' }) {
+  // aspectRatio: e.g. 1 for avatar (square), 3 for banner (3:1)
   const canvasRef = useRef(null)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -1178,6 +1417,7 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
 
     ctx.drawImage(img, x, y, drawW, drawH)
 
+    // Dim outside the crop circle for avatars
     if (shape === 'circle') {
       ctx.save()
       ctx.fillStyle = 'rgba(8,11,20,0.6)'
@@ -1188,6 +1428,7 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
       ctx.arc(CANVAS_W / 2, CANVAS_H / 2, r, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
+      // Circle guide border
       ctx.strokeStyle = C.accent
       ctx.lineWidth = 2
       ctx.setLineDash([4, 4])
@@ -1196,6 +1437,7 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
       ctx.stroke()
       ctx.setLineDash([])
     } else {
+      // Banner guide border
       ctx.strokeStyle = C.accent
       ctx.lineWidth = 2
       ctx.setLineDash([6, 4])
@@ -1223,8 +1465,16 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
     setDragStart(pos)
   }
   const onMouseUp = () => { setDragging(false); setDragStart(null) }
-  const onWheel = (e) => { e.preventDefault(); setZoom(z => Math.max(0.5, Math.min(4, z - e.deltaY * 0.001))) }
-  const handleConfirm = () => { const canvas = canvasRef.current; canvas.toBlob(blob => onConfirm(blob), 'image/jpeg', 0.92) }
+
+  const onWheel = (e) => {
+    e.preventDefault()
+    setZoom(z => Math.max(0.5, Math.min(4, z - e.deltaY * 0.001)))
+  }
+
+  const handleConfirm = () => {
+    const canvas = canvasRef.current
+    canvas.toBlob(blob => onConfirm(blob), 'image/jpeg', 0.92)
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1233,13 +1483,26 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
           {shape === 'circle' ? '📸 Crop Profile Picture' : '🖼 Crop Banner Image'}
         </div>
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Drag to reposition · Scroll or use slider to zoom
+          Drag to reposition · Scroll or use slider to zoom · {shape === 'circle' ? 'Circle shows what visitors see' : 'Rectangle shows what visitors see'}
         </div>
-        <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-          onTouchStart={onMouseDown} onTouchMove={onMouseMove} onTouchEnd={onMouseUp} onWheel={onWheel}
+
+        {/* Canvas */}
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_W}
+          height={CANVAS_H}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onTouchStart={onMouseDown}
+          onTouchMove={onMouseMove}
+          onTouchEnd={onMouseUp}
+          onWheel={onWheel}
           style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', display: 'block', background: C.bg, border: `1px solid ${C.border}` }}
         />
+
+        {/* Zoom slider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
           <span style={{ fontSize: 12, color: C.muted }}>🔍</span>
           <input type="range" min="50" max="300" value={Math.round(zoom * 100)}
@@ -1247,11 +1510,17 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
             style={{ flex: 1, accentColor: C.accent }} />
           <span style={{ fontSize: 12, color: C.text, minWidth: 36 }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }) }}
-            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>Reset</button>
+            style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+            Reset
+          </button>
         </div>
+
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button onClick={onCancel} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handleConfirm} style={{ flex: 2, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Use This ✦</button>
+          <button onClick={handleConfirm} style={{ flex: 2, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Use This ✦
+          </button>
         </div>
       </div>
     </div>
@@ -1262,7 +1531,7 @@ function ImageCropEditor({ src, aspectRatio, onConfirm, onCancel, shape = 'rect'
 function EditProfileModal({ user, profile, onClose, onSave }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [username, setUsername] = useState(profile?.username || '')
-  const [usernameStatus, setUsernameStatus] = useState('unchanged')
+  const [usernameStatus, setUsernameStatus] = useState('unchanged') // 'unchanged' | 'checking' | 'available' | 'taken' | 'invalid'
   const usernameCheckRef = useRef(null)
   const [bio, setBio] = useState(profile?.bio || '')
   const [location, setLocation] = useState(profile?.location || '')
@@ -1279,8 +1548,8 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [activeSection, setActiveSection] = useState('basic')
   const avatarRef = useRef(null)
   const bannerRef = useRef(null)
-  const [cropSrc, setCropSrc] = useState(null)
-  const [cropType, setCropType] = useState(null)
+  const [cropSrc, setCropSrc] = useState(null)     // raw src waiting to be cropped
+  const [cropType, setCropType] = useState(null)   // 'avatar' | 'banner'
 
   const handleImageSelect = (file, type) => {
     if (!file) return
@@ -1302,14 +1571,28 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   }
 
   const handleUsernameChange = (val) => {
+    // Sanitise: lowercase, alphanumeric + underscore + hyphen only
     const clean = val.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
     setUsername(clean)
+
+    // No check needed if unchanged
     if (clean === profile?.username) { setUsernameStatus('unchanged'); return }
-    if (clean.length < 3 || !/^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/.test(clean)) { setUsernameStatus('invalid'); return }
+
+    // Validate format: 3-30 chars, letters/numbers/underscore/hyphen
+    if (clean.length < 3 || !/^[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]$/.test(clean)) {
+      setUsernameStatus('invalid'); return
+    }
+
+    // Debounced availability check
     setUsernameStatus('checking')
     clearTimeout(usernameCheckRef.current)
     usernameCheckRef.current = setTimeout(async () => {
-      const { data } = await supabase.from('profiles').select('id').eq('username', clean).neq('id', user.id).maybeSingle()
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', clean)
+        .neq('id', user.id) // exclude self
+        .maybeSingle()
       setUsernameStatus(data ? 'taken' : 'available')
     }, 500)
   }
@@ -1317,18 +1600,23 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const uploadImage = async (file, bucket, pathPrefix) => {
     const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
     const path = `${pathPrefix}.${ext}`
+    console.log(`Uploading to ${bucket}/${path}`, file.type, file.size)
     await supabase.storage.from(bucket).remove([path])
     const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type })
-    if (error) throw error
+    if (error) { console.error('Upload error:', error); throw error }
     const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
-    return `${publicUrl}?t=${Date.now()}`
+    const url = `${publicUrl}?t=${Date.now()}`
+    console.log('Upload success, URL:', url)
+    return url
   }
 
   const handleSave = async () => {
     setSaving(true); setError('')
+    // Block save if username is in a bad state
     if (usernameStatus === 'taken') { setError('That username is already taken. Please choose another.'); setSaving(false); return }
     if (usernameStatus === 'invalid') { setError('Username must be 3–30 characters and only contain letters, numbers, underscores, or hyphens.'); setSaving(false); return }
     if (usernameStatus === 'checking') { setError('Still checking username availability — please wait a moment.'); setSaving(false); return }
+    // If username changed, do a final availability check before committing
     if (usernameStatus === 'available') {
       const { data: conflict } = await supabase.from('profiles').select('id').eq('username', username).neq('id', user.id).maybeSingle()
       if (conflict) { setError('That username was just taken. Please choose another.'); setSaving(false); return }
@@ -1340,31 +1628,43 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
       if (bannerFile) bannerUrl = await uploadImage(bannerFile, 'banners', `${user.id}/banner`)
       const tags = styleTags.split(',').map(t => t.trim()).filter(Boolean)
       const updates = {
-        id: user.id, username: username || profile?.username,
-        display_name: displayName.trim() || null, bio: bio.trim() || null,
-        location: location.trim() || null, website: website.trim() || null,
-        artist_statement: artistStatement.trim() || null, style_tags: tags,
-        avatar_url: avatarUrl, banner_url: bannerUrl,
-        date_of_birth: dob || null, updated_at: new Date().toISOString(),
+        id: user.id,
+        username: username || profile?.username,
+        display_name: displayName.trim() || null,
+        bio: bio.trim() || null,
+        location: location.trim() || null,
+        website: website.trim() || null,
+        artist_statement: artistStatement.trim() || null,
+        style_tags: tags,
+        avatar_url: avatarUrl,
+        banner_url: bannerUrl,
+        date_of_birth: dob || null,
+        updated_at: new Date().toISOString(),
       }
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
       if (upsertErr) throw upsertErr
-      onSave(updates); onClose()
-    } catch (err) { setError(err.message || 'Something went wrong.') }
+      onSave(updates)
+      onClose()
+    } catch (err) {
+      setError(err.message || 'Something went wrong.')
+    }
     setSaving(false)
   }
 
   const sections = [['basic', '👤 Basic'], ['artist', '🎨 Artist'], ['images', '🖼 Images']]
+
   const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
   const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>Edit Profile</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
+        {/* Section tabs */}
         <div style={{ display: 'flex', gap: 4, padding: '12px 24px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {sections.map(([id, label]) => (
             <button key={id} onClick={() => setActiveSection(id)}
@@ -1373,12 +1673,16 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
             </button>
           ))}
         </div>
+        {/* Body */}
         <div style={{ overflowY: 'auto', padding: '20px 24px', flex: 1 }}>
           {activeSection === 'basic' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Username */}
               <div>
                 <label style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between' }}>
                   Username
+                  {/* Live status indicator */}
                   {usernameStatus === 'unchanged' && <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>current: @{profile?.username}</span>}
                   {usernameStatus === 'checking'  && <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>⏳ Checking...</span>}
                   {usernameStatus === 'available' && <span style={{ fontSize: 11, color: C.teal, fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>✅ Available</span>}
@@ -1387,13 +1691,26 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                 </label>
                 <div style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>@</span>
-                  <input value={username} onChange={e => handleUsernameChange(e.target.value)} placeholder={profile?.username || 'yourhandle'} maxLength={30}
-                    style={{ ...inputStyle, paddingLeft: 28, borderColor: usernameStatus === 'taken' ? C.red + '88' : usernameStatus === 'available' ? C.teal + '88' : usernameStatus === 'invalid' ? C.gold + '88' : C.border }} />
+                  <input
+                    value={username}
+                    onChange={e => handleUsernameChange(e.target.value)}
+                    placeholder={profile?.username || 'yourhandle'}
+                    maxLength={30}
+                    style={{
+                      ...inputStyle,
+                      paddingLeft: 28,
+                      borderColor: usernameStatus === 'taken'     ? C.red + '88'
+                                 : usernameStatus === 'available' ? C.teal + '88'
+                                 : usernameStatus === 'invalid'   ? C.gold + '88'
+                                 : C.border,
+                    }}
+                  />
                 </div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                  Your public profile lives at trydreamscape.com/u/<strong style={{ color: C.accent }}>{username || profile?.username}</strong>.
+                  Your public profile lives at trydreamscape.com/u/<strong style={{ color: C.accent }}>{username || profile?.username}</strong>. Changing it frees up your old handle for others.
                 </div>
               </div>
+
               <div>
                 <label style={labelStyle}>Display Name</label>
                 <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your full name or artist name" maxLength={60} style={inputStyle} />
@@ -1408,8 +1725,9 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                 <input value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" maxLength={80} style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>Date of Birth <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(private)</span></label>
-                <input type="date" value={dob} onChange={e => setDob(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                <label style={labelStyle}>Date of Birth <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(private — used for age compliance)</span></label>
+                <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                  style={{ ...inputStyle, colorScheme: 'dark' }} />
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>🔒 Never shared or displayed publicly.</div>
               </div>
               <div>
@@ -1422,7 +1740,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={labelStyle}>Artist Statement</label>
-                <textarea value={artistStatement} onChange={e => setArtistStatement(e.target.value)} placeholder="Tell the world about your work..." maxLength={600} rows={6} style={{ ...inputStyle, resize: 'none' }} />
+                <textarea value={artistStatement} onChange={e => setArtistStatement(e.target.value)} placeholder="Tell the world about your work, your inspiration, your process..." maxLength={600} rows={6} style={{ ...inputStyle, resize: 'none' }} />
                 <div style={{ fontSize: 11, color: C.muted, textAlign: 'right', marginTop: 4 }}>{artistStatement.length}/600</div>
               </div>
               <div>
@@ -1440,6 +1758,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
           )}
           {activeSection === 'images' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {/* Avatar */}
               <div>
                 <label style={labelStyle}>Profile Picture</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -1456,6 +1775,8 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                 </div>
                 <input ref={avatarRef} type="file" accept="image/*" onChange={e => { handleImageSelect(e.target.files?.[0], 'avatar'); e.target.value = '' }} style={{ display: 'none' }} />
               </div>
+
+              {/* Banner */}
               <div>
                 <label style={labelStyle}>Banner Image</label>
                 <div onClick={() => bannerRef.current?.click()} style={{ width: '100%', height: 120, borderRadius: 12, background: bannerPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}20, ${C.teal}20)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
@@ -1463,6 +1784,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 24, marginBottom: 6 }}>🖼</div>
                       <div style={{ fontSize: 12, color: C.muted }}>Click to upload banner</div>
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Recommended: 1500×500px</div>
                     </div>
                   )}
                 </div>
@@ -1473,10 +1795,13 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                   )}
                 </div>
                 <input ref={bannerRef} type="file" accept="image/*" onChange={e => { handleImageSelect(e.target.files?.[0], 'banner'); e.target.value = '' }} style={{ display: 'none' }} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>💡 Recommended: <span style={{ color: C.text }}>1500×500px</span> (3:1 ratio). The center shows best on all screens.</div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Footer */}
         {error && <div style={{ margin: '0 24px', background: '#ff6b6b18', border: '1px solid #ff6b6b44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#ff6b6b', flexShrink: 0 }}>{error}</div>}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0 }}>
           <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
@@ -1487,9 +1812,16 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
           </button>
         </div>
       </div>
+
+      {/* Crop editor — position:fixed so renders above everything, outside modal container */}
       {cropSrc && (
-        <ImageCropEditor src={cropSrc} aspectRatio={cropType === 'avatar' ? 1 : 3} shape={cropType === 'avatar' ? 'circle' : 'rect'}
-          onConfirm={handleCropConfirm} onCancel={() => { setCropSrc(null); setCropType(null) }} />
+        <ImageCropEditor
+          src={cropSrc}
+          aspectRatio={cropType === 'avatar' ? 1 : 3}
+          shape={cropType === 'avatar' ? 'circle' : 'rect'}
+          onConfirm={handleCropConfirm}
+          onCancel={() => { setCropSrc(null); setCropType(null) }}
+        />
       )}
     </div>
   )
@@ -1499,7 +1831,11 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
 function ShareButton({ username }) {
   const [copied, setCopied] = useState(false)
   const url = `https://trydreamscape.com/u/${username}`
-  const handleCopy = () => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
   return (
     <button onClick={handleCopy}
       style={{ background: copied ? `${C.teal}20` : 'none', border: `1px solid ${copied ? C.teal + '55' : C.border}`, borderRadius: 10, padding: '8px 16px', color: copied ? C.teal : C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
@@ -1510,6 +1846,7 @@ function ShareButton({ username }) {
 
 // ── Follow List Modal ─────────────────────────────────────────
 function FollowListModal({ type, profileId, viewerUser, onClose }) {
+  // type: 'followers' | 'following'
   const navigate = useNavigate()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1522,15 +1859,28 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
     setLoading(true)
     let data
     if (type === 'followers') {
-      const { data: rows } = await supabase.from('follows').select('follower_id, profiles!follows_follower_id_fkey(id, username, display_name, avatar_url, bio)').eq('following_id', profileId)
+      // People who follow this profile
+      const { data: rows } = await supabase
+        .from('follows')
+        .select('follower_id, profiles!follows_follower_id_fkey(id, username, display_name, avatar_url, bio)')
+        .eq('following_id', profileId)
       data = rows?.map(r => r.profiles).filter(Boolean) || []
     } else {
-      const { data: rows } = await supabase.from('follows').select('following_id, profiles!follows_following_id_fkey(id, username, display_name, avatar_url, bio)').eq('follower_id', profileId)
+      // People this profile follows
+      const { data: rows } = await supabase
+        .from('follows')
+        .select('following_id, profiles!follows_following_id_fkey(id, username, display_name, avatar_url, bio)')
+        .eq('follower_id', profileId)
       data = rows?.map(r => r.profiles).filter(Boolean) || []
     }
     setUsers(data)
+
+    // Load viewer's current following list for follow buttons
     if (viewerUser) {
-      const { data: myFollows } = await supabase.from('follows').select('following_id').eq('follower_id', viewerUser.id)
+      const { data: myFollows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', viewerUser.id)
       setFollowingIds(new Set(myFollows?.map(f => f.following_id) || []))
     }
     setLoading(false)
@@ -1554,10 +1904,15 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 460, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Header */}
         <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>{type === 'followers' ? '👥 Followers' : '✦ Following'}</h3>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>
+            {type === 'followers' ? '👥 Followers' : '✦ Following'}
+          </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
+
+        {/* List */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {loading ? (
             <div style={{ padding: '40px 0', textAlign: 'center' }}>
@@ -1569,22 +1924,42 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
           ) : users.length === 0 ? (
             <div style={{ padding: '48px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>✦</div>
-              <p style={{ color: C.muted, fontSize: 14 }}>{type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}</p>
+              <p style={{ color: C.muted, fontSize: 14 }}>
+                {type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+              </p>
             </div>
           ) : (
             users.map(u => (
               <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px', borderBottom: `1px solid ${C.border}` }}>
-                <div onClick={() => { navigate(`/u/${u.username}`); onClose() }}
+                {/* Avatar */}
+                <div
+                  onClick={() => { navigate(`/u/${u.username}`); onClose() }}
                   style={{ width: 44, height: 44, borderRadius: '50%', background: u.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff' }}>
-                  {u.avatar_url ? <img src={u.avatar_url} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.username?.[0]?.toUpperCase()}
+                  {u.avatar_url
+                    ? <img src={u.avatar_url} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : u.username?.[0]?.toUpperCase()}
                 </div>
+                {/* Info */}
                 <div onClick={() => { navigate(`/u/${u.username}`); onClose() }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.display_name || u.username}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {u.display_name || u.username}
+                  </div>
                   <div style={{ fontSize: 12, color: C.accent }}>@{u.username}</div>
                 </div>
+                {/* Follow button — only show if viewer is logged in and it's not themselves */}
                 {viewerUser && u.id !== viewerUser.id && (
-                  <button onClick={() => toggleFollow(u.id)} disabled={togglingId === u.id}
-                    style={{ background: followingIds.has(u.id) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${followingIds.has(u.id) ? C.border : 'transparent'}`, borderRadius: 8, padding: '6px 14px', color: followingIds.has(u.id) ? C.muted : '#fff', fontSize: 12, fontWeight: 600, cursor: togglingId === u.id ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
+                  <button
+                    onClick={() => toggleFollow(u.id)}
+                    disabled={togglingId === u.id}
+                    style={{
+                      background: followingIds.has(u.id) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+                      border: `1px solid ${followingIds.has(u.id) ? C.border : 'transparent'}`,
+                      borderRadius: 8, padding: '6px 14px',
+                      color: followingIds.has(u.id) ? C.muted : '#fff',
+                      fontSize: 12, fontWeight: 600,
+                      cursor: togglingId === u.id ? 'not-allowed' : 'pointer',
+                      flexShrink: 0,
+                    }}>
                     {togglingId === u.id ? '...' : followingIds.has(u.id) ? 'Following ✓' : '+ Follow'}
                   </button>
                 )}
@@ -1597,7 +1972,7 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
   )
 }
 
-// ── Profile Header ────────────────────────────────────────────
+// ── Profile Header (shared by ProfilePage + ArtistProfilePage) ─
 function ProfileHeader({ profile, artworkCount, followerCount, followingCount, salesCount, isOwnProfile, viewerUser, onEdit, onFollow, followLoading, isFollowing, onStatClick }) {
   const navigate = useNavigate()
   const avatarLetter = profile?.username?.[0]?.toUpperCase() || '?'
@@ -1606,19 +1981,25 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
 
   return (
     <div style={{ marginBottom: 0 }}>
+      {/* Banner */}
       <div style={{ width: '100%', height: 180, borderRadius: '16px 16px 0 0', background: profile?.banner_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}30, ${C.teal}20, #FF6B9D18)`, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
         {profile?.banner_url && <img src={profile.banner_url} alt="Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         {isOwnProfile && (
           <button onClick={onEdit} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.7)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.text, fontSize: 12, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>✏️ Edit Profile</button>
         )}
       </div>
+
+      {/* Profile card */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 16px 16px', padding: '0 24px 24px' }}>
+        {/* Avatar row */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ width: 92, height: 92, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `3px solid ${C.bg}`, outline: `2px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 700, color: '#fff', overflow: 'hidden', marginTop: -46, flexShrink: 0, position: 'relative', zIndex: 2 }}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarLetter}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {isOwnProfile && <button onClick={onEdit} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 18px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit Profile</button>}
+            {isOwnProfile && (
+              <button onClick={onEdit} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 18px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit Profile</button>
+            )}
             {!isOwnProfile && viewerUser && (
               <button onClick={onFollow} disabled={followLoading} style={{ background: isFollowing ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${isFollowing ? C.border : 'transparent'}`, borderRadius: 10, padding: '8px 20px', color: isFollowing ? C.muted : '#fff', fontSize: 13, fontWeight: 600, cursor: followLoading ? 'not-allowed' : 'pointer' }}>
                 {followLoading ? '...' : isFollowing ? 'Following ✓' : '+ Follow'}
@@ -1630,6 +2011,8 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
             <ShareButton username={profile?.username} />
           </div>
         </div>
+
+        {/* Name + username + meta */}
         <div style={{ marginBottom: 12 }}>
           {profile?.display_name && <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 2 }}>{profile.display_name}</div>}
           <div style={{ fontSize: 14, color: C.muted, marginBottom: 8 }}>@{profile?.username}</div>
@@ -1640,11 +2023,17 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
             {joinedDate && <span>📅 Joined {joinedDate}</span>}
           </div>
         </div>
+
+        {/* Style tags */}
         {tags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-            {tags.map(tag => <span key={tag} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
+            {tags.map(tag => (
+              <span key={tag} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+            ))}
           </div>
         )}
+
+        {/* Stats row */}
         <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
           {[
             { count: artworkCount,   label: 'Artworks',  key: 'artwork',   clickable: true },
@@ -1652,7 +2041,8 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
             { count: followingCount, label: 'Following', key: 'following', clickable: true },
             { count: salesCount,     label: 'Sales',     key: 'shop',      clickable: isOwnProfile },
           ].map(({ count, label, key, clickable }) => (
-            <div key={label} onClick={() => clickable && onStatClick?.(key)}
+            <div key={label}
+              onClick={() => clickable && onStatClick?.(key)}
               style={{ cursor: clickable && onStatClick ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
               onMouseEnter={e => { if (clickable && onStatClick) e.currentTarget.style.opacity = '0.7' }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}>
@@ -1696,32 +2086,55 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
 
   const baseCost = getPrintfulBaseCost(product.product_type)
   const profit   = calcProfit(price, baseCost)
-  const marginColor = !profit ? C.muted : profit.earnings <= 0 ? C.red : profit.margin < 20 ? C.gold : C.teal
+  const marginColor = !profit ? C.muted
+    : profit.earnings <= 0 ? C.red
+    : profit.margin < 20   ? C.gold
+    : C.teal
 
   const STYLE_TAGS = ['Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art', 'Watercolor', 'Geometric', 'Psychedelic', 'Vintage']
+
   const toggleTag = (tag) => {
     const current = tags.split(',').map(t => t.trim()).filter(Boolean)
     const updated = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag]
     setTags(updated.join(', '))
   }
+
   const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean)
 
   const handleSave = async () => {
     if (!title.trim()) return setError('Product title is required.')
     if (!price || isNaN(parseFloat(price))) return setError('Please enter a valid price.')
+    // Profit guard — same rule as CreateProductModal
     if (baseCost != null && profit && profit.earnings <= 0) {
       const floor = (Math.ceil(profit.breakEven * 100) / 100).toFixed(2)
-      return setError(`Price is too low. You must charge at least $${floor} to cover Printful cost + fees.`)
+      return setError(`Price is too low. You must charge at least $${floor} to cover Printful cost + fees and make a profit.`)
     }
     setSaving(true); setError('')
     try {
-      const updates = { title: title.trim(), description: description.trim() || null, tags: currentTags, price: parseFloat(price), updated_at: new Date().toISOString() }
+      const updates = {
+        title: title.trim(),
+        description: description.trim() || null,
+        tags: currentTags,
+        price: parseFloat(price),
+        updated_at: new Date().toISOString(),
+      }
       const { error: err } = await supabase.from('products').update(updates).eq('id', product.id).eq('user_id', user.id)
       if (err) throw err
+
+      // Update Printful retail price so their records stay in sync
       if (product.printful_variant_ids?.length) {
-        fetch('/api/printful?action=updateVariantPrice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ variantIds: product.printful_variant_ids, retailPrice: parseFloat(price).toFixed(2) }) }).catch(() => {})
+        fetch('/api/printful?action=updateVariantPrice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            variantIds: product.printful_variant_ids,
+            retailPrice: parseFloat(price).toFixed(2),
+          }),
+        }).catch(() => {}) // fire and forget — don't block the save
       }
-      onSave({ ...product, ...updates }); onClose()
+
+      onSave({ ...product, ...updates })
+      onClose()
     } catch (e) { setError(e.message || 'Something went wrong.') }
     setSaving(false)
   }
@@ -1731,7 +2144,8 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
     try {
       const { error: err } = await supabase.from('products').delete().eq('id', product.id).eq('user_id', user.id)
       if (err) throw err
-      onDelete(product.id); onClose()
+      onDelete(product.id)
+      onClose()
     } catch (e) { setError(e.message || 'Failed to delete.') }
     setDeleting(false)
   }
@@ -1741,6 +2155,8 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 2 }}>Edit Product</h2>
@@ -1748,48 +2164,104 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
+
+        {/* Body */}
         <div style={{ overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Mockup preview */}
           {product.mockup_url && (
             <div style={{ width: '100%', height: 180, borderRadius: 12, overflow: 'hidden', background: `linear-gradient(135deg, ${C.accent}20, ${C.teal}15)` }}>
               <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
           )}
+
+          {/* Title */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               Product Title
               <span style={{ color: title.length > 80 ? C.red : title.length >= 20 ? C.teal : C.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>{title.length}/80</span>
             </label>
             <input value={title} onChange={e => setTitle(e.target.value)} style={{ ...inputStyle, borderColor: title.length > 80 ? '#FF4D4D88' : C.border }} placeholder="e.g. Cosmic Eagle All-Over Print T-Shirt" />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>💡 Include the product type and art style for better search visibility.</div>
           </div>
+
+          {/* Description */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }} placeholder="Describe your product..." />
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+              placeholder="Describe your product — materials, inspiration, what makes it special..." />
           </div>
+
+          {/* ── Pricing ── */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>Retail Price (USD)</label>
+
+            {/* Price input with color-coded border */}
             <div style={{ position: 'relative', marginBottom: 10 }}>
               <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
               <input type="number" value={price} onChange={e => setPrice(e.target.value)} min="1" step="0.01"
                 style={{ ...inputStyle, paddingLeft: 28, fontSize: 15, fontWeight: 700, borderColor: profit ? marginColor + '88' : C.border }} />
             </div>
+
+            {/* Quick-pick chips */}
+            {baseCost && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Break-even', val: profit ? Math.ceil(profit.breakEven * 100) / 100 : null, color: C.muted },
+                  { label: '40% margin', val: Math.ceil(baseCost * 2.4 * 100) / 100, color: C.teal },
+                  { label: '55% margin', val: Math.ceil(baseCost * 3.0 * 100) / 100, color: C.gold },
+                ].filter(c => c.val).map(chip => (
+                  <button key={chip.label} onClick={() => setPrice(chip.val.toFixed(2))}
+                    style={{ background: `${chip.color}15`, border: `1px solid ${chip.color}44`, borderRadius: 8, padding: '4px 10px', color: chip.color, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    {chip.label}: ${chip.val.toFixed(2)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Live profit breakdown */}
             {baseCost && profit && (
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>💰 Profit Breakdown</div>
+                <div style={{ padding: '9px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  💰 Profit Breakdown
+                </div>
                 {[
-                  { label: 'Printful base cost (est.)', val: `-$${baseCost.toFixed(2)}`, color: C.muted, bold: false },
-                  { label: 'Stripe fee (~2.9% + $0.30)', val: `-$${profit.stripeFee.toFixed(2)}`, color: C.muted, bold: false },
-                  { label: 'Dreamscape fee (10%)', val: `-$${profit.dreamscapeFee.toFixed(2)}`, color: C.muted, bold: false },
-                  { label: 'Your earnings', val: `$${profit.earnings.toFixed(2)}`, color: marginColor, bold: true },
-                  { label: 'Profit margin', val: `${Math.round(profit.margin)}%`, color: marginColor, bold: true },
+                  { label: 'Printful base cost (est.)', val: `-$${baseCost.toFixed(2)}`,              color: C.muted, bold: false },
+                  { label: 'Stripe fee (~2.9% + $0.30)',val: `-$${profit.stripeFee.toFixed(2)}`,      color: C.muted, bold: false },
+                  { label: 'Dreamscape fee (10%)',       val: `-$${profit.dreamscapeFee.toFixed(2)}`, color: C.muted, bold: false },
+                  { label: 'Your earnings',              val: `$${profit.earnings.toFixed(2)}`,       color: marginColor, bold: true },
+                  { label: 'Profit margin',              val: `${Math.round(profit.margin)}%`,        color: marginColor, bold: true },
                 ].map(row => (
                   <div key={row.label} style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
                     <span style={{ fontSize: 12, color: C.muted }}>{row.label}</span>
                     <span style={{ fontSize: 13, fontWeight: row.bold ? 700 : 400, color: row.color }}>{row.val}</span>
                   </div>
                 ))}
+                {/* Margin bar */}
+                <div style={{ padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 11, color: marginColor, fontWeight: 700 }}>
+                      {profit.earnings <= 0 ? '🚨 Below break-even' : profit.margin < 20 ? '⚠️ Low margin' : profit.margin < 35 ? '✅ Okay' : '✅ Healthy margin'}
+                    </span>
+                    <span style={{ fontSize: 11, color: C.muted }}>break-even: ${(Math.ceil(profit.breakEven * 100) / 100).toFixed(2)}</span>
+                  </div>
+                  <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, profit.margin))}%`, background: marginColor, borderRadius: 3, transition: 'width 0.3s' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No pricing data warning */}
+            {!baseCost && (
+              <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}33`, borderRadius: 8, padding: '9px 12px', fontSize: 12, color: C.gold, marginTop: 4 }}>
+                ⚠️ No estimated cost data for this product type. Check printful.com to verify your pricing covers the base cost.
               </div>
             )}
           </div>
+
+          {/* Style tags */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 8 }}>Style Tags</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
@@ -1800,13 +2272,27 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
                 </button>
               ))}
             </div>
+            <input value={tags} onChange={e => setTags(e.target.value)} style={inputStyle} placeholder="Or type custom tags, comma-separated..." />
+            {currentTags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                {currentTags.map(tag => (
+                  <span key={tag} onClick={() => toggleTag(tag)} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent, cursor: 'pointer' }}>{tag} ✕</span>
+                ))}
+              </div>
+            )}
           </div>
+
           {error && <div style={{ background: '#FF4D4D18', border: '1px solid #FF4D4D44', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#FF4D4D' }}>{error}</div>}
         </div>
+
+        {/* Footer */}
         <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
           {!confirmDelete ? (
             <>
-              <button onClick={() => setConfirmDelete(true)} style={{ background: '#FF4D4D18', border: '1px solid #FF4D4D44', borderRadius: 10, padding: '10px 16px', color: '#FF4D4D', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>🗑 Delete</button>
+              <button onClick={() => setConfirmDelete(true)}
+                style={{ background: '#FF4D4D18', border: '1px solid #FF4D4D44', borderRadius: 10, padding: '10px 16px', color: '#FF4D4D', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                🗑 Delete
+              </button>
               <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
               <button onClick={handleSave} disabled={saving || (baseCost != null && profit && profit.earnings <= 0)}
                 style={{ flex: 2, background: (saving || (baseCost != null && profit && profit.earnings <= 0)) ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: (saving || (baseCost != null && profit && profit.earnings <= 0)) ? 'not-allowed' : 'pointer' }}>
@@ -1817,7 +2303,8 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
             <>
               <div style={{ flex: 1, fontSize: 13, color: C.text, alignSelf: 'center' }}>Delete this product permanently?</div>
               <button onClick={() => setConfirmDelete(false)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>Keep It</button>
-              <button onClick={handleDelete} disabled={deleting} style={{ background: 'linear-gradient(135deg, #FF4D4D, #CC0000)', border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: deleting ? 'not-allowed' : 'pointer' }}>
+              <button onClick={handleDelete} disabled={deleting}
+                style={{ background: 'linear-gradient(135deg, #FF4D4D, #CC0000)', border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: deleting ? 'not-allowed' : 'pointer' }}>
                 {deleting ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </>
@@ -1828,18 +2315,31 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
   )
 }
 
-// ── Shop Card ─────────────────────────────────────────────────
+// ── Shop Card (public view) ───────────────────────────────────
 function ShopCard({ product }) {
   const [buying, setBuying] = useState(false)
+
   const handleBuy = async () => {
     setBuying(true)
     try {
-      const res = await fetch('/api/create-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productName: product.title, variantName: '', price: product.price || 29.99, imageUrl: product.mockup_url || '', printfulProductId: product.printful_product_id, printfulVariantId: product.printful_variant_ids?.[0] || '', quantity: 1 }) })
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: product.title,
+          variantName: '',
+          price: product.price || 29.99,
+          imageUrl: product.mockup_url || '',
+          printfulProductId: product.printful_product_id,
+          printfulVariantId: product.printful_variant_ids?.[0] || '',
+          quantity: 1,
+        }),
+      })
       const data = await res.json()
       if (data.url) window.location.href = data.url
     } catch { alert('Checkout failed.') }
     setBuying(false)
   }
+
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.2s' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
@@ -1850,9 +2350,15 @@ function ShopCard({ product }) {
       <div style={{ padding: '12px 14px' }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3, lineHeight: 1.3 }}>{product.title}</div>
         <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{product.product_type}</div>
+        {product.tags?.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+            {product.tags.slice(0, 2).map(tag => <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '1px 7px', fontSize: 10, color: C.accent }}>{tag}</span>)}
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>${parseFloat(product.price || 0).toFixed(2)}</span>
-          <button onClick={handleBuy} disabled={buying} style={{ background: buying ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: buying ? 'not-allowed' : 'pointer' }}>
+          <button onClick={handleBuy} disabled={buying}
+            style={{ background: buying ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: buying ? 'not-allowed' : 'pointer' }}>
             {buying ? '...' : 'Buy'}
           </button>
         </div>
@@ -1861,50 +2367,94 @@ function ShopCard({ product }) {
   )
 }
 
-// ── Owner Shop Card ───────────────────────────────────────────
+// ── Owner Shop Card (with edit/delete) ────────────────────────
 function OwnerShopCard({ product, user, onEdit, onDelete }) {
   const [showEdit, setShowEdit] = useState(false)
   const [currentProduct, setCurrentProduct] = useState(product)
-  const handleSave = (updated) => { setCurrentProduct(updated); onEdit(updated) }
+
+  const handleSave = (updated) => {
+    setCurrentProduct(updated)
+    onEdit(updated)
+  }
+
+  // Live profit calculation
   const baseCost = getPrintfulBaseCost(currentProduct.product_type)
   const profit   = calcProfit(currentProduct.price, baseCost)
-  const marginColor = !profit ? C.muted : profit.earnings <= 0 ? C.red : profit.margin < 20 ? C.gold : C.teal
+  const marginColor = !profit ? C.muted
+    : profit.earnings <= 0 ? C.red
+    : profit.margin < 20   ? C.gold
+    : C.teal
 
   return (
     <>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.2s', position: 'relative' }}
         onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '55'}
         onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+
+        {/* Edit overlay button on image */}
         <div style={{ position: 'relative' }}>
           <div style={{ aspectRatio: '1', background: `linear-gradient(135deg, ${C.accent}18, ${C.teal}18)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {currentProduct.mockup_url ? <img src={currentProduct.mockup_url} alt={currentProduct.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 40 }}>🎨</span>}
           </div>
-          <button onClick={() => setShowEdit(true)} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(8,11,20,0.85)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>✏️ Edit</button>
+          <button onClick={() => setShowEdit(true)}
+            style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(8,11,20,0.85)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.text, fontSize: 11, fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            ✏️ Edit
+          </button>
         </div>
+
         <div style={{ padding: '12px 14px' }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3, lineHeight: 1.3 }}>{currentProduct.title}</div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>{currentProduct.product_type}</div>
+          {currentProduct.tags?.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+              {currentProduct.tags.slice(0, 3).map(tag => <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '1px 7px', fontSize: 10, color: C.accent }}>{tag}</span>)}
+            </div>
+          )}
+
+          {/* Price + profit strip */}
           <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: profit ? 8 : 0 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>${parseFloat(currentProduct.price || 0).toFixed(2)}</span>
-              {profit && <span style={{ fontSize: 11, fontWeight: 700, color: marginColor, background: `${marginColor}18`, border: `1px solid ${marginColor}33`, borderRadius: 20, padding: '2px 9px' }}>{Math.round(profit.margin)}% margin</span>}
+              {profit && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: marginColor, background: `${marginColor}18`, border: `1px solid ${marginColor}33`, borderRadius: 20, padding: '2px 9px' }}>
+                  {Math.round(profit.margin)}% margin
+                </span>
+              )}
             </div>
             {profit && (
               <>
                 <div style={{ height: 4, background: C.border, borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
-                  <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, profit.margin))}%`, background: marginColor, borderRadius: 2 }} />
+                  <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, profit.margin))}%`, background: marginColor, borderRadius: 2, transition: 'width 0.3s' }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                   <span style={{ color: C.muted }}>Your earnings</span>
-                  <span style={{ color: marginColor, fontWeight: 700 }}>{profit.earnings > 0 ? `$${profit.earnings.toFixed(2)}` : '🚨 Below break-even'}</span>
+                  <span style={{ color: marginColor, fontWeight: 700 }}>
+                    {profit.earnings > 0 ? `$${profit.earnings.toFixed(2)}` : '🚨 Below break-even'}
+                  </span>
                 </div>
               </>
             )}
+            {!profit && baseCost == null && (
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>Open Edit to see profit breakdown</div>
+            )}
           </div>
-          <button onClick={() => setShowEdit(true)} style={{ width: '100%', background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✏️ Edit Product & Price</button>
+
+          <button onClick={() => setShowEdit(true)}
+            style={{ width: '100%', background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '7px', color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            ✏️ Edit Product & Price
+          </button>
         </div>
       </div>
-      {showEdit && <EditProductModal product={currentProduct} user={user} onClose={() => setShowEdit(false)} onSave={handleSave} onDelete={(id) => { onDelete(id); setShowEdit(false) }} />}
+
+      {showEdit && (
+        <EditProductModal
+          product={currentProduct}
+          user={user}
+          onClose={() => setShowEdit(false)}
+          onSave={handleSave}
+          onDelete={(id) => { onDelete(id); setShowEdit(false) }}
+        />
+      )}
     </>
   )
 }
@@ -1916,11 +2466,16 @@ function PayoutsCard({ user, profile }) {
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
   const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0 })
+
   const canSell = profile?.subscription_tier && profile.subscription_tier !== 'free'
 
   useEffect(() => {
-    if (user && canSell) { checkStatus(); loadEarnings() }
-    else setLoading(false)
+    if (user && canSell) {
+      checkStatus()
+      loadEarnings()
+    } else {
+      setLoading(false)
+    }
   }, [user, profile])
 
   const checkStatus = async () => {
@@ -1956,9 +2511,10 @@ function PayoutsCard({ user, profile }) {
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Payouts & Earnings</div>
+
       {!canSell ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>Upgrade to Starter or above to set up payouts and start earning.</div>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>Upgrade to Starter or above to set up payouts and start earning from your sales.</div>
           <button onClick={() => navigate('/pricing')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⬆ Upgrade</button>
         </div>
       ) : loading ? (
@@ -1967,9 +2523,10 @@ function PayoutsCard({ user, profile }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 4 }}>Connect your bank account</div>
-            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>Set up your Stripe account to receive payments directly.</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>Set up your Stripe account to receive payments directly to your bank.</div>
           </div>
-          <button onClick={handleConnect} disabled={connecting} style={{ background: `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: connecting ? 'not-allowed' : 'pointer' }}>
+          <button onClick={handleConnect} disabled={connecting}
+            style={{ background: `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: connecting ? 'not-allowed' : 'pointer' }}>
             {connecting ? 'Connecting...' : '🏦 Set Up Payouts'}
           </button>
         </div>
@@ -1979,7 +2536,10 @@ function PayoutsCard({ user, profile }) {
             <div style={{ fontSize: 13, color: C.gold, fontWeight: 600, marginBottom: 4 }}>⚠️ Payout setup incomplete</div>
             <div style={{ fontSize: 12, color: C.muted }}>Finish setting up your Stripe account to start receiving payments.</div>
           </div>
-          <button onClick={handleConnect} disabled={connecting} style={{ background: `${C.gold}22`, border: `1px solid ${C.gold}55`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Complete Setup →</button>
+          <button onClick={handleConnect} disabled={connecting}
+            style={{ background: `${C.gold}22`, border: `1px solid ${C.gold}55`, borderRadius: 10, padding: '10px 20px', color: C.gold, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Complete Setup →
+          </button>
         </div>
       ) : (
         <div>
@@ -2004,6 +2564,8 @@ function PayoutsCard({ user, profile }) {
 function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(initialProfile)
+
+  // Sync if auth context loads profile after component mounts
   useEffect(() => { if (initialProfile) setProfile(initialProfile) }, [initialProfile])
   const [artworks, setArtworks] = useState([])
   const [products, setProducts] = useState([])
@@ -2015,11 +2577,11 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [followingCount, setFollowingCount] = useState(0)
   const [salesCount, setSalesCount] = useState(0)
   const [tab, setTab] = useState('artwork')
-  const [artworkFilter, setArtworkFilter] = useState('all')
+  const [artworkFilter, setArtworkFilter] = useState('all') // 'all' | 'public' | 'private'
   const [showEdit, setShowEdit] = useState(false)
   const [sellTarget, setSellTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
-  const [followModal, setFollowModal] = useState(null)
+  const [followModal, setFollowModal] = useState(null) // 'followers' | 'following'
 
   const handleStatClick = (key) => {
     if (key === 'artwork') { setTab('artwork'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
@@ -2030,21 +2592,39 @@ function ProfilePage({ user, profile: initialProfile }) {
 
   useMeta({ title: `@${profile?.username || 'Profile'}`, description: profile?.bio })
 
-  useEffect(() => { if (!user) return; loadAll() }, [user])
+  useEffect(() => {
+    if (!user) return
+    loadAll()
+  }, [user])
 
   const loadAll = async () => {
-    const [{ data: art }, { data: prods }, { count: followers }, { count: following }, { count: sales }] = await Promise.all([
+    const [
+      { data: art },
+      { data: prods },
+      { count: followers },
+      { count: following },
+      { count: sales },
+    ] = await Promise.all([
       supabase.from('artwork').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('products').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', user.id),
       supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', user.id),
       supabase.from('orders').select('id', { count: 'exact' }).eq('user_id', user.id),
     ])
-    setArtworks(art || []); setProducts(prods || [])
-    setFollowerCount(followers || 0); setFollowingCount(following || 0); setSalesCount(sales || 0)
+    setArtworks(art || [])
+    setProducts(prods || [])
+    setFollowerCount(followers || 0)
+    setFollowingCount(following || 0)
+    setSalesCount(sales || 0)
     setLoadingArt(false)
+
+    // Load featured artworks
     const featuredIds = profile?.featured_artwork_ids || []
-    if (featuredIds.length && art?.length) setFeaturedArtworks(art.filter(a => featuredIds.includes(a.id)))
+    if (featuredIds.length && art?.length) {
+      setFeaturedArtworks(art.filter(a => featuredIds.includes(a.id)))
+    }
+
+    // Load following feed
     setLoadingFeed(true)
     const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
     if (followRows?.length) {
@@ -2055,12 +2635,21 @@ function ProfilePage({ user, profile: initialProfile }) {
     setLoadingFeed(false)
   }
 
+  const handleSaveProfile = (updates) => {
+    setProfile(prev => ({ ...prev, ...updates }))
+  }
+
   const handlePublishToggle = async (art) => {
     const { error } = await supabase.from('artwork').update({ is_public: !art.is_public }).eq('id', art.id)
     if (!error) setArtworks(prev => prev.map(a => a.id === art.id ? { ...a, is_public: !a.is_public } : a))
   }
 
-  const handleRefine = (art) => { sessionStorage.setItem('dreamRefinePrompt', art.prompt || ''); navigate('/create') }
+  const handleRefine = (art) => {
+    // Store prompt in sessionStorage so CreatePage/DreamChat can pick it up
+    sessionStorage.setItem('dreamRefinePrompt', art.prompt || '')
+    navigate('/create')
+  }
+
   const handleDelete = async (art) => {
     if (!window.confirm(`Delete "${art.title}"? This cannot be undone.`)) return
     const { error } = await supabase.from('artwork').delete().eq('id', art.id)
@@ -2076,13 +2665,33 @@ function ProfilePage({ user, profile: initialProfile }) {
 
   return (
     <div style={{ padding: '32px 16px', maxWidth: 960, margin: '0 auto' }}>
-      <ProfileHeader profile={profile} artworkCount={artworks.length} followerCount={followerCount} followingCount={followingCount} salesCount={salesCount} isOwnProfile={true} viewerUser={user} onEdit={() => setShowEdit(true)} onStatClick={handleStatClick} />
-      {followModal && <FollowListModal type={followModal} profileId={user.id} viewerUser={user} onClose={() => setFollowModal(null)} />}
+      <ProfileHeader
+        profile={profile}
+        artworkCount={artworks.length}
+        followerCount={followerCount}
+        followingCount={followingCount}
+        salesCount={salesCount}
+        isOwnProfile={true}
+        viewerUser={user}
+        onEdit={() => setShowEdit(true)}
+        onStatClick={handleStatClick}
+      />
+
+      {followModal && (
+        <FollowListModal
+          type={followModal}
+          profileId={user.id}
+          viewerUser={user}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
+
       <div style={{ height: 28 }} />
       <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
 
       {tab === 'artwork' && (
         <>
+          {/* Filter bar */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', gap: 8 }}>
               {[['all', 'All'], ['public', '🌐 Published'], ['private', '🔒 Private']].map(([val, label]) => (
@@ -2092,7 +2701,9 @@ function ProfilePage({ user, profile: initialProfile }) {
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 12, color: C.muted }}>{artworks.filter(a => a.is_public).length} published · {artworks.filter(a => !a.is_public).length} private</div>
+            <div style={{ fontSize: 12, color: C.muted }}>
+              {artworks.filter(a => a.is_public).length} published · {artworks.filter(a => !a.is_public).length} private
+            </div>
           </div>
           {featuredArtworks.length > 0 && (
             <div style={{ marginBottom: 28 }}>
@@ -2103,14 +2714,25 @@ function ProfilePage({ user, profile: initialProfile }) {
                     <div style={{ height: 140, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {art.image_url ? <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 36 }}>🎨</span>}
                     </div>
-                    <div style={{ padding: '10px 12px' }}><div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{art.title}</div></div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{art.title}</div>
+                    </div>
                   </div>
                 ))}
               </div>
               <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
             </div>
           )}
-          <ArtworkGrid artworks={artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public)} loading={loadingArt} isOwner={true} onSell={setSellTarget} onReuse={setReuseTarget} onPublishToggle={handlePublishToggle} onRefine={handleRefine} onDelete={handleDelete} />
+          <ArtworkGrid
+            artworks={artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public)}
+            loading={loadingArt}
+            isOwner={true}
+            onSell={setSellTarget}
+            onReuse={setReuseTarget}
+            onPublishToggle={handlePublishToggle}
+            onRefine={handleRefine}
+            onDelete={handleDelete}
+          />
         </>
       )}
 
@@ -2121,7 +2743,10 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{products.length} product{products.length !== 1 ? 's' : ''} listed</div>
               <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Click ✏️ Edit on any product to update details or remove it</div>
             </div>
-            <button onClick={() => navigate('/create')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Create Product</button>
+            <button onClick={() => navigate('/create')}
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              + Create Product
+            </button>
           </div>
           {products.length === 0 ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -2131,7 +2756,15 @@ function ProfilePage({ user, profile: initialProfile }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
-              {products.map(p => <OwnerShopCard key={p.id} product={p} user={user} onEdit={(updated) => setProducts(prev => prev.map(x => x.id === updated.id ? updated : x))} onDelete={(id) => setProducts(prev => prev.filter(x => x.id !== id))} />)}
+              {products.map(p => (
+                <OwnerShopCard
+                  key={p.id}
+                  product={p}
+                  user={user}
+                  onEdit={(updated) => setProducts(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                  onDelete={(id) => setProducts(prev => prev.filter(x => x.id !== id))}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -2139,6 +2772,7 @@ function ProfilePage({ user, profile: initialProfile }) {
 
       {tab === 'about' && (
         <div style={{ maxWidth: 640 }}>
+          {/* Subscription card */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Subscription</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -2150,7 +2784,9 @@ function ProfilePage({ user, profile: initialProfile }) {
                   return (
                     <div>
                       <span style={{ background: color + '20', border: `1px solid ${color}44`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 700, color, textTransform: 'capitalize' }}>✦ {tier} Plan</span>
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>{tier === 'free' ? 'Upgrade to start selling and earning.' : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}</div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+                        {tier === 'free' ? 'Upgrade to start selling and earning.' : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}
+                      </div>
                     </div>
                   )
                 })()}
@@ -2169,6 +2805,8 @@ function ProfilePage({ user, profile: initialProfile }) {
               </div>
             </div>
           </div>
+
+          {/* Payouts card */}
           <PayoutsCard user={user} profile={profile} />
           {profile?.artist_statement ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '28px 32px', marginBottom: 20 }}>
@@ -2183,7 +2821,13 @@ function ProfilePage({ user, profile: initialProfile }) {
           )}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Details</div>
-            {[['Username', `@${profile?.username}`], ['Display Name', profile?.display_name], ['Location', profile?.location], ['Website', profile?.website], ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null]].filter(([, v]) => v).map(([label, value]) => (
+            {[
+              ['Username', `@${profile?.username}`],
+              ['Display Name', profile?.display_name],
+              ['Location', profile?.location],
+              ['Website', profile?.website],
+              ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null],
+            ].filter(([, v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 14 }}>
                 <span style={{ color: C.muted, minWidth: 110 }}>{label}</span>
                 <span style={{ color: C.text }}>{value}</span>
@@ -2202,8 +2846,24 @@ function ProfilePage({ user, profile: initialProfile }) {
         ) : <ArtworkGrid artworks={feedArtworks} loading={loadingFeed} />
       )}
 
-      {showEdit && <EditProfileModal user={user} profile={profile} onClose={() => setShowEdit(false)} onSave={(updates) => setProfile(prev => ({ ...prev, ...updates }))} />}
-      {sellTarget && <CreateProductModal user={user} imageUrl={sellTarget.image_url} artworkId={sellTarget.id} title={sellTarget.title} onClose={() => setSellTarget(null)} onSuccess={() => setSellTarget(null)} />}
+      {showEdit && (
+        <EditProfileModal
+          user={user}
+          profile={profile}
+          onClose={() => setShowEdit(false)}
+          onSave={handleSaveProfile}
+        />
+      )}
+      {sellTarget && (
+        <CreateProductModal
+          user={user}
+          imageUrl={sellTarget.image_url}
+          artworkId={sellTarget.id}
+          title={sellTarget.title}
+          onClose={() => setSellTarget(null)}
+          onSuccess={() => setSellTarget(null)}
+        />
+      )}
       {reuseTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setReuseTarget(null)}>
@@ -2224,10 +2884,22 @@ function ProfilePage({ user, profile: initialProfile }) {
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
-                <button onClick={() => { setSellTarget(reuseTarget); setReuseTarget(null) }} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '12px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>🛍 Sell This</button>
-                <button onClick={() => { navigate('/create'); setReuseTarget(null) }} style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '12px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>✦ Remix in Dream</button>
-                <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer" style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>↓ Download</a>
-                <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>🔗 Share</button>
+                <button onClick={() => { setSellTarget(reuseTarget); setReuseTarget(null) }}
+                  style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '12px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  🛍 Sell This
+                </button>
+                <button onClick={() => { navigate('/create'); setReuseTarget(null) }}
+                  style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '12px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ✦ Remix in Dream
+                </button>
+                <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
+                  ↓ Download
+                </a>
+                <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  🔗 Share
+                </button>
               </div>
             </div>
           </div>
@@ -2251,7 +2923,7 @@ function ArtistProfilePage({ viewerUser }) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [tab, setTab] = useState('artwork')
-  const [followModal, setFollowModal] = useState(null)
+  const [followModal, setFollowModal] = useState(null) // 'followers' | 'following'
 
   const handleStatClick = (key) => {
     if (key === 'artwork') { setTab('artwork'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
@@ -2261,6 +2933,7 @@ function ArtistProfilePage({ viewerUser }) {
   }
 
   useMeta({ title: `@${username}`, description: profile?.bio || `View ${username}'s artwork on Dreamscape` })
+
   useEffect(() => { loadProfile() }, [username])
 
   const loadProfile = async () => {
@@ -2274,8 +2947,10 @@ function ArtistProfilePage({ viewerUser }) {
       supabase.from('follows').select('id', { count: 'exact' }).eq('following_id', prof.id),
       supabase.from('follows').select('id', { count: 'exact' }).eq('follower_id', prof.id),
     ])
-    setArtworks(art || []); setProducts(prods || [])
-    setFollowerCount(followers || 0); setFollowingCount(following || 0)
+    setArtworks(art || [])
+    setProducts(prods || [])
+    setFollowerCount(followers || 0)
+    setFollowingCount(following || 0)
     if (viewerUser) {
       const { data: f } = await supabase.from('follows').select('id').eq('follower_id', viewerUser.id).eq('following_id', prof.id).maybeSingle()
       setIsFollowing(!!f)
@@ -2305,16 +2980,44 @@ function ArtistProfilePage({ viewerUser }) {
   )
 
   const isOwnProfile = viewerUser?.id === profile.id
-  const tabs = [['artwork', `🎨 Artwork (${artworks.length})`], ['shop', `🛍 Shop (${products.length})`], ['about', '✦ About']]
+  const tabs = [
+    ['artwork', `🎨 Artwork (${artworks.length})`],
+    ['shop', `🛍 Shop (${products.length})`],
+    ['about', '✦ About'],
+  ]
 
   return (
     <div style={{ padding: '32px 16px', maxWidth: 960, margin: '0 auto' }}>
       <button onClick={() => navigate(-1)} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer', marginBottom: 20 }}>← Back</button>
-      <ProfileHeader profile={profile} artworkCount={artworks.length} followerCount={followerCount} followingCount={followingCount} salesCount={salesCount} isOwnProfile={isOwnProfile} viewerUser={viewerUser} onEdit={null} onFollow={toggleFollow} followLoading={followLoading} isFollowing={isFollowing} onStatClick={handleStatClick} />
-      {followModal && profile && <FollowListModal type={followModal} profileId={profile.id} viewerUser={viewerUser} onClose={() => setFollowModal(null)} />}
+      <ProfileHeader
+        profile={profile}
+        artworkCount={artworks.length}
+        followerCount={followerCount}
+        followingCount={followingCount}
+        salesCount={salesCount}
+        isOwnProfile={isOwnProfile}
+        viewerUser={viewerUser}
+        onEdit={null}
+        onFollow={toggleFollow}
+        followLoading={followLoading}
+        isFollowing={isFollowing}
+        onStatClick={handleStatClick}
+      />
+
+      {followModal && profile && (
+        <FollowListModal
+          type={followModal}
+          profileId={profile.id}
+          viewerUser={viewerUser}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
+
       <div style={{ height: 28 }} />
       <ProfileTabs tab={tab} setTab={setTab} tabs={tabs} />
+
       {tab === 'artwork' && <ArtworkGrid artworks={artworks} loading={false} />}
+
       {tab === 'shop' && (
         products.length === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -2327,6 +3030,7 @@ function ArtistProfilePage({ viewerUser }) {
           </div>
         )
       )}
+
       {tab === 'about' && (
         <div style={{ maxWidth: 640 }}>
           {profile?.artist_statement && (
@@ -2337,7 +3041,13 @@ function ArtistProfilePage({ viewerUser }) {
           )}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 14 }}>Details</div>
-            {[['Username', `@${profile?.username}`], ['Display Name', profile?.display_name], ['Location', profile?.location], ['Website', profile?.website], ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null]].filter(([, v]) => v).map(([label, value]) => (
+            {[
+              ['Username', `@${profile?.username}`],
+              ['Display Name', profile?.display_name],
+              ['Location', profile?.location],
+              ['Website', profile?.website],
+              ['Member Since', profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null],
+            ].filter(([, v]) => v).map(([label, value]) => (
               <div key={label} style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 14 }}>
                 <span style={{ color: C.muted, minWidth: 110 }}>{label}</span>
                 <span style={{ color: C.text }}>{value}</span>
@@ -2349,6 +3059,7 @@ function ArtistProfilePage({ viewerUser }) {
     </div>
   )
 }
+
 
 // ── Reset Password Page (/reset-password) ────────────────────
 function ResetPasswordPage() {
@@ -2386,11 +3097,16 @@ function ResetPasswordPage() {
             <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 8 }}>Set New Password</h2>
             <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Choose a strong password for your account.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, textAlign: 'left' }}>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="New password" style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
-              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirm new password" onKeyDown={e => e.key === 'Enter' && handleReset()} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="New password"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+              <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+                placeholder="Confirm new password" onKeyDown={e => e.key === 'Enter' && handleReset()}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px', color: C.text, fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
             </div>
             {error && <div style={{ fontSize: 12, color: '#FF5E5E', marginBottom: 14, padding: '10px 12px', background: '#FF5E5E18', borderRadius: 8 }}>{error}</div>}
-            <button onClick={handleReset} disabled={loading} style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: loading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+            <button onClick={handleReset} disabled={loading}
+              style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: loading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
               {loading ? 'Updating...' : 'Update Password ✦'}
             </button>
           </>
@@ -2399,16 +3115,14 @@ function ResetPasswordPage() {
     </div>
   )
 }
-
-// ── Discover Page ─────────────────────────────────────────────
 function DiscoverPage({ user, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
   const navigate = useNavigate()
   return (
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
-
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
+
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
         Where Artists<br />
@@ -2433,8 +3147,10 @@ function DiscoverPage({ user, onSignIn }) {
   )
 }
 
-// ── Create Page ───────────────────────────────────────────────
+// ── Create Page (/create) ─────────────────────────────────────
+// ── Isolated Create Page — remounts cleanly every visit ─────
 function IsolatedCreatePage({ user, onSignIn }) {
+  // key forces full remount each time — clears all stale DreamChat state
   return <CreatePage key={`create-${user?.id || 'guest'}`} user={user} onSignIn={onSignIn} />
 }
 
@@ -2451,7 +3167,7 @@ function CreatePage({ user, onSignIn }) {
   )
 }
 
-// ── Scroll to Top ─────────────────────────────────────────────
+// ── Scroll to Top on Route Change ────────────────────────────
 function ScrollToTop() {
   const { pathname } = useLocation()
   useEffect(() => {
@@ -2469,7 +3185,10 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   const [mobileMenu, setMobileMenu] = useState(false)
   const nav = location.pathname
   const isActive = (path) => path === '/' ? nav === '/' : nav.startsWith(path)
+
+  // Close menu on navigation
   useEffect(() => { setMobileMenu(false) }, [location])
+
   const mainNavItems = [['/', 'Discover'], ['/gallery', 'Gallery'], ['/marketplace', 'Marketplace'], ['/create', 'Create'], ['/blog', 'Blog'], ['/pricing', 'Pricing']]
 
   return (
@@ -2480,16 +3199,30 @@ function Navbar({ user, profile, signOut, onSignIn }) {
         .nav-link:hover { color: #E8EAF0 !important; background: rgba(124,92,252,0.12) !important; }
         .mobile-menu-overlay { position: fixed; inset: 0; top: 72px; z-index: 98; }
       `}</style>
+
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(24px)', borderBottom: `1px solid ${C.border}`, height: 72, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 16 }}>
+
+        {/* Logo */}
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}
-          onMouseDown={e => { e.currentTarget.querySelector('.logo-icon').style.background = '#E8EAF0'; e.currentTarget.querySelector('.logo-icon').style.color = C.accent }}
-          onMouseUp={e => { e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`; e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff' }}
-          onMouseLeave={e => { e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`; e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff' }}>
+          onMouseDown={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = '#E8EAF0'
+            e.currentTarget.querySelector('.logo-icon').style.color = C.accent
+          }}
+          onMouseUp={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`
+            e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`
+            e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff'
+          }}>
           <div className="logo-icon" style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#ffffff', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>✦</div>
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20 }}>
-            <span style={{ color: '#7B5CF0', textShadow: '0 0 12px rgba(123,92,240,0.8)' }}>Dream</span><span style={{ color: '#E8EAF0' }}>scape</span>
+            <span style={{ color: '#E8EAF0' }}>Dream</span><span style={{ color: C.accent }}>scape</span>
           </span>
         </Link>
+
+        {/* Desktop nav links */}
         <div className="nav-links-full" style={{ display: 'flex', gap: 2, flex: 1, alignItems: 'center' }}>
           {mainNavItems.map(([path, label]) => (
             <Link key={path} to={path} className="nav-link"
@@ -2497,18 +3230,36 @@ function Navbar({ user, profile, signOut, onSignIn }) {
               {label}
             </Link>
           ))}
+
         </div>
+
+        {/* Desktop right side */}
         <div className="nav-links-full" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {user ? (
             <>
-              {profile?.is_admin && <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>}
+              {profile?.is_admin && (
+                <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
+              )}
               <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
+
+              {/* Subscription tier badge */}
               {(() => {
                 const tier = profile?.subscription_tier || 'free'
-                const tierConfig = { free: { label: 'Free', color: C.muted, bg: C.muted + '20' }, starter: { label: 'Starter', color: C.teal, bg: C.teal + '20' }, pro: { label: 'Pro', color: C.accent, bg: C.accent + '20' }, studio: { label: 'Studio', color: C.gold, bg: C.gold + '20' } }
+                const tierConfig = {
+                  free:    { label: 'Free',    color: C.muted,   bg: C.muted + '20' },
+                  starter: { label: 'Starter', color: C.teal,    bg: C.teal + '20' },
+                  pro:     { label: 'Pro',     color: C.accent,  bg: C.accent + '20' },
+                  studio:  { label: 'Studio',  color: C.gold,    bg: C.gold + '20' },
+                }
                 const t = tierConfig[tier] || tierConfig.free
                 if (tier === 'free') return null
-                return <Link to="/profile" style={{ textDecoration: 'none' }}><span style={{ background: t.bg, border: `1px solid ${t.color}44`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 0.3 }}>✦ {t.label}</span></Link>
+                return (
+                  <Link to="/profile" style={{ textDecoration: 'none' }}>
+                    <span style={{ background: t.bg, border: `1px solid ${t.color}44`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: t.color, letterSpacing: 0.3 }}>
+                      ✦ {t.label}
+                    </span>
+                  </Link>
+                )
               })()}
               <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', background: nav === '/profile' ? `${C.accent}20` : 'none', border: `1px solid ${nav === '/profile' ? C.accent + '55' : C.border}`, borderRadius: 24, padding: '4px 12px 4px 4px' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: profile?.avatar_url ? '#0E1220' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', flexShrink: 0 }}>
@@ -2525,6 +3276,8 @@ function Navbar({ user, profile, signOut, onSignIn }) {
             </>
           )}
         </div>
+
+        {/* Mobile right side — avatar + hamburger */}
         <div className="mobile-menu-btn" style={{ display: 'none', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
           {user && (
             <Link to="/profile" style={{ textDecoration: 'none' }}>
@@ -2539,10 +3292,13 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           </button>
         </div>
       </nav>
+
+      {/* Mobile menu */}
       {mobileMenu && (
         <>
           <div className="mobile-menu-overlay" onClick={() => setMobileMenu(false)} />
           <div style={{ position: 'fixed', top: 72, left: 0, right: 0, zIndex: 99, background: C.panel, borderBottom: `1px solid ${C.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+            {/* Nav links */}
             <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {mainNavItems.map(([path, label]) => (
                 <Link key={path} to={path} onClick={() => setMobileMenu(false)}
@@ -2552,7 +3308,11 @@ function Navbar({ user, profile, signOut, onSignIn }) {
                 </Link>
               ))}
             </div>
+
+            {/* Divider */}
             <div style={{ height: 1, background: C.border, margin: '0 16px' }} />
+
+            {/* User section */}
             <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 2 }}>
               {user ? (
                 <>
@@ -2574,15 +3334,21 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   )
 }
 
-// ── Success Page ──────────────────────────────────────────────
+// ── Success Page (/success) ───────────────────────────────────
 function SuccessPage() {
   useMeta({ title: 'Order Confirmed', description: 'Your order has been placed and is being fulfilled.' })
   const navigate = useNavigate()
   const { user } = useAuth()
+
   useEffect(() => {
+    // Claim the order by linking session_id to logged-in user
     const sessionId = new URLSearchParams(window.location.search).get('session_id')
     if (sessionId && user) {
-      supabase.from('orders').update({ user_id: user.id }).eq('stripe_session_id', sessionId).is('user_id', null).then(() => {})
+      supabase.from('orders')
+        .update({ user_id: user.id })
+        .eq('stripe_session_id', sessionId)
+        .is('user_id', null)
+        .then(() => {})
     }
   }, [user])
   return (
@@ -2590,8 +3356,12 @@ function SuccessPage() {
       <div style={{ background: C.card, border: `1px solid ${C.teal}55`, borderRadius: 24, padding: '48px 40px', maxWidth: 480, width: '100%', textAlign: 'center' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${C.teal}20`, border: `2px solid ${C.teal}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 24px' }}>✅</div>
         <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 12 }}>Order Confirmed!</h1>
-        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>Your payment was successful and your order is now being processed by Printful.</p>
-        <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 32 }}>You'll receive a shipping confirmation email once your item is on its way. Production typically takes 2–5 business days.</p>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>
+          Your payment was successful and your order is now being processed by Printful.
+        </p>
+        <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.7, marginBottom: 32 }}>
+          You'll receive a shipping confirmation email once your item is on its way. Production typically takes 2–5 business days.
+        </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => navigate('/marketplace')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Back to Shop</button>
           <button onClick={() => navigate('/orders')} style={{ background: 'none', border: `1px solid ${C.accent}55`, borderRadius: 10, padding: '11px 24px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>📦 View Orders</button>
@@ -2602,12 +3372,15 @@ function SuccessPage() {
   )
 }
 
+
 // ── Floating Dream Widget ─────────────────────────────────────
 function DreamWidget({ user, onSignIn }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState([{ role: 'assistant', content: "✨ Hey! I'm Dream. What's sparking your imagination right now?" }])
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: "✨ Hey! I'm Dream. What's sparking your imagination right now?" }
+  ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pulse, setPulse] = useState(true)
@@ -2615,19 +3388,45 @@ function DreamWidget({ user, onSignIn }) {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
-  useEffect(() => { if (open) { setUnread(0); setPulse(false); setTimeout(() => inputRef.current?.focus(), 100) } }, [open])
-  useEffect(() => { if (!open) { const t = setTimeout(() => setPulse(true), 30000); return () => clearTimeout(t) } }, [open, messages])
+  // ALL hooks must come before any conditional returns
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
 
+  useEffect(() => {
+    if (open) {
+      setUnread(0)
+      setPulse(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }, [open])
+
+  // Pulse again after 30s if closed and no unread
+  useEffect(() => {
+    if (!open) {
+      const t = setTimeout(() => setPulse(true), 30000)
+      return () => clearTimeout(t)
+    }
+  }, [open, messages])
+
+  // Don't show on /create — full Dream is already there
+  // This return must come AFTER all hooks above
   if (location.pathname === '/create') return null
 
   const send = async () => {
     if (!input.trim() || loading) return
     const userMsg = { role: 'user', content: input.trim() }
     const history = [...messages, userMsg]
-    setMessages(history); setInput(''); setLoading(true)
+    setMessages(history)
+    setInput('')
+    setLoading(true)
+
     try {
-      const res = await fetch('/api/dream-widget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history.slice(-8) }) })
+      const res = await fetch('/api/dream-widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history.slice(-8) }) // last 8 msgs for context
+      })
       const data = await res.json()
       const reply = { role: 'assistant', content: data.reply || "Tell me more ✨", nav: data.nav }
       setMessages(prev => [...prev, reply])
@@ -2638,40 +3437,87 @@ function DreamWidget({ user, onSignIn }) {
     setLoading(false)
   }
 
-  const handleNav = (path) => { navigate(path); setOpen(false) }
-  const NAV_LABELS = { '/create': '✦ Open Dream AI', '/gallery': '🎨 Visit Gallery', '/marketplace': '🛍 Browse Marketplace', '/pricing': '⭐ View Plans', '/blog': '📖 Read the Blog', '/profile': '👤 Your Profile' }
+  const handleNav = (path) => {
+    navigate(path)
+    setOpen(false)
+  }
+
+  const NAV_LABELS = {
+    '/create': '✦ Open Dream AI',
+    '/gallery': '🎨 Visit Gallery',
+    '/marketplace': '🛍 Browse Marketplace',
+    '/pricing': '⭐ View Plans',
+    '/blog': '📖 Read the Blog',
+    '/profile': '👤 Your Profile',
+  }
 
   return (
     <>
       <style>{`
-        @keyframes dreamPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.5), 0 4px 24px rgba(124,92,252,0.4); } 50% { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 4px 32px rgba(124,92,252,0.6); } }
-        @keyframes widgetIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes dreamPulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.5), 0 4px 24px rgba(124,92,252,0.4); }
+          50% { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 4px 32px rgba(124,92,252,0.6); }
+        }
+        @keyframes widgetIn {
+          from { opacity: 0; transform: translateY(16px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes msgIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
+
+      {/* Chat window */}
       {open && (
-        <div className="neon-panel" style={{ background: C.card, borderRadius: 20, display: 'flex', flexDirection: 'column', boxShadow: `0 8px 60px rgba(124,92,252,0.3), 0 2px 20px rgba(0,0,0,0.5)`, animation: 'widgetIn 0.3s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', position: 'fixed', bottom: 90, right: 20, zIndex: 9000, width: 340, maxHeight: 500 }}>
+        <div style={{
+          position: 'fixed', bottom: 90, right: 20, zIndex: 9000,
+          width: 340, maxHeight: 500,
+          background: C.card, border: `1px solid ${C.accent}55`,
+          borderRadius: 20, display: 'flex', flexDirection: 'column',
+          boxShadow: `0 8px 60px rgba(124,92,252,0.3), 0 2px 20px rgba(0,0,0,0.5)`,
+          animation: 'widgetIn 0.3s cubic-bezier(0.16,1,0.3,1)',
+          overflow: 'hidden',
+        }}>
+
+          {/* Header */}
           <div style={{ padding: '14px 16px', background: `linear-gradient(135deg, ${C.accent}22, ${C.panel})`, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <div style={{ width: 34, height: 34, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>✦</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Dream AI</div>
               <div style={{ fontSize: 11, color: C.teal }}>● always on</div>
             </div>
-            <button onClick={() => handleNav('/create')} title="Open full Dream AI" style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 7, padding: '4px 10px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Full ↗</button>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
+            <button onClick={() => handleNav('/create')}
+              title="Open full Dream AI"
+              style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 7, padding: '4px 10px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+              Full ↗
+            </button>
+            <button onClick={() => setOpen(false)}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}>✕</button>
           </div>
+
+          {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10, minHeight: 200, maxHeight: 340 }}>
             {messages.map((msg, i) => {
               const isUser = msg.role === 'user'
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', animation: 'msgIn 0.25s ease' }}>
                   <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 6, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-                    <div style={{ padding: '9px 13px', borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px', background: isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel, border: isUser ? 'none' : `1px solid ${C.border}`, fontSize: 13, lineHeight: 1.6, color: C.text }}>
+                    <div style={{
+                      padding: '9px 13px',
+                      borderRadius: isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                      background: isUser ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.panel,
+                      border: isUser ? 'none' : `1px solid ${C.border}`,
+                      fontSize: 13, lineHeight: 1.6, color: C.text,
+                    }}>
                       {msg.content}
                     </div>
+                    {/* Navigation suggestion */}
                     {msg.nav && msg.nav.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%' }}>
                         {msg.nav.map(path => (
-                          <button key={path} onClick={() => handleNav(path)} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 14px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
+                          <button key={path} onClick={() => handleNav(path)}
+                            style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 10, padding: '8px 14px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
                             {NAV_LABELS[path] || path}
                           </button>
                         ))}
@@ -2690,63 +3536,67 @@ function DreamWidget({ user, onSignIn }) {
             )}
             <div ref={bottomRef} />
           </div>
+
+          {/* Input */}
           <div style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}`, flexShrink: 0, background: C.panel }}>
             {!user ? (
-              <button onClick={() => { onSignIn(); setOpen(false) }} style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Sign In to Chat with Dream ✦</button>
+              <button onClick={() => { onSignIn(); setOpen(false) }}
+                style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Sign In to Chat with Dream ✦
+              </button>
             ) : (
               <div style={{ display: 'flex', gap: 8 }}>
-                <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()} placeholder="Ask Dream anything..." className="neon-input" style={{ flex: 1, background: C.bg, borderRadius: 10, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-                <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 14px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
+                <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                  placeholder="Ask Dream anything..."
+                  style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+                <button onClick={send} disabled={loading || !input.trim()}
+                  style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 14px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>
+                  ✦
+                </button>
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Floating button */}
       <button onClick={() => setOpen(o => !o)}
-        style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9001, width: 56, height: 56, borderRadius: '50%', background: open ? C.panel : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: open ? `2px solid ${C.accent}55` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#fff', cursor: 'pointer', animation: pulse && !open ? 'dreamPulse 2s ease-in-out infinite' : 'none', transition: 'all 0.2s ease', boxShadow: open ? 'none' : '0 4px 24px rgba(124,92,252,0.4)' }}>
+        style={{
+          position: 'fixed', bottom: 20, right: 20, zIndex: 9001,
+          width: 56, height: 56, borderRadius: '50%',
+          background: open ? C.panel : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`,
+          border: open ? `2px solid ${C.accent}55` : 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, color: '#fff', cursor: 'pointer',
+          animation: pulse && !open ? 'dreamPulse 2s ease-in-out infinite' : 'none',
+          transition: 'all 0.2s ease',
+          boxShadow: open ? 'none' : '0 4px 24px rgba(124,92,252,0.4)',
+        }}>
         {open ? '✕' : '✦'}
+        {/* Unread badge */}
         {!open && unread > 0 && (
-          <div style={{ position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: '50%', background: C.teal, border: `2px solid ${C.bg}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: C.bg }}>{unread}</div>
+          <div style={{
+            position: 'absolute', top: -2, right: -2,
+            width: 18, height: 18, borderRadius: '50%',
+            background: C.teal, border: `2px solid ${C.bg}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, fontWeight: 900, color: C.bg,
+          }}>{unread}</div>
         )}
       </button>
     </>
   )
 }
 
-// ── Floating Particles ───────────────────────────────────────
-function FloatingParticles() {
-  const PARTICLES = [
-    { left: '8%',  delay: '0s',   dur: '12s', color: '#00D4FF', size: 5 },
-    { left: '18%', delay: '2s',   dur: '15s', color: '#FF2D9B', size: 4 },
-    { left: '28%', delay: '4s',   dur: '10s', color: '#7B5CF0', size: 6 },
-    { left: '38%', delay: '1s',   dur: '14s', color: '#00E5CC', size: 3 },
-    { left: '48%', delay: '3s',   dur: '11s', color: '#FF2D9B', size: 5 },
-    { left: '58%', delay: '5s',   dur: '13s', color: '#00D4FF', size: 4 },
-    { left: '68%', delay: '2.5s', dur: '16s', color: '#7B5CF0', size: 5 },
-    { left: '78%', delay: '1.5s', dur: '12s', color: '#00E5CC', size: 3 },
-    { left: '88%', delay: '3.5s', dur: '14s', color: '#FF2D9B', size: 6 },
-    { left: '95%', delay: '0.5s', dur: '11s', color: '#00D4FF', size: 4 },
-  ]
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-      {PARTICLES.map((p, i) => (
-        <div key={i} className="ds-particle" style={{
-          left: p.left,
-          width: p.size, height: p.size,
-          background: p.color,
-          boxShadow: `0 0 ${p.size * 3}px ${p.color}, 0 0 ${p.size * 6}px ${p.color}`,
-          animationDuration: p.dur,
-          animationDelay: p.delay,
-        }} />
-      ))}
-    </div>
-  )
-}
-
-// ── Routed Error Boundary ─────────────────────────────────────
+// ── Routed Error Boundary ────────────────────────────────────
 function RoutedErrorBoundary({ children }) {
   const location = useLocation()
-  return <ErrorBoundary routeKey={location.pathname}>{children}</ErrorBoundary>
+  return (
+    <ErrorBoundary routeKey={location.pathname}>
+      {children}
+    </ErrorBoundary>
+  )
 }
 
 // ── Main App ──────────────────────────────────────────────────
@@ -2757,10 +3607,14 @@ export default function App() {
   const needsProfileSetup = user && !profile?.username
   const { isVerified, isBlockedU13, isBlockedU18, pass } = useAgeGate()
 
+  // Show age gate before anything else (except loading)
   if (!loading && !isVerified) {
     return <AgeGate onPass={(dob) => {
       pass(dob)
-      if (user) { supabase.from('profiles').update({ date_of_birth: dob }).eq('id', user.id).then(() => {}) }
+      // If user already logged in, save DOB to their profile too
+      if (user) {
+        supabase.from('profiles').update({ date_of_birth: dob }).eq('id', user.id).then(() => {})
+      }
     }} />
   }
 
@@ -2777,319 +3631,19 @@ export default function App() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700;900&display=swap');
-
-        /* ── Base keyframes ── */
-        @keyframes pulse        { 0%,100%{opacity:.3} 50%{opacity:1} }
-        @keyframes gradientShift{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-
-        /* ── Dream cloud glow (chat panel, widget) ── */
-        @keyframes dreamCloud {
-          0%   { box-shadow: 0 0 40px 8px rgba(0,212,255,0.5), 0 0 80px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.7) !important; }
-          33%  { box-shadow: 0 0 40px 8px rgba(255,45,155,0.5), 0 0 80px rgba(255,45,155,0.2); border-color: rgba(255,45,155,0.7) !important; }
-          66%  { box-shadow: 0 0 40px 8px rgba(123,92,240,0.5), 0 0 80px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.7) !important; }
-          100% { box-shadow: 0 0 40px 8px rgba(0,212,255,0.5), 0 0 80px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.7) !important; }
-        }
-
-        /* ── Soft card glow ── */
-        @keyframes softCardGlow {
-          0%,100% { box-shadow: 0 4px 24px rgba(123,92,240,0.3), 0 0 0 1px rgba(123,92,240,0.3); border-color: rgba(123,92,240,0.35) !important; }
-          50%     { box-shadow: 0 4px 32px rgba(0,212,255,0.3), 0 0 0 1px rgba(0,212,255,0.3);   border-color: rgba(0,212,255,0.35) !important; }
-        }
-
-        /* ── Dreamy button pulse ── */
-        @keyframes dreamBtn {
-          0%,100% { box-shadow: 0 4px 20px rgba(123,92,240,0.6), 0 0 40px rgba(123,92,240,0.2); }
-          50%     { box-shadow: 0 6px 32px rgba(123,92,240,0.9), 0 0 60px rgba(123,92,240,0.35); }
-        }
-        @keyframes dreamBtnTeal {
-          0%,100% { box-shadow: 0 4px 20px rgba(0,212,255,0.6), 0 0 40px rgba(0,212,255,0.2); }
-          50%     { box-shadow: 0 6px 32px rgba(0,212,255,0.9), 0 0 60px rgba(0,212,255,0.35); }
-        }
-
-        /* ── Input glow ── */
-        @keyframes inputDream {
-          0%,100% { box-shadow: 0 0 14px rgba(0,212,255,0.4); }
-          50%     { box-shadow: 0 0 28px rgba(0,212,255,0.7), 0 0 56px rgba(0,212,255,0.2); }
-        }
-
-        /* ── Navbar ── */
-        @keyframes navDream {
-          0%,100% { box-shadow: 0 2px 30px rgba(0,212,255,0.15); border-bottom-color: rgba(0,212,255,0.25) !important; }
-          50%     { box-shadow: 0 2px 40px rgba(255,45,155,0.18); border-bottom-color: rgba(255,45,155,0.25) !important; }
-        }
-
-        /* ── Online dot ── */
-        @keyframes onlinePulse {
-          0%,100% { color:#00E5CC; text-shadow:0 0 8px #00E5CC,0 0 18px #00E5CC; }
-          50%     { color:#00D4FF; text-shadow:0 0 16px #00D4FF,0 0 32px #00D4FF; }
-        }
-
-        /* ── Heading glow ── */
-        @keyframes headingGlow {
-          0%,100% { text-shadow: 0 0 30px rgba(123,92,240,0.5), 0 0 60px rgba(123,92,240,0.2); }
-          50%     { text-shadow: 0 0 40px rgba(0,212,255,0.6), 0 0 80px rgba(0,212,255,0.25); }
-        }
-
-        /* ── Floating particles ── */
-        @keyframes floatUp {
-          0%   { transform: translateY(100vh) scale(0) rotate(0deg); opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 0.5; }
-          100% { transform: translateY(-20px) scale(1) rotate(360deg); opacity: 0; }
-        }
-
-        /* ── Image reveal ── */
-        @keyframes imageReveal {
-          0%   { opacity: 0; transform: scale(0.95); box-shadow: 0 0 60px rgba(0,212,255,0.6); }
-          100% { opacity: 1; transform: scale(1); box-shadow: 0 0 24px rgba(0,229,204,0.4); }
-        }
-
-        /* ── Ripple ── */
-        @keyframes ripple {
-          0%   { transform: scale(0); opacity: 0.5; }
-          100% { transform: scale(4); opacity: 0; }
-        }
-
-        /* ══════════════════════════════════════
-           BASE — bigger, friendlier, more readable
-        ══════════════════════════════════════ */
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
+        @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #06040f; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+        body { background: #080B14; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
-        button { -webkit-tap-highlight-color: transparent; cursor: pointer; font-size: 15px; font-weight: 600; }
-        p, li, label, span, div { line-height: 1.65; }
-
-        /* ══════════════════════════════════════
-           NAVBAR
-        ══════════════════════════════════════ */
-        nav {
-          animation: navDream 5s ease-in-out infinite !important;
-          border-bottom: 1px solid rgba(0,212,255,0.25) !important;
-        }
-        nav a { font-size: 15px !important; font-weight: 500 !important; transition: all 0.1s ease !important; }
-        nav a:hover {
-          color: #00D4FF !important;
-          text-shadow: 0 0 14px #00D4FF !important;
-          background: rgba(0,212,255,0.08) !important;
-          border-radius: 24px !important;
-        }
-
-        /* ══════════════════════════════════════
-           DREAM PANEL — chat + widget
-        ══════════════════════════════════════ */
-        .neon-panel {
-          border: 2px solid rgba(0,212,255,0.6) !important;
-          border-radius: 24px !important;
-          animation: dreamCloud 5s ease-in-out infinite !important;
-        }
-
-        /* ══════════════════════════════════════
-           ALL CARDS — soft dreamy borders
-        ══════════════════════════════════════ */
-        [style*="border-radius: 16px"],
-        [style*="border-radius: 14px"],
-        [style*="border-radius: 20px"],
-        [style*="border-radius: 24px"],
-        [style*="border-radius: 12px"] {
-          border: 1px solid rgba(123,92,240,0.35) !important;
-          animation: softCardGlow 4s ease-in-out infinite !important;
-          transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-        }
-        [style*="border-radius: 16px"]:hover,
-        [style*="border-radius: 14px"]:hover,
-        [style*="border-radius: 20px"]:hover,
-        [style*="border-radius: 24px"]:hover,
-        [style*="border-radius: 12px"]:hover {
-          transform: translateY(-3px) scale(1.01) !important;
-          box-shadow: 0 8px 40px rgba(0,212,255,0.4), 0 0 80px rgba(255,45,155,0.15) !important;
-          border-color: rgba(0,212,255,0.6) !important;
-          animation: none !important;
-        }
-
-        /* ══════════════════════════════════════
-           HEADINGS
-        ══════════════════════════════════════ */
-        h1:not(.splash-title) { animation: headingGlow 5s ease-in-out infinite !important; letter-spacing: -0.5px; }
-        h2 { text-shadow: 0 0 20px rgba(123,92,240,0.45) !important; }
-        h3 { text-shadow: 0 0 14px rgba(0,212,255,0.35) !important; }
-
-        /* ══════════════════════════════════════
-           FROSTED GLASS
-        ══════════════════════════════════════ */
-        [style*="backdrop-filter"],
-        [style*="backdropFilter"] {
-          backdrop-filter: blur(24px) saturate(1.6) !important;
-          -webkit-backdrop-filter: blur(24px) saturate(1.6) !important;
-        }
-
-        /* ══════════════════════════════════════
-           CHAT BUBBLES — soft, rounder, dreamier
-        ══════════════════════════════════════ */
-        .bubble-user {
-          border-radius: 20px 20px 6px 20px !important;
-          box-shadow: 0 4px 20px rgba(255,45,155,0.5), 0 0 40px rgba(123,92,240,0.2) !important;
-          border: 1px solid rgba(255,45,155,0.4) !important;
-          padding: 12px 16px !important;
-          font-size: 15px !important;
-          line-height: 1.65 !important;
-        }
-        .bubble-ai {
-          border-radius: 20px 20px 20px 6px !important;
-          box-shadow: 0 4px 20px rgba(0,212,255,0.4), 0 0 40px rgba(0,229,204,0.2) !important;
-          border: 1px solid rgba(0,212,255,0.35) !important;
-          padding: 12px 16px !important;
-          font-size: 15px !important;
-          line-height: 1.65 !important;
-        }
-
-        /* ══════════════════════════════════════
-           INPUT FIELDS — bigger, rounder
-        ══════════════════════════════════════ */
-        .neon-input {
-          border: 1.5px solid rgba(123,92,240,0.45) !important;
-          border-radius: 16px !important;
-          padding: 13px 18px !important;
-          font-size: 15px !important;
-          transition: all 0.15s ease !important;
-        }
-        .neon-input:focus {
-          border-color: #00D4FF !important;
-          box-shadow: 0 0 0 3px rgba(0,212,255,0.15), 0 0 30px rgba(0,212,255,0.5) !important;
-          outline: none !important;
-          animation: inputDream 2s ease-in-out infinite !important;
-        }
-        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]),
-        textarea, select {
-          border: 1.5px solid rgba(123,92,240,0.35) !important;
-          border-radius: 14px !important;
-          font-size: 15px !important;
-          transition: all 0.15s ease !important;
-        }
-        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):focus,
-        textarea:focus, select:focus {
-          border-color: #00D4FF !important;
-          box-shadow: 0 0 0 3px rgba(0,212,255,0.12), 0 0 24px rgba(0,212,255,0.45) !important;
-          outline: none !important;
-        }
-
-        /* ══════════════════════════════════════
-           BUTTONS — pill shaped, bubbly, dreamy
-        ══════════════════════════════════════ */
-        button {
-          border-radius: 28px !important;
-          min-height: 44px !important;
-          font-size: 15px !important;
-          font-weight: 600 !important;
-          letter-spacing: 0.2px !important;
-          transition: transform 0.12s ease, box-shadow 0.12s ease !important;
-          position: relative !important;
-          overflow: hidden !important;
-        }
-        button[style*="7B5CF0"], button[style*="7C5CFC"], button[style*="4B2FD0"] {
-          animation: dreamBtn 3s ease-in-out infinite !important;
-          padding: 12px 28px !important;
-        }
-        button[style*="7B5CF0"]:hover, button[style*="7C5CFC"]:hover, button[style*="4B2FD0"]:hover {
-          transform: translateY(-3px) scale(1.03) !important;
-          box-shadow: 0 8px 40px rgba(123,92,240,0.8) !important;
-        }
-        button[style*="00A884"], button[style*="00D4FF"], button[style*="00E5CC"] {
-          animation: dreamBtnTeal 3s ease-in-out infinite !important;
-          padding: 12px 28px !important;
-        }
-        button[style*="00A884"]:hover, button[style*="00D4FF"]:hover, button[style*="00E5CC"]:hover {
-          transform: translateY(-3px) scale(1.03) !important;
-          box-shadow: 0 8px 40px rgba(0,212,255,0.8) !important;
-        }
-        button::after {
-          content: ''; position: absolute; top: 50%; left: 50%;
-          width: 10px; height: 10px; margin: -5px 0 0 -5px;
-          border-radius: 50%; background: rgba(255,255,255,0.35);
-          transform: scale(0); opacity: 0; pointer-events: none;
-        }
-        button:active::after { animation: ripple 0.5s ease-out forwards !important; }
-        button:active { transform: scale(0.97) !important; }
-
-        /* Links styled as buttons */
-        a[style*="border-radius"] { border-radius: 28px !important; font-size: 15px !important; }
-
-        /* ══════════════════════════════════════
-           IMAGE GLOW
-        ══════════════════════════════════════ */
-        .neon-img-frame {
-          box-shadow: 0 0 28px rgba(0,229,204,0.65), 0 0 14px rgba(0,212,255,0.4) !important;
-          border: 1.5px solid rgba(0,229,204,0.55) !important;
-          border-radius: 16px !important;
-          animation: imageReveal 0.6s ease-out !important;
-        }
-        .neon-img-frame:hover {
-          box-shadow: 0 0 44px rgba(0,229,204,0.9), 0 0 22px rgba(0,212,255,0.6) !important;
-          transform: scale(1.02) !important;
-        }
-        img[style*="object-fit: cover"]:hover, img[style*="object-fit: contain"]:hover {
-          box-shadow: 0 0 32px rgba(0,229,204,0.55) !important;
-          transition: all 0.15s ease !important;
-        }
-
-        /* ══════════════════════════════════════
-           STATUS DOT
-        ══════════════════════════════════════ */
-        .status-dot-online { animation: onlinePulse 2.5s ease-in-out infinite !important; font-size: 12px !important; }
-
-        /* ══════════════════════════════════════
-           LOGO LOCK
-        ══════════════════════════════════════ */
-        .logo-icon ~ span span:first-child {
-          color: #7B5CF0 !important; -webkit-text-fill-color: #7B5CF0 !important;
-          text-shadow: 0 0 16px rgba(123,92,240,0.9), 0 0 32px rgba(123,92,240,0.4) !important;
-          background: none !important; animation: none !important;
-        }
-        .logo-icon ~ span span:last-child {
-          color: #E8EAF0 !important; -webkit-text-fill-color: #E8EAF0 !important;
-          background: none !important; animation: none !important;
-        }
-
-        /* ══════════════════════════════════════
-           FLOATING PARTICLES
-        ══════════════════════════════════════ */
-        .ds-particle {
-          position: fixed; bottom: -20px; border-radius: 50%;
-          pointer-events: none; z-index: 0;
-          animation: floatUp linear infinite;
-        }
-
-        /* ══════════════════════════════════════
-           GOLD GLOW
-        ══════════════════════════════════════ */
-        [style*="F5C842"] { text-shadow: 0 0 14px rgba(245,200,66,0.65) !important; }
-
-        /* ══════════════════════════════════════
-           SCROLLBAR
-        ══════════════════════════════════════ */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #7B5CF0, #00D4FF, #FF2D9B); border-radius: 8px; }
-
-        /* ══════════════════════════════════════
-           SELECTION
-        ══════════════════════════════════════ */
-        ::selection { background: rgba(123,92,240,0.4); color: #fff; }
-
-        /* ══════════════════════════════════════
-           MOBILE — bigger tap targets
-        ══════════════════════════════════════ */
+        button { -webkit-tap-highlight-color: transparent; }
         @media (max-width: 640px) {
           .nav-links { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
-          body { font-size: 16px; }
-          button { min-height: 48px !important; font-size: 16px !important; }
-          input, textarea, select { font-size: 16px !important; padding: 14px 18px !important; }
         }
       `}</style>
 
-      <CosmicBackground />
-      <FloatingParticles />
+      <StarField />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh' }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
@@ -3122,6 +3676,7 @@ export default function App() {
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
         {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
+        {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
             <Link to="/blog" style={{ color: C.muted, textDecoration: 'none' }}>Blog</Link>
@@ -3135,6 +3690,7 @@ export default function App() {
           </div>
         </div>
       </div>
+      {/* Dream Widget — outside content wrapper to prevent routing interference */}
       <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
     </div>
   )
