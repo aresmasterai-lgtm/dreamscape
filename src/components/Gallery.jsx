@@ -88,7 +88,7 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
 
   return (
     <div
-      style={{ breakInside: 'avoid', marginBottom: 14, borderRadius: 14, overflow: 'hidden', border: `1px solid ${hover ? C.accent + '88' : C.border}`, background: C.card, cursor: 'pointer', transition: 'all 0.2s', position: 'relative', transform: hover ? 'translateY(-2px)' : 'none' }}
+      className='ds-card' style={{ breakInside: 'avoid', marginBottom: 14, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}>
 

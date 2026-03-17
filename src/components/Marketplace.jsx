@@ -143,7 +143,7 @@ function CatalogView({ user, onSignIn }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
         {products.map(product => (
           <div key={product.id} onClick={() => user ? setSelected(product) : onSignIn()}
-            style={{ background: C.card, border: `1px solid ${selected?.id === product.id ? C.accent : C.border}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+            className='ds-card' style={{ overflow: 'hidden', cursor: 'pointer', borderRadius: 14 }}
             onMouseEnter={e => e.currentTarget.style.borderColor = C.accent + '88'}
             onMouseLeave={e => e.currentTarget.style.borderColor = selected?.id === product.id ? C.accent : C.border}>
             <div style={{ height: 140, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, position: 'relative', overflow: 'hidden' }}>
@@ -315,7 +315,7 @@ function ShopView({ user, onSignIn }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
           {filtered.map(product => (
             <div key={product.id}
-              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+              className='ds-card' style={{ overflow: 'hidden', cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
               {/* Image — click to lightbox, rest of card opens product modal */}
