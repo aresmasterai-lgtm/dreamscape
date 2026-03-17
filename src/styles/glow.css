@@ -309,3 +309,16 @@ img[style*="objectFit: contain"]:hover {
   background: rgba(123,92,240,0.4);
   color: #ffffff;
 }
+/* ── Logo color lock ─────────────────────────────────────────── */
+.logo-icon ~ span span:first-child {
+  -webkit-text-fill-color: #7B5CF0 !important;
+  color: #7B5CF0 !important;
+  background: none !important;
+  animation: none !important;
+}
+.logo-icon ~ span span:last-child {
+  -webkit-text-fill-color: #E8EAF0 !important;
+  color: #E8EAF0 !important;
+  background: none !important;
+  animation: none !important;
+}
