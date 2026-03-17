@@ -1191,6 +1191,207 @@ function BlogTab() {
   )
 }
 
+// ── Bug Reports Tab ───────────────────────────────────────────
+function BugReportsTab() {
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('open')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [selected, setSelected] = useState(null)
+  const [adminNote, setAdminNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const STATUS_OPTIONS = ['open', 'in_progress', 'resolved', 'dismissed']
+  const CATEGORY_OPTIONS = ['all', 'bug', 'ui', 'generation', 'payment', 'suggestion', 'other']
+
+  const STATUS_CONFIG = {
+    open:        { label: '🔴 Open',        color: C.red },
+    in_progress: { label: '🟡 In Progress', color: C.gold },
+    resolved:    { label: '🟢 Resolved',    color: C.teal },
+    dismissed:   { label: '⚫ Dismissed',   color: C.muted },
+  }
+
+  const CAT_LABELS = {
+    bug: '🐛 Bug', ui: '🎨 UI Issue', generation: '🎭 Generation',
+    payment: '💳 Payment', suggestion: '💡 Suggestion', other: '📋 Other',
+  }
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('bug_reports')
+      .select('*, profiles(username, avatar_url)')
+      .order('created_at', { ascending: false })
+      .limit(200)
+    setReports(data || [])
+    setLoading(false)
+  }
+
+  const updateStatus = async (id, status) => {
+    setSaving(true)
+    await supabase.from('bug_reports').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    setReports(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+    if (selected?.id === id) setSelected(prev => ({ ...prev, status }))
+    setSaving(false)
+  }
+
+  const saveNote = async () => {
+    if (!selected) return
+    setSaving(true)
+    await supabase.from('bug_reports').update({ admin_notes: adminNote, updated_at: new Date().toISOString() }).eq('id', selected.id)
+    setReports(prev => prev.map(r => r.id === selected.id ? { ...r, admin_notes: adminNote } : r))
+    setSelected(prev => ({ ...prev, admin_notes: adminNote }))
+    setSaving(false)
+  }
+
+  const openReport = (r) => {
+    setSelected(r)
+    setAdminNote(r.admin_notes || '')
+  }
+
+  const filtered = reports.filter(r => {
+    const matchStatus = statusFilter === 'all' || r.status === statusFilter
+    const matchCat = categoryFilter === 'all' || r.category === categoryFilter
+    return matchStatus && matchCat
+  })
+
+  const counts = STATUS_OPTIONS.reduce((acc, s) => {
+    acc[s] = reports.filter(r => r.status === s).length
+    return acc
+  }, {})
+
+  return (
+    <div style={{ display: 'flex', gap: 20 }}>
+      {/* Left — list */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Summary stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
+          {STATUS_OPTIONS.map(s => (
+            <div key={s} onClick={() => setStatusFilter(s === statusFilter ? 'all' : s)}
+              style={{ background: statusFilter === s ? `${STATUS_CONFIG[s].color}20` : C.card, border: `1px solid ${statusFilter === s ? STATUS_CONFIG[s].color + '55' : C.border}`, borderRadius: 12, padding: '12px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: STATUS_CONFIG[s].color, fontFamily: 'Playfair Display, serif' }}>{counts[s] || 0}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{STATUS_CONFIG[s].label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {CATEGORY_OPTIONS.map(c => (
+            <button key={c} onClick={() => setCategoryFilter(c)}
+              style={{ background: categoryFilter === c ? `${C.accent}20` : 'none', border: `1px solid ${categoryFilter === c ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '5px 12px', color: categoryFilter === c ? C.accent : C.muted, fontSize: 11, fontWeight: categoryFilter === c ? 700 : 400, cursor: 'pointer' }}>
+              {c === 'all' ? 'All' : CAT_LABELS[c]}
+            </button>
+          ))}
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: C.muted, alignSelf: 'center' }}>{filtered.length} reports</div>
+        </div>
+
+        {loading ? <Spinner /> : filtered.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '40px', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>✅</div>
+            <p style={{ color: C.muted, fontSize: 14 }}>No reports in this filter.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {filtered.map(r => {
+              const sc = STATUS_CONFIG[r.status] || STATUS_CONFIG.open
+              const isSelected = selected?.id === r.id
+              return (
+                <div key={r.id} onClick={() => openReport(r)}
+                  style={{ background: isSelected ? `${C.accent}12` : C.card, border: `1px solid ${isSelected ? C.accent + '55' : C.border}`, borderRadius: 12, padding: '12px 16px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {/* Category + status */}
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 6, padding: '2px 8px', color: C.accent, fontWeight: 600 }}>{CAT_LABELS[r.category] || r.category}</span>
+                      <span style={{ fontSize: 10, background: `${sc.color}18`, border: `1px solid ${sc.color}33`, borderRadius: 6, padding: '2px 8px', color: sc.color, fontWeight: 600 }}>{sc.label}</span>
+                    </div>
+                    {/* User */}
+                    <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>@{r.profiles?.username || 'anonymous'}</span>
+                    {/* Time */}
+                    <span style={{ fontSize: 11, color: C.muted, marginLeft: 'auto', flexShrink: 0 }}>
+                      {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  {/* Description preview */}
+                  <div style={{ fontSize: 13, color: C.text, marginTop: 6, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {r.description}
+                  </div>
+                  {/* Page */}
+                  {r.page_url && <div style={{ fontSize: 11, color: C.accent, marginTop: 4 }}>{r.page_url}</div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Right — detail panel */}
+      {selected && (
+        <div style={{ width: 340, flexShrink: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px', alignSelf: 'flex-start', position: 'sticky', top: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Report Detail</div>
+            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 18, cursor: 'pointer' }}>✕</button>
+          </div>
+
+          {/* Category + status badges */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 6, padding: '3px 10px', color: C.accent, fontWeight: 600 }}>{CAT_LABELS[selected.category] || selected.category}</span>
+            <span style={{ fontSize: 11, background: `${STATUS_CONFIG[selected.status]?.color}18`, border: `1px solid ${STATUS_CONFIG[selected.status]?.color}33`, borderRadius: 6, padding: '3px 10px', color: STATUS_CONFIG[selected.status]?.color, fontWeight: 600 }}>{STATUS_CONFIG[selected.status]?.label}</span>
+          </div>
+
+          {/* User info */}
+          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12 }}>
+            <div style={{ color: C.muted, marginBottom: 2 }}>Submitted by</div>
+            <div style={{ color: C.text, fontWeight: 600 }}>@{selected.profiles?.username || 'anonymous'}</div>
+            <div style={{ color: C.muted, marginTop: 4 }}>{new Date(selected.created_at).toLocaleString()}</div>
+            {selected.page_url && <div style={{ color: C.accent, marginTop: 4 }}>{selected.page_url}</div>}
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Description</div>
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', fontSize: 13, color: C.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{selected.description}</div>
+          </div>
+
+          {/* User agent */}
+          {selected.user_agent && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Browser</div>
+              <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.5, wordBreak: 'break-all' }}>{selected.user_agent.slice(0, 120)}</div>
+            </div>
+          )}
+
+          {/* Change status */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Update Status</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {STATUS_OPTIONS.map(s => (
+                <button key={s} onClick={() => updateStatus(selected.id, s)} disabled={selected.status === s || saving}
+                  style={{ background: selected.status === s ? `${STATUS_CONFIG[s].color}20` : 'none', border: `1px solid ${selected.status === s ? STATUS_CONFIG[s].color + '55' : C.border}`, borderRadius: 8, padding: '7px 12px', color: selected.status === s ? STATUS_CONFIG[s].color : C.muted, fontSize: 12, fontWeight: selected.status === s ? 700 : 400, cursor: selected.status === s ? 'default' : 'pointer', textAlign: 'left' }}>
+                  {STATUS_CONFIG[s].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Admin notes */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Admin Notes</div>
+            <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} rows={3} placeholder="Internal notes — not shown to user..."
+              style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 12, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }} />
+            <button onClick={saveNote} disabled={saving}
+              style={{ width: '100%', background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '9px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', marginTop: 8 }}>
+              {saving ? 'Saving...' : '💾 Save Notes'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Admin Dashboard ───────────────────────────────────────────
 export default function Admin({ user, profile }) {
   const navigate = useNavigate()
@@ -1211,6 +1412,7 @@ export default function Admin({ user, profile }) {
     ['stats',         '📈 Gen Stats'],
     ['announcements', '📢 Announcements'],
     ['blog',          '✍️ Blog'],
+    ['bugs',          '🐛 Bug Reports'],
   ]
 
   return (
@@ -1239,6 +1441,7 @@ export default function Admin({ user, profile }) {
       {tab === 'stats'         && <StatsTab />}
       {tab === 'announcements' && <AnnouncementsTab />}
       {tab === 'blog'          && <BlogTab />}
+      {tab === 'bugs'          && <BugReportsTab />}
     </div>
   )
 }

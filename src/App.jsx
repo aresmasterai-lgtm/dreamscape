@@ -30,6 +30,10 @@ class ErrorBoundary extends Component {
   }
   componentDidCatch(error, info) {
     console.error('Page crashed:', error, info)
+    // Fire event so FloatingFeedback can auto-open with pre-filled context
+    window.dispatchEvent(new CustomEvent('dreamscape:error', {
+      detail: { message: error?.message, page: window.location.pathname }
+    }))
   }
   componentDidUpdate(prevProps) {
     // Reset error when route changes
@@ -43,8 +47,11 @@ class ErrorBoundary extends Component {
         <div style={{ padding: '80px 20px', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
           <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: '#E8EAF0', marginBottom: 12 }}>Something went wrong</h2>
-          <p style={{ color: '#6B7494', fontSize: 14, marginBottom: 24, maxWidth: 400 }}>
-            {this.state.error?.message || 'This page encountered an error.'}
+          <p style={{ color: '#6B7494', fontSize: 14, marginBottom: 8, maxWidth: 400 }}>
+            {this.state.error?.message || 'This page ran into an error.'}
+          </p>
+          <p style={{ color: '#6B7494', fontSize: 13, marginBottom: 24, maxWidth: 400 }}>
+            A report has been pre-filled in the <strong style={{ color: '#F5C842' }}>🐛 Feedback</strong> button at the bottom-left — tap it to send and we'll fix it fast.
           </p>
           <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
             style={{ background: 'linear-gradient(135deg, #7C5CFC, #4B2FD0)', border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -3178,6 +3185,126 @@ function ScrollToTop() {
   return null
 }
 
+// ── Floating Feedback Button ─────────────────────────────────
+function FloatingFeedback({ user }) {
+  const [open, setOpen] = useState(false)
+  const [category, setCategory] = useState('bug')
+  const [description, setDescription] = useState('')
+  const [pageUrl, setPageUrl] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [pulse, setPulse] = useState(false)
+
+  useEffect(() => {
+    const onCrash = (e) => {
+      setCategory('bug')
+      setDescription('Page crashed: ' + (e.detail?.message || 'Unknown error'))
+      setPageUrl(e.detail?.page || window.location.pathname)
+      setPulse(true)
+      setOpen(true)
+    }
+    window.addEventListener('dreamscape:error', onCrash)
+    return () => window.removeEventListener('dreamscape:error', onCrash)
+  }, [])
+
+  const openModal = () => {
+    setPageUrl(window.location.pathname)
+    setOpen(true)
+    setSubmitted(false)
+    setPulse(false)
+  }
+
+  const submit = async () => {
+    if (!description.trim()) return
+    setSubmitting(true)
+    await supabase.from('bug_reports').insert({
+      user_id: user?.id || null,
+      category,
+      description: description.trim(),
+      page_url: pageUrl,
+      user_agent: navigator.userAgent,
+      status: 'open',
+    })
+    setSubmitting(false)
+    setSubmitted(true)
+    setTimeout(() => { setOpen(false); setDescription(''); setCategory('bug'); setPulse(false) }, 2200)
+  }
+
+  const CATS = [
+    { id: 'bug',        label: '🐛 Bug' },
+    { id: 'ui',         label: '🎨 UI Issue' },
+    { id: 'generation', label: '🎭 Generation' },
+    { id: 'payment',    label: '💳 Payment' },
+    { id: 'suggestion', label: '💡 Suggestion' },
+    { id: 'other',      label: '📋 Other' },
+  ]
+
+  return (
+    <>
+      <style>{`@keyframes feedbackPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,200,66,0.6)}50%{box-shadow:0 0 0 10px rgba(245,200,66,0)}}`}</style>
+      <button onClick={openModal} title="Send feedback or report a bug"
+        style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9000, background: 'rgba(14,18,32,0.92)', backdropFilter: 'blur(16px)', border: `1px solid ${pulse ? C.gold : C.gold + '55'}`, borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 7, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.4)', animation: pulse ? 'feedbackPulse 1.5s ease-in-out infinite' : 'none', transition: 'border-color 0.2s' }}>
+        🐛 <span>Feedback</span>
+      </button>
+
+      {open && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9100, background: 'rgba(8,11,20,0.88)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => e.target === e.currentTarget && setOpen(false)}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>Beta Feedback</h3>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: C.gold, background: `${C.gold}20`, border: `1px solid ${C.gold}55`, borderRadius: 4, padding: '2px 6px', letterSpacing: 1, textTransform: 'uppercase' }}>Beta</span>
+                </div>
+                <div style={{ fontSize: 12, color: C.muted }}>Help us squash bugs and ship faster ✦</div>
+              </div>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
+            {submitted ? (
+              <div style={{ padding: '52px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 8 }}>Thanks for the report!</div>
+                <div style={{ fontSize: 13, color: C.muted }}>We'll look into it and fix it fast.</div>
+              </div>
+            ) : (
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>What's the issue?</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                    {CATS.map(c => (
+                      <button key={c.id} onClick={() => setCategory(c.id)}
+                        style={{ background: category === c.id ? `${C.accent}20` : C.bg, border: `1px solid ${category === c.id ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '8px 10px', color: category === c.id ? C.accent : C.muted, fontSize: 11, fontWeight: category === c.id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>What happened?</label>
+                  <textarea autoFocus value={description} onChange={e => setDescription(e.target.value)}
+                    placeholder="What were you doing? What did you expect vs what happened?"
+                    rows={4}
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Page <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(auto-filled)</span></label>
+                  <input value={pageUrl} onChange={e => setPageUrl(e.target.value)}
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 14px', color: C.muted, fontSize: 12, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={submit} disabled={submitting || !description.trim()}
+                  style={{ background: submitting || !description.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '12px', color: submitting || !description.trim() ? C.muted : '#fff', fontSize: 13, fontWeight: 700, cursor: submitting || !description.trim() ? 'not-allowed' : 'pointer' }}>
+                  {submitting ? 'Sending...' : 'Send Report ✦'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Navbar ────────────────────────────────────────────────────
 function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
@@ -3220,6 +3347,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20 }}>
             <span style={{ color: '#E8EAF0' }}>Dream</span><span style={{ color: C.accent }}>scape</span>
           </span>
+          <span style={{ fontSize: 9, fontWeight: 800, color: C.gold, background: `${C.gold}20`, border: `1px solid ${C.gold}55`, borderRadius: 4, padding: '2px 6px', letterSpacing: 1, textTransform: 'uppercase', marginLeft: 2, flexShrink: 0 }}>Beta</span>
         </Link>
 
         {/* Desktop nav links */}
@@ -3692,6 +3820,8 @@ export default function App() {
       </div>
       {/* Dream Widget — outside content wrapper to prevent routing interference */}
       <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
+      {/* Floating feedback — always visible during BETA, bottom-left, auto-opens on crash */}
+      <FloatingFeedback user={user} />
     </div>
   )
 }
