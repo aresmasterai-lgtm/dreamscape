@@ -11,6 +11,14 @@
 [functions."generate-image"]
   timeout = 26
 
+[[edge_functions]]
+  path = "/blog/*"
+  function = "og-meta"
+
+[[edge_functions]]
+  path = "/u/*"
+  function = "og-meta"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
