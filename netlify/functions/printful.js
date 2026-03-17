@@ -131,7 +131,8 @@ export default async (req) => {
     // FIX: use the actual retailPrice passed from the frontend, not a hardcoded $35.00
     if (req.method === 'POST' && action === 'create') {
       const body = await req.json()
-      const { title, description, variantIds, imageUrl, retailPrice } = body
+      const { title, description, variantIds, imageUrl, retailPrice,
+              originalArtworkId, originalArtistId, artistRoyaltyPct } = body
 
       // retailPrice should always be provided from the frontend pricing calculator
       // Fall back to 35.00 only as a last resort — frontend enforces minimum profit
@@ -152,7 +153,10 @@ export default async (req) => {
         method: 'POST', headers: authHeaders, body: JSON.stringify(payload),
       })
       const data = await res.json()
-      return new Response(JSON.stringify(data.result || data), {
+      // Return attribution data alongside Printful result so frontend can store it
+      const result = data.result || data
+      if (originalArtworkId) result._attribution = { originalArtworkId, originalArtistId, artistRoyaltyPct: artistRoyaltyPct || 0 }
+      return new Response(JSON.stringify(result), {
         status: res.ok ? 200 : res.status, headers: { 'Content-Type': 'application/json' },
       })
     }

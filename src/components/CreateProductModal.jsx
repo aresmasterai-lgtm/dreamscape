@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -37,158 +37,133 @@ function Spinner({ label }) {
 // ── Art Placement Editor ──────────────────────────────────────
 function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacementChange }) {
   const canvasRef = useRef(null)
-  const [artPos, setArtPos] = useState({ x: 50, y: 40, scale: 55 })
+  const [artPos, setArtPos] = useState({ x: 25, y: 20, scale: 50 }) // % based
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState(null)
-  const prodImgRef = useRef(null)
-  const artImgRef  = useRef(null)
-  const [imgsReady, setImgsReady] = useState(false)
+  const containerRef = useRef(null)
 
-  // Pre-load both images once on mount / when URLs change
-  useEffect(() => {
-    setImgsReady(false)
-    let loaded = 0
-    const check = () => { if (++loaded === 2) setImgsReady(true) }
-
-    const prod = new Image()
-    prod.crossOrigin = 'anonymous'
-    prod.onload  = () => { prodImgRef.current = prod; check() }
-    prod.onerror = () => {
-      // On CORS error try without crossOrigin
-      const prod2 = new Image()
-      prod2.onload  = () => { prodImgRef.current = prod2; check() }
-      prod2.onerror = () => { prodImgRef.current = null; check() }
-      prod2.src = productImage || ''
-    }
-    prod.src = productImage || ''
-
-    const art = new Image()
-    art.crossOrigin = 'anonymous'
-    art.onload  = () => { artImgRef.current = art; check() }
-    art.onerror = () => { artImgRef.current = null; check() }
-    art.src = artworkUrl || ''
-  }, [productImage, artworkUrl])
-
-  // Redraw canvas whenever images or position changes
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || !imgsReady) return
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
     const W = canvas.width
     const H = canvas.height
     ctx.clearRect(0, 0, W, H)
 
-    // White background always
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, W, H)
+    // Draw product image
+    const prodImg = new Image()
+    prodImg.crossOrigin = 'anonymous'
+    prodImg.onload = () => {
+      ctx.drawImage(prodImg, 0, 0, W, H)
 
-    // Draw product image if loaded
-    if (prodImgRef.current) {
-      ctx.drawImage(prodImgRef.current, 0, 0, W, H)
-    } else {
-      // Fallback placeholder
-      ctx.fillStyle = '#e8e8e8'
-      ctx.fillRect(0, 0, W, H)
-      ctx.fillStyle = '#aaa'
-      ctx.font = '14px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText(productName || 'Product', W / 2, H / 2)
+      // Draw artwork on top
+      const artImg = new Image()
+      artImg.crossOrigin = 'anonymous'
+      artImg.onload = () => {
+        const artW = (artPos.scale / 100) * W
+        const artH = artW * (artImg.height / artImg.width)
+        const artX = (artPos.x / 100) * W - artW / 2
+        const artY = (artPos.y / 100) * H - artH / 2
+        ctx.globalAlpha = 0.92
+        ctx.drawImage(artImg, artX, artY, artW, artH)
+        ctx.globalAlpha = 1
+
+        // Draw selection border
+        ctx.strokeStyle = C.accent
+        ctx.lineWidth = 2
+        ctx.setLineDash([4, 4])
+        ctx.strokeRect(artX - 2, artY - 2, artW + 4, artH + 4)
+        ctx.setLineDash([])
+
+        // Draw handle corners
+        const corners = [[artX, artY], [artX + artW, artY], [artX, artY + artH], [artX + artW, artY + artH]]
+        corners.forEach(([cx, cy]) => {
+          ctx.fillStyle = C.accent
+          ctx.fillRect(cx - 5, cy - 5, 10, 10)
+        })
+
+        onPlacementChange?.({ x: artPos.x, y: artPos.y, scale: artPos.scale, artW, artH, artX, artY, canvasW: W, canvasH: H })
+      }
+      artImg.src = artworkUrl
     }
+    prodImg.src = productImage || '/placeholder-shirt.png'
+  }, [artPos, artworkUrl, productImage])
 
-    // Draw artwork on top
-    if (artImgRef.current) {
-      const artW = (artPos.scale / 100) * W
-      const artH = artW * (artImgRef.current.height / artImgRef.current.width)
-      const artX = (artPos.x / 100) * W - artW / 2
-      const artY = (artPos.y / 100) * H - artH / 2
+  useEffect(() => { draw() }, [draw])
 
-      ctx.globalAlpha = 0.93
-      ctx.drawImage(artImgRef.current, artX, artY, artW, artH)
-      ctx.globalAlpha = 1
-
-      // Selection border + corner handles
-      ctx.strokeStyle = C.accent
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 4])
-      ctx.strokeRect(artX - 2, artY - 2, artW + 4, artH + 4)
-      ctx.setLineDash([])
-      ;[[artX, artY], [artX + artW, artY], [artX, artY + artH], [artX + artW, artY + artH]].forEach(([cx, cy]) => {
-        ctx.fillStyle = C.accent
-        ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill()
-      })
-
-      onPlacementChange?.({ x: artPos.x, y: artPos.y, scale: artPos.scale, artW, artH, artX, artY, canvasW: W, canvasH: H })
-    }
-  }, [imgsReady, artPos, productName])
-
-  const getPos = (e) => {
+  const getRelativePos = (e) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 50, y: 50 }
     const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width  / rect.width
-    const scaleY = canvas.height / rect.height
     const clientX = e.touches ? e.touches[0].clientX : e.clientX
     const clientY = e.touches ? e.touches[0].clientY : e.clientY
     return {
-      x: ((clientX - rect.left) * scaleX / canvas.width)  * 100,
-      y: ((clientY - rect.top)  * scaleY / canvas.height) * 100,
+      x: ((clientX - rect.left) / rect.width) * 100,
+      y: ((clientY - rect.top) / rect.height) * 100,
     }
   }
 
-  const onDown  = (e) => { e.preventDefault(); const p = getPos(e); setDragging(true); setDragStart({ mx: p.x, my: p.y, ax: artPos.x, ay: artPos.y }) }
-  const onMove  = (e) => {
+  const handleMouseDown = (e) => {
+    e.preventDefault()
+    const pos = getRelativePos(e)
+    setDragging(true)
+    setDragStart({ mouseX: pos.x, mouseY: pos.y, artX: artPos.x, artY: artPos.y })
+  }
+
+  const handleMouseMove = (e) => {
     if (!dragging || !dragStart) return
     e.preventDefault()
-    const p = getPos(e)
-    setArtPos(prev => ({
-      ...prev,
-      x: Math.max(5, Math.min(95, dragStart.ax + (p.x - dragStart.mx))),
-      y: Math.max(5, Math.min(95, dragStart.ay + (p.y - dragStart.my))),
-    }))
+    const pos = getRelativePos(e)
+    const newX = Math.max(5, Math.min(95, dragStart.artX + (pos.x - dragStart.mouseX)))
+    const newY = Math.max(5, Math.min(95, dragStart.artY + (pos.y - dragStart.mouseY)))
+    setArtPos(prev => ({ ...prev, x: newX, y: newY }))
   }
-  const onUp = () => { setDragging(false); setDragStart(null) }
+
+  const handleMouseUp = () => { setDragging(false); setDragStart(null) }
 
   return (
-    <div>
+    <div ref={containerRef}>
       <canvas
         ref={canvasRef}
-        width={420} height={500}
-        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-        style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', border: `1px solid ${C.border}`, display: 'block', touchAction: 'none' }}
+        width={400}
+        height={480}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleMouseDown}
+        onTouchMove={handleMouseMove}
+        onTouchEnd={handleMouseUp}
+        style={{ width: '100%', height: 'auto', borderRadius: 12, cursor: dragging ? 'grabbing' : 'grab', border: `1px solid ${C.border}`, background: '#f5f5f5', display: 'block' }}
       />
-      {!imgsReady && (
-        <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: C.muted }}>⏳ Loading canvas...</div>
-      )}
-      {/* Size slider */}
+      {/* Scale slider */}
       <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>🔍 Size</span>
+        <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>Size</span>
         <input type="range" min="10" max="90" value={artPos.scale}
           onChange={e => setArtPos(prev => ({ ...prev, scale: parseInt(e.target.value) }))}
           style={{ flex: 1, accentColor: C.accent }} />
         <span style={{ fontSize: 11, color: C.text, minWidth: 32 }}>{artPos.scale}%</span>
       </div>
-      {/* Quick position buttons */}
       <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {[['Center', 50, 40, 55], ['Top', 50, 22, 50], ['Fill', 50, 50, 85]].map(([label, x, y, s]) => (
-          <button key={label} onClick={() => setArtPos({ x, y, scale: s })}
+        {[['Center', 50, 35], ['Top', 50, 20], ['Large', 50, 35]].map(([label, x, y]) => (
+          <button key={label} onClick={() => setArtPos(prev => ({ ...prev, x, y, scale: label === 'Large' ? 70 : 50 }))}
             style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
             {label}
           </button>
         ))}
-        <button onClick={() => setArtPos({ x: 50, y: 40, scale: 55 })}
+        <button onClick={() => setArtPos({ x: 50, y: 35, scale: 50 })}
           style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
           Reset
         </button>
       </div>
-      <p style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Drag to position · Slider to resize · Pinch to zoom on mobile</p>
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Drag your artwork to position it · Use slider to resize</p>
     </div>
   )
 }
 
-const STEPS = ['Upload', 'Product', 'Colors', 'Design', 'Details', 'Done']
+const STEPS = ['Upload', 'Product', 'Design', 'Colors', 'Details', 'Done']
 
-export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
+export default function CreateProductModal({ user, imageUrl, artworkId, originalArtwork, title: defaultTitle, onClose, onSuccess }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [hostedImageUrl, setHostedImageUrl] = useState('')
@@ -349,7 +324,15 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
+        body: JSON.stringify({
+              title, description,
+              variantIds: allVariantIds,
+              imageUrl: hostedImageUrl,
+              retailPrice: parseFloat(price).toFixed(2),
+              originalArtworkId: originalArtwork?.id || artworkId || null,
+              originalArtistId: originalArtwork?.user_id || null,
+              artistRoyaltyPct: originalArtwork?.license === 'royalty' ? (originalArtwork.royalty_pct || 15) : 0,
+            }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
@@ -442,8 +425,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </div>
           )}
 
-          {/* Step 4: Art Placement Editor */}
-          {step === 4 && selected && (
+          {/* Step 3: Art Placement Editor */}
+          {step === 3 && selected && (
             <div style={{ padding: '0 24px 20px' }}>
               <div style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: C.text }}>
                 <strong style={{ color: C.accent }}>✦ Design Editor</strong> — Drag your artwork to position it on the <strong>{selected.model}</strong>. Resize with the slider.
@@ -457,8 +440,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             </div>
           )}
 
-          {/* Step 3: Colors */}
-          {step === 3 && (
+          {/* Step 4: Colors */}
+          {step === 4 && (
             <div style={{ padding: '0 24px 20px' }}>
               {/* Preview */}
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginBottom: 18 }}>
@@ -553,7 +536,17 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                     style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+                  {/* Royalty notice if using someone else's artwork */}
+                {originalArtwork && originalArtwork.license === 'royalty' && (
+                  <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>✦</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 2 }}>Artist Royalty: {originalArtwork.royalty_pct || 15}%</div>
+                      <div style={{ fontSize: 11, color: C.muted }}>@{originalArtwork.profiles?.username || 'the original artist'} will earn {originalArtwork.royalty_pct || 15}% of your profit on every sale.</div>
+                    </div>
+                  </div>
+                )}
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
                     <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
@@ -607,19 +600,19 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             {step === 2 && (
               <button onClick={() => { if (selected && !variantLoading) setStep(3) }} disabled={!selected || variantLoading}
                 style={{ background: !selected || variantLoading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: !selected || variantLoading ? 'not-allowed' : 'pointer' }}>
-                {variantLoading ? 'Loading...' : 'Choose Colors →'}
+                {variantLoading ? 'Loading...' : 'Design It →'}
               </button>
             )}
             {step === 3 && (
-              <button onClick={() => selectedColors.length > 0 && setStep(4)} disabled={selectedColors.length === 0}
-                style={{ background: selectedColors.length === 0 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedColors.length === 0 ? 'not-allowed' : 'pointer' }}>
-                {selectedColors.length === 0 ? 'Select a Color First' : 'Design It →'}
+              <button onClick={() => setStep(4)}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Choose Colors →
               </button>
             )}
             {step === 4 && (
-              <button onClick={() => setStep(5)}
-                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                Add Details →
+              <button onClick={() => selectedColors.length > 0 && setStep(5)} disabled={selectedColors.length === 0}
+                style={{ background: selectedColors.length === 0 ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: selectedColors.length === 0 ? 'not-allowed' : 'pointer' }}>
+                {selectedColors.length === 0 ? 'Select a Color' : `Add Details →`}
               </button>
             )}
             {step === 5 && (

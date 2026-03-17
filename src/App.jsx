@@ -108,6 +108,51 @@ function calcProfit(retailPrice, baseCost) {
   return { earnings, margin, breakEven, stripeFee, dreamscapeFee }
 }
 
+// ── Ctrl/Cmd+Click → new tab utility ─────────────────────────
+// Call this in any onClick that would normally navigate internally.
+// If the user holds Ctrl (PC) or Cmd (Mac), opens in a new tab instead.
+const navOrNewTab = (e, path, navigate) => {
+  if (e.ctrlKey || e.metaKey || e.shiftKey) {
+    e.preventDefault()
+    window.open(path, '_blank', 'noopener,noreferrer')
+  } else {
+    navigate(path)
+  }
+}
+
+// ── Image protection ──────────────────────────────────────────
+// Prevents casual right-click save and drag-to-desktop on artwork.
+// Does not stop screenshots — that's OS level and unavoidable —
+// but blocks 99% of casual copying and establishes IP ownership signal.
+const protectedImgProps = (isOwner = false) => ({
+  onContextMenu: isOwner ? undefined : (e) => e.preventDefault(),
+  onDragStart: isOwner ? undefined : (e) => e.preventDefault(),
+  style: { userSelect: 'none', WebkitUserSelect: 'none', WebkitUserDrag: isOwner ? 'auto' : 'none', pointerEvents: 'auto' },
+})
+
+// Wrap any img tag with this overlay to block interaction on public images
+function ProtectedImage({ src, alt, style, isOwner = false, onClick, className }) {
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onContextMenu={isOwner ? undefined : e => e.preventDefault()}
+        onDragStart={isOwner ? undefined : e => e.preventDefault()}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', userSelect: 'none', WebkitUserDrag: isOwner ? 'auto' : 'none', display: 'block' }}
+      />
+      {/* Transparent overlay on non-owner images — blocks right-click targeting the img element */}
+      {!isOwner && (
+        <div
+          onContextMenu={e => e.preventDefault()}
+          style={{ position: 'absolute', inset: 0, background: 'transparent', userSelect: 'none' }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Tier Limits ───────────────────────────────────────────────
 const TIER_LIMITS = {
   free:    { gens: 10,  products: 3  },
@@ -667,8 +712,17 @@ function DreamChat({ user, onSignIn }) {
     if (!input.trim() || loading) return
 
     // If user says yes/go after a prompt is ready — generate immediately
-    const YES_TRIGGERS = ['yes', 'yeah', 'yep', 'go', 'do it', 'make it', 'generate', 'create it', "let's go", 'yes please', 'go ahead', 'absolutely', 'sure', 'perfect', 'love it']
-    if (YES_TRIGGERS.includes(input.trim().toLowerCase()) && pendingPrompt) {
+    const YES_TRIGGERS = [
+      'yes', 'yeah', 'yep', 'yup', 'go', 'go!', 'go for it', 'do it', 'do it!',
+      'make it', 'generate', 'create', 'create it', "let's go", "let's do it",
+      'yes please', 'go ahead', 'absolutely', 'sure', 'perfect', 'love it',
+      'affirm', 'approved', 'approve', 'confirmed', 'confirm', 'proceed',
+      'make this', 'do this', 'run it', 'fire', 'fire it', 'send it',
+      'make it happen', 'lets go', 'yesss', 'yasss', 'hell yes', 'hell yeah',
+    ]
+    const inputLower = input.trim().toLowerCase()
+    const isYesTrigger = YES_TRIGGERS.some(t => inputLower === t || inputLower.startsWith(t + ' ') || inputLower.endsWith(' ' + t))
+    if (isYesTrigger && pendingPrompt) {
       setMessages(prev => [...prev, { role: 'user', content: input.trim() }])
       setInput('')
       const { prompt, refImage } = pendingPrompt
@@ -849,7 +903,7 @@ function DreamChat({ user, onSignIn }) {
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', boxShadow: `0 0 0 1px ${C.accent}22, 0 8px 40px rgba(124,92,252,0.15)` }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1013,33 +1067,66 @@ function DreamChat({ user, onSignIn }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <style>{`@keyframes generatePulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,212,170,0.5)} 50%{box-shadow:0 0 0 8px rgba(0,212,170,0)} }`}</style>
-                <button onClick={() => {
-                  if (generatingIndex !== null) return
-                  if (pendingPrompt) {
-                    // First click — use pending prompt and store it for retries
-                    const { prompt, refImage } = pendingPrompt
-                    setPendingPrompt(null)
-                    lastGenerationPromptRef.current = prompt
-                    generateImage(prompt, messages.length - 1, refImage)
-                  } else if (lastGenerationPromptRef.current) {
-                    // Retry after error — use the stored real prompt, never Dream's chat text
-                    generateImage(lastGenerationPromptRef.current, messages.length - 1)
+                <style>{`
+                  @keyframes generatePulse {
+                    0%   { box-shadow: 0 0 0 0 rgba(0,212,170,0.7), 0 0 12px rgba(124,92,252,0.4); }
+                    50%  { box-shadow: 0 0 0 10px rgba(0,212,170,0), 0 0 28px rgba(124,92,252,0.7); }
+                    100% { box-shadow: 0 0 0 0 rgba(0,212,170,0), 0 0 12px rgba(124,92,252,0.4); }
                   }
-                  // If neither exists the button won't be visible anyway
-                }} disabled={generatingIndex !== null}
-                  style={{ background: generatingIndex !== null ? C.border : `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 8, padding: '8px 16px', color: generatingIndex !== null ? C.muted : '#fff', fontSize: 12, fontWeight: 700, cursor: generatingIndex !== null ? 'not-allowed' : 'pointer', animation: generatingIndex === null ? 'generatePulse 2s ease-in-out infinite' : 'none', minWidth: 180, textAlign: 'center' }}>
-                  {generatingIndex !== null ? [
-                    '✨ Making dreams come true...',
-                    '🎨 Painting your vision...',
-                    '🌌 Bending reality...',
-                    '⚡ Conjuring something epic...',
-                    '🔮 Reading your mind...',
-                    '🌀 Warping the cosmos...',
-                    '💫 Channeling the muse...',
-                    '🎭 Bringing it to life...',
-                  ][generatingIndex % 8] : '✦ Generate Image'}
-                </button>
+                  @keyframes generateReady {
+                    0%,100% { filter: brightness(1); }
+                    50%     { filter: brightness(1.15); }
+                  }
+                `}</style>
+                {(() => {
+                  const isReady = !!(pendingPrompt || lastGenerationPromptRef.current)
+                  const isGenerating = generatingIndex !== null
+                  const isDisabled = isGenerating || !isReady
+
+                  return (
+                    <button onClick={() => {
+                      if (isDisabled) return
+                      if (pendingPrompt) {
+                        const { prompt, refImage } = pendingPrompt
+                        setPendingPrompt(null)
+                        lastGenerationPromptRef.current = prompt
+                        generateImage(prompt, messages.length - 1, refImage)
+                      } else if (lastGenerationPromptRef.current) {
+                        generateImage(lastGenerationPromptRef.current, messages.length - 1)
+                      }
+                    }} disabled={isDisabled}
+                      style={{
+                        background: isDisabled && !isGenerating
+                          ? C.border  // grayed — not ready yet
+                          : isGenerating
+                          ? `linear-gradient(135deg, ${C.teal}88, #00A88488)`
+                          : `linear-gradient(135deg, ${C.teal}, #00A884)`,
+                        border: isReady && !isGenerating ? `1px solid ${C.teal}88` : `1px solid transparent`,
+                        borderRadius: 8, padding: '8px 16px',
+                        color: isDisabled && !isGenerating ? C.muted : '#fff',
+                        fontSize: 12, fontWeight: 700,
+                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        animation: isReady && !isGenerating
+                          ? 'generatePulse 2s ease-in-out infinite, generateReady 3s ease-in-out infinite'
+                          : 'none',
+                        minWidth: 180, textAlign: 'center',
+                        transition: 'background 0.3s, color 0.3s',
+                      }}>
+                      {isGenerating ? [
+                        '✨ Making dreams come true...',
+                        '🎨 Painting your vision...',
+                        '🌌 Bending reality...',
+                        '⚡ Conjuring something epic...',
+                        '🔮 Reading your mind...',
+                        '🌀 Warping the cosmos...',
+                        '💫 Channeling the muse...',
+                        '🎭 Bringing it to life...',
+                      ][generatingIndex % 8]
+                      : isReady ? '✦ Generate Image'
+                      : '✦ Generate Image'}
+                    </button>
+                  )
+                })()}
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
                   style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '8px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
                   {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save Prompt'}
@@ -1096,12 +1183,19 @@ function DreamChat({ user, onSignIn }) {
 }
 
 // ── Shared Image Lightbox ─────────────────────────────────────
-function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true }) {
+function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublishToggle, onDelete, isPublic, showActions = true }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  const btnStyle = (color = C.muted, bg = 'none') => ({
+    background: bg, border: `1px solid ${color}44`, borderRadius: 10,
+    padding: '10px 18px', color, fontSize: 13, fontWeight: 700,
+    cursor: 'pointer', textDecoration: 'none', display: 'inline-flex',
+    alignItems: 'center', gap: 6, transition: 'all 0.15s',
+  })
 
   return (
     <div
@@ -1118,7 +1212,7 @@ function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true 
         <img
           src={image.src}
           alt={image.alt}
-          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '75vh', objectFit: 'contain', background: C.panel }}
+          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}44`, display: 'block', maxHeight: '72vh', objectFit: 'contain', background: C.panel }}
         />
         {/* Caption */}
         {(image.title || image.prompt) && (
@@ -1130,18 +1224,34 @@ function ImageLightbox({ image, onClose, onSell, onDownload, showActions = true 
         )}
         {/* Actions */}
         {showActions && (
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
+            {/* Owner actions */}
+            {onPublishToggle && (
+              <button onClick={onPublishToggle} style={btnStyle(isPublic ? C.teal : C.accent, isPublic ? `${C.teal}18` : `${C.accent}18`)}>
+                {isPublic ? '🔒 Make Private' : '🌐 Publish'}
+              </button>
+            )}
+            {onRefine && (
+              <button onClick={onRefine} style={btnStyle(C.muted)}>
+                ✏️ Refine
+              </button>
+            )}
             {onSell && (
-              <button onClick={onSell}
-                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              <button onClick={onSell} style={btnStyle('#fff', `linear-gradient(135deg, ${C.accent}, #4B2FD0)`)}>
                 🛍 Sell This
               </button>
             )}
+            {/* Always available */}
             <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
               onClick={e => e.stopPropagation()}
-              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>
+              style={btnStyle(C.muted)}>
               ↓ Download
             </a>
+            {onDelete && (
+              <button onClick={onDelete} style={btnStyle(C.red)}>
+                🗑 Delete
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1156,6 +1266,90 @@ function artAltTag(art) {
   const by = art.profiles?.username ? ` by @${art.profiles.username}` : ''
   const promptSnippet = art.prompt ? ` — ${art.prompt.slice(0, 80)}` : ''
   return `${title}${styles}${by} on Dreamscape${promptSnippet}`
+}
+
+// ── License Picker Modal ──────────────────────────────────────
+// Shown when a creator publishes artwork — they choose how others can use it.
+function LicensePickerModal({ art, onConfirm, onClose }) {
+  const [license, setLicense] = useState(art.license || 'private')
+  const [royaltyPct, setRoyaltyPct] = useState(art.royalty_pct || 15)
+
+  const OPTIONS = [
+    {
+      id: 'private',
+      icon: '🔒',
+      label: 'Private Use Only',
+      desc: 'Only you can create products from this artwork. Others can view it but cannot use it commercially.',
+      color: C.muted,
+    },
+    {
+      id: 'royalty',
+      icon: '✦',
+      label: 'Open with Royalty',
+      desc: 'Anyone can create products using your artwork. You earn a royalty percentage on every sale.',
+      color: C.gold,
+    },
+    {
+      id: 'free',
+      icon: '🎁',
+      label: 'Free Use',
+      desc: 'Anyone can use your artwork with no royalty. Great for building your reputation and exposure.',
+      color: C.teal,
+    },
+  ]
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 650, background: 'rgba(8,11,20,0.94)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: `0 0 60px ${C.accent}22` }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 3 }}>Publish Artwork</h3>
+          <div style={{ fontSize: 12, color: C.muted }}>Choose how others can use <strong style={{ color: C.text }}>{art.title || 'this artwork'}</strong></div>
+        </div>
+
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {OPTIONS.map(opt => (
+            <button key={opt.id} onClick={() => setLicense(opt.id)}
+              style={{ background: license === opt.id ? `${opt.color}15` : C.bg, border: `2px solid ${license === opt.id ? opt.color + '66' : C.border}`, borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>{opt.icon}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: license === opt.id ? opt.color : C.text }}>{opt.label}</span>
+                {license === opt.id && <span style={{ marginLeft: 'auto', fontSize: 12, color: opt.color }}>✓ Selected</span>}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, paddingLeft: 24 }}>{opt.desc}</div>
+            </button>
+          ))}
+
+          {/* Royalty slider — only shown for royalty option */}
+          {license === 'royalty' && (
+            <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 12, padding: '14px 16px', marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Your royalty per sale</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: C.gold, fontFamily: 'Playfair Display, serif' }}>{royaltyPct}%</span>
+              </div>
+              <input type="range" min="5" max="30" value={royaltyPct} onChange={e => setRoyaltyPct(parseInt(e.target.value))}
+                style={{ width: '100%', accentColor: C.gold }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 10, color: C.muted }}>5% (attract more creators)</span>
+                <span style={{ fontSize: 10, color: C.muted }}>30% (maximum)</span>
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                On a $35 product: you'd earn ~<strong style={{ color: C.gold }}>${((35 - 12.95 - 35 * 0.029 - 0.30) * (royaltyPct / 100)).toFixed(2)}</strong> per sale as the original artist, automatically.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={() => onConfirm(license, royaltyPct)}
+            style={{ flex: 2, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Publish ✦
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Artwork Grid ──────────────────────────────────────────────
@@ -1184,6 +1378,11 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
   const openLightbox = (e, art) => {
     if (!art.image_url) return
     e.stopPropagation()
+    // Cmd/Ctrl+Click opens the image directly in a new tab
+    if (e.ctrlKey || e.metaKey) {
+      window.open(art.image_url, '_blank', 'noopener,noreferrer')
+      return
+    }
     setLightbox({
       src: art.image_url,
       alt: artAltTag(art),
@@ -1200,7 +1399,11 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
         <ImageLightbox
           image={lightbox}
           onClose={() => setLightbox(null)}
+          isPublic={lightbox.art?.is_public}
+          onPublishToggle={isOwner && onPublishToggle ? () => { onPublishToggle(lightbox.art); setLightbox(null) } : null}
+          onRefine={isOwner && onRefine ? () => { onRefine(lightbox.art); setLightbox(null) } : null}
           onSell={isOwner && onSell ? () => { onSell(lightbox.art); setLightbox(null) } : null}
+          onDelete={isOwner && onDelete ? () => { onDelete(lightbox.art); setLightbox(null) } : null}
         />
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
@@ -1214,15 +1417,32 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
               {art.image_url
                 ? <img src={art.image_url} alt={artAltTag(art)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
                 : '🎨'}
-              {/* Zoom hint on hover */}
+              {/* Zoom hint / Use This Art on hover for non-owners */}
               {art.image_url && hover === art.id && !isOwner && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ background: 'rgba(8,11,20,0.75)', borderRadius: 8, padding: '6px 12px', fontSize: 12, color: '#fff' }}>🔍 View</div>
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
+                  onClick={e => e.stopPropagation()}>
+                  <button onClick={() => openLightbox({ nativeEvent: {} }, art)}
+                    style={{ background: 'rgba(8,11,20,0.8)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                    🔍 View
+                  </button>
+                  {art.license === 'royalty' || art.license === 'free' ? (
+                    <button onClick={() => onReuse && onReuse(art)}
+                      style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      🛍 Use This Art
+                    </button>
+                  ) : null}
                 </div>
               )}
-            {/* Public/private badge */}
-            <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
-              {art.is_public ? '🌐 Public' : '🔒 Private'}
+            {/* Public/private + license badge */}
+            <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4 }}>
+              <div style={{ background: 'rgba(8,11,20,0.8)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
+                {art.is_public ? '🌐 Public' : '🔒 Private'}
+              </div>
+              {art.is_public && art.license && art.license !== 'private' && (
+                <div style={{ background: 'rgba(8,11,20,0.8)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.license === 'royalty' ? C.gold : C.teal }}>
+                  {art.license === 'royalty' ? `✦ ${art.royalty_pct || 15}% royalty` : '🎁 Free use'}
+                </div>
+              )}
             </div>
             {/* Owner quick actions on hover */}
             {isOwner && hover === art.id && (
@@ -1242,7 +1462,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
           <div style={{ padding: '14px 16px' }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{art.title}</div>
             {art.profiles?.username && (
-              <div onClick={e => { e.stopPropagation(); navigate(`/u/${art.profiles.username}`) }}
+              <div onClick={e => { e.stopPropagation(); navOrNewTab(e, `/u/${art.profiles.username}`, navigate) }}
                 style={{ fontSize: 11, color: C.accent, marginBottom: 6, cursor: 'pointer' }}>@{art.profiles.username}</div>
             )}
             <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? 300 : 36, transition: 'max-height 0.3s' }}>{art.prompt}</div>
@@ -1973,14 +2193,14 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
               <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 24px', borderBottom: `1px solid ${C.border}` }}>
                 {/* Avatar */}
                 <div
-                  onClick={() => { navigate(`/u/${u.username}`); onClose() }}
+                  onClick={e => { if (e.ctrlKey || e.metaKey) { window.open(`/u/${u.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${u.username}`); onClose() } }}
                   style={{ width: 44, height: 44, borderRadius: '50%', background: u.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff' }}>
                   {u.avatar_url
                     ? <img src={u.avatar_url} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : u.username?.[0]?.toUpperCase()}
                 </div>
                 {/* Info */}
-                <div onClick={() => { navigate(`/u/${u.username}`); onClose() }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                <div onClick={e => { if (e.ctrlKey || e.metaKey) { window.open(`/u/${u.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${u.username}`); onClose() } }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {u.display_name || u.username}
                   </div>
@@ -2505,17 +2725,13 @@ function PayoutsCard({ user, profile }) {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
-  const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0 })
+  const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0, royalties: 0, royaltiesPending: 0 })
 
   const canSell = profile?.subscription_tier && profile.subscription_tier !== 'free'
 
   useEffect(() => {
-    if (user && canSell) {
-      checkStatus()
-      loadEarnings()
-    } else {
-      setLoading(false)
-    }
+    if (user && canSell) { checkStatus(); loadEarnings() }
+    else setLoading(false)
   }, [user, profile])
 
   const checkStatus = async () => {
@@ -2529,11 +2745,24 @@ function PayoutsCard({ user, profile }) {
   }
 
   const loadEarnings = async () => {
-    const { data } = await supabase.from('orders').select('creator_earnings, payout_status').eq('creator_id', user.id)
-    if (data) {
-      const total = data.reduce((sum, o) => sum + (o.creator_earnings || 0), 0)
-      const paid = data.filter(o => o.payout_status === 'paid').reduce((sum, o) => sum + (o.creator_earnings || 0), 0)
-      setEarnings({ total, pending: total - paid, paid })
+    // Product sales earnings
+    const { data: salesData } = await supabase
+      .from('orders')
+      .select('creator_earnings, payout_status')
+      .eq('creator_id', user.id)
+
+    // Artist royalties from others using their artwork
+    const { data: royaltyData } = await supabase
+      .from('orders')
+      .select('artist_royalty, artist_payout_status')
+      .eq('original_artist_id', user.id)
+
+    if (salesData) {
+      const total   = salesData.reduce((s, o) => s + (o.creator_earnings || 0), 0)
+      const paid    = salesData.filter(o => o.payout_status === 'paid').reduce((s, o) => s + (o.creator_earnings || 0), 0)
+      const royalties = (royaltyData || []).reduce((s, o) => s + (o.artist_royalty || 0), 0)
+      const royaltiesPending = (royaltyData || []).filter(o => o.artist_payout_status === 'pending').reduce((s, o) => s + (o.artist_royalty || 0), 0)
+      setEarnings({ total, pending: total - paid, paid, royalties, royaltiesPending })
     }
   }
 
@@ -2586,13 +2815,41 @@ function PayoutsCard({ user, profile }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
             <span style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700, color: C.teal }}>✅ Payouts Active</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+
+          {/* Product sales */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>🛍 Product Sales</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
             {[['Total Earned', earnings.total, C.gold], ['Pending', earnings.pending, C.accent], ['Paid Out', earnings.paid, C.teal]].map(([label, amount, color]) => (
               <div key={label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
                 <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color }}>${parseFloat(amount || 0).toFixed(2)}</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}</div>
               </div>
             ))}
+          </div>
+
+          {/* Artist royalties */}
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>✦ Artist Royalties</div>
+          {earnings.royalties > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.gold }}>${parseFloat(earnings.royalties || 0).toFixed(2)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Total Royalties</div>
+              </div>
+              <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.accent }}>${parseFloat(earnings.royaltiesPending || 0).toFixed(2)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Pending</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', fontSize: 13, color: C.muted }}>
+              No royalties yet. <button onClick={() => navigate('/profile?tab=artwork')} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 13, padding: 0 }}>Publish artwork with a royalty license</button> to earn from every sale others make using your art.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
           </div>
         </div>
       )}
@@ -2622,6 +2879,7 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [sellTarget, setSellTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
   const [followModal, setFollowModal] = useState(null) // 'followers' | 'following'
+  const [licenseModal, setLicenseModal] = useState(null) // art waiting for license pick
 
   const handleStatClick = (key) => {
     if (key === 'artwork') { setTab('artwork'); window.scrollTo({ top: 300, behavior: 'smooth' }) }
@@ -2680,8 +2938,22 @@ function ProfilePage({ user, profile: initialProfile }) {
   }
 
   const handlePublishToggle = async (art) => {
-    const { error } = await supabase.from('artwork').update({ is_public: !art.is_public }).eq('id', art.id)
-    if (!error) setArtworks(prev => prev.map(a => a.id === art.id ? { ...a, is_public: !a.is_public } : a))
+    if (art.is_public) {
+      // Unpublishing — instant, no picker needed
+      const { error } = await supabase.from('artwork').update({ is_public: false }).eq('id', art.id)
+      if (!error) setArtworks(prev => prev.map(a => a.id === art.id ? { ...a, is_public: false } : a))
+    } else {
+      // Publishing — show license picker first
+      setLicenseModal(art)
+    }
+  }
+
+  const handleLicenseConfirm = async (license, royaltyPct) => {
+    const art = licenseModal
+    setLicenseModal(null)
+    const updates = { is_public: true, license, royalty_pct: royaltyPct }
+    const { error } = await supabase.from('artwork').update(updates).eq('id', art.id)
+    if (!error) setArtworks(prev => prev.map(a => a.id === art.id ? { ...a, ...updates } : a))
   }
 
   const handleRefine = (art) => {
@@ -2723,6 +2995,14 @@ function ProfilePage({ user, profile: initialProfile }) {
           profileId={user.id}
           viewerUser={user}
           onClose={() => setFollowModal(null)}
+        />
+      )}
+
+      {licenseModal && (
+        <LicensePickerModal
+          art={licenseModal}
+          onConfirm={handleLicenseConfirm}
+          onClose={() => setLicenseModal(null)}
         />
       )}
 
@@ -3616,8 +3896,8 @@ function DreamWidget({ user, onSignIn }) {
     <>
       <style>{`
         @keyframes dreamPulse {
-          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.5), 0 4px 24px rgba(124,92,252,0.4); }
-          50% { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 4px 32px rgba(124,92,252,0.6); }
+          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.7), 0 4px 24px rgba(124,92,252,0.5), 0 0 16px rgba(0,212,170,0.2); }
+          50%     { box-shadow: 0 0 0 12px rgba(124,92,252,0), 0 4px 40px rgba(124,92,252,0.7), 0 0 32px rgba(0,212,170,0.35); }
         }
         @keyframes widgetIn {
           from { opacity: 0; transform: translateY(16px) scale(0.96); }
@@ -3794,10 +4074,25 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
         @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+        @keyframes accentGlow {
+          0%,100% { box-shadow: 0 0 8px rgba(124,92,252,0.35), 0 0 2px rgba(124,92,252,0.2); }
+          50%     { box-shadow: 0 0 20px rgba(124,92,252,0.65), 0 0 8px rgba(124,92,252,0.35); }
+        }
+        @keyframes tealGlow {
+          0%,100% { box-shadow: 0 0 8px rgba(0,212,170,0.35), 0 0 2px rgba(0,212,170,0.2); }
+          50%     { box-shadow: 0 0 20px rgba(0,212,170,0.65), 0 0 8px rgba(0,212,170,0.35); }
+        }
+        @keyframes dreamPulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.55), 0 0 24px rgba(124,92,252,0.25); }
+          50%     { box-shadow: 0 0 0 10px rgba(124,92,252,0), 0 0 40px rgba(124,92,252,0.45); }
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #080B14; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
         button { -webkit-tap-highlight-color: transparent; }
+        /* Vivid accent borders on cards and interactive elements */
+        .glow-accent { box-shadow: 0 0 12px rgba(124,92,252,0.4), inset 0 1px 0 rgba(124,92,252,0.15); }
+        .glow-teal   { box-shadow: 0 0 12px rgba(0,212,170,0.4),  inset 0 1px 0 rgba(0,212,170,0.15); }
         @media (max-width: 640px) {
           .nav-links { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
