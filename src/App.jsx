@@ -209,14 +209,6 @@ const SPARKLES = Array.from({ length: 25 }, (_, i) => ({
   delay:  Math.random() * 8,
 }))
 
-const SHOOTING_STARS = [
-  { top: '12%', left:  '8%', delay: '2s',  dur: '1.4s', rot: '22deg', len: 120 },
-  { top: '35%', left: '55%', delay: '7s',  dur: '1.2s', rot: '18deg', len: 90  },
-  { top: '60%', left: '25%', delay: '13s', dur: '1.6s', rot: '28deg', len: 150 },
-  { top: '20%', left: '70%', delay: '19s', dur: '1.3s', rot: '15deg', len: 100 },
-  { top: '75%', left: '45%', delay: '24s', dur: '1.5s', rot: '32deg', len: 110 },
-]
-
 function StarField() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#030508' }}>
@@ -255,12 +247,6 @@ function StarField() {
         @keyframes moonPulse {
           0%,100% { box-shadow: 0 0 24px rgba(180,160,255,0.35), 0 0 48px rgba(124,92,252,0.2), 0 0 90px rgba(124,92,252,0.08); }
           50%      { box-shadow: 0 0 40px rgba(180,160,255,0.55), 0 0 80px rgba(124,92,252,0.35), 0 0 140px rgba(124,92,252,0.15); }
-        }
-        @keyframes shootHead {
-          0%   { opacity: 0; transform: translateX(0) translateY(0) scaleX(0.1); }
-          8%   { opacity: 1; }
-          85%  { opacity: 0.7; }
-          100% { opacity: 0; transform: translateX(var(--sx)) translateY(var(--sy)) scaleX(1); }
         }
         @keyframes chromaticBorder {
           0%   { background-position: 0% 50%; }
@@ -377,36 +363,6 @@ function StarField() {
         background: 'radial-gradient(circle at 38% 35%, #fde68a 0%, #f59e0b 50%, #b45309 100%)',
         boxShadow: '0 0 8px rgba(245,158,11,0.5)',
         animation: 'planetFloat 6s ease-in-out infinite 3s' }} />
-
-      {/* ── Shooting stars — bright head + trailing fade ── */}
-      {SHOOTING_STARS.map((s, i) => (
-        <div key={i} style={{ position: 'absolute', top: s.top, left: s.left, transform: `rotate(${s.rot})`, animationDelay: s.delay }}>
-          {/* Tail — long gradient fade */}
-          <div style={{
-            width: s.len, height: 2,
-            background: 'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(200,180,255,0.3) 40%, rgba(255,255,255,0.85) 85%, rgba(255,255,255,1) 100%)',
-            borderRadius: 2,
-            '--sx': `${Math.cos(parseInt(s.rot)*Math.PI/180) * s.len * 2}px`,
-            '--sy': `${Math.sin(parseInt(s.rot)*Math.PI/180) * s.len * 2}px`,
-            animation: `shootHead ${s.dur} cubic-bezier(0.25,0.1,0.25,1) infinite`,
-            animationDelay: s.delay,
-            transformOrigin: 'right center',
-            opacity: 0,
-          }} />
-          {/* Head — bright point */}
-          <div style={{
-            position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
-            width: 4, height: 4, borderRadius: '50%',
-            background: '#ffffff',
-            boxShadow: '0 0 4px rgba(255,255,255,1), 0 0 8px rgba(200,180,255,0.8), 0 0 14px rgba(167,139,250,0.5)',
-            '--sx': `${Math.cos(parseInt(s.rot)*Math.PI/180) * s.len * 2}px`,
-            '--sy': `${Math.sin(parseInt(s.rot)*Math.PI/180) * s.len * 2}px`,
-            animation: `shootHead ${s.dur} cubic-bezier(0.25,0.1,0.25,1) infinite`,
-            animationDelay: s.delay,
-            opacity: 0,
-          }} />
-        </div>
-      ))}
 
       {/* ── Point stars ── */}
       {STARS.map(s => (
