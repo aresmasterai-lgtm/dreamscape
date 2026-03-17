@@ -2406,6 +2406,10 @@ function DiscoverPage({ user, onSignIn }) {
   const navigate = useNavigate()
   return (
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
+      {/* Neon rings */}
+      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '0s' }} />
+      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '1s', borderColor: 'rgba(255,45,155,0.4)' }} />
+      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '2s', borderColor: 'rgba(0,212,255,0.4)' }} />
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
@@ -2712,6 +2716,36 @@ function DreamWidget({ user, onSignIn }) {
   )
 }
 
+// ── Floating Particles ───────────────────────────────────────
+function FloatingParticles() {
+  const PARTICLES = [
+    { left: '8%',  delay: '0s',   dur: '12s', color: '#00D4FF', size: 5 },
+    { left: '18%', delay: '2s',   dur: '15s', color: '#FF2D9B', size: 4 },
+    { left: '28%', delay: '4s',   dur: '10s', color: '#7B5CF0', size: 6 },
+    { left: '38%', delay: '1s',   dur: '14s', color: '#00E5CC', size: 3 },
+    { left: '48%', delay: '3s',   dur: '11s', color: '#FF2D9B', size: 5 },
+    { left: '58%', delay: '5s',   dur: '13s', color: '#00D4FF', size: 4 },
+    { left: '68%', delay: '2.5s', dur: '16s', color: '#7B5CF0', size: 5 },
+    { left: '78%', delay: '1.5s', dur: '12s', color: '#00E5CC', size: 3 },
+    { left: '88%', delay: '3.5s', dur: '14s', color: '#FF2D9B', size: 6 },
+    { left: '95%', delay: '0.5s', dur: '11s', color: '#00D4FF', size: 4 },
+  ]
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {PARTICLES.map((p, i) => (
+        <div key={i} className="ds-particle" style={{
+          left: p.left,
+          width: p.size, height: p.size,
+          background: p.color,
+          boxShadow: `0 0 ${p.size * 3}px ${p.color}, 0 0 ${p.size * 6}px ${p.color}`,
+          animationDuration: p.dur,
+          animationDelay: p.delay,
+        }} />
+      ))}
+    </div>
+  )
+}
+
 // ── Routed Error Boundary ─────────────────────────────────────
 function RoutedErrorBoundary({ children }) {
   const location = useLocation()
@@ -2748,141 +2782,274 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
 
-        @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
-        @keyframes gradientShift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        /* ── Base keyframes ── */
+        @keyframes pulse        { 0%,100%{opacity:.3} 50%{opacity:1} }
+        @keyframes gradientShift{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
 
+        /* ── Neon border rotation (chat panel, widget) ── */
         @keyframes rotateBorder {
-          0%   { box-shadow: -6px 0 30px 3px #00D4FF, 0 -6px 30px 3px #FF2D9B, 6px 0 30px 3px #00D4FF, 0 6px 30px 3px #FF2D9B, 0 0 80px rgba(0,212,255,0.08) inset; border-color: #00D4FF !important; }
-          33%  { box-shadow: -6px 0 30px 3px #FF2D9B, 0 -6px 30px 3px #7B5CF0, 6px 0 30px 3px #FF2D9B, 0 6px 30px 3px #7B5CF0, 0 0 80px rgba(255,45,155,0.08) inset; border-color: #FF2D9B !important; }
-          66%  { box-shadow: -6px 0 30px 3px #7B5CF0, 0 -6px 30px 3px #00E5CC, 6px 0 30px 3px #7B5CF0, 0 6px 30px 3px #00E5CC, 0 0 80px rgba(123,92,240,0.08) inset; border-color: #7B5CF0 !important; }
-          100% { box-shadow: -6px 0 30px 3px #00D4FF, 0 -6px 30px 3px #FF2D9B, 6px 0 30px 3px #00D4FF, 0 6px 30px 3px #FF2D9B, 0 0 80px rgba(0,212,255,0.08) inset; border-color: #00D4FF !important; }
+          0%   { box-shadow: -8px 0 35px 4px #00D4FF, 0 -8px 35px 4px #FF2D9B, 8px 0 35px 4px #00D4FF, 0 8px 35px 4px #FF2D9B; border-color: #00D4FF !important; }
+          33%  { box-shadow: -8px 0 35px 4px #FF2D9B, 0 -8px 35px 4px #7B5CF0, 8px 0 35px 4px #FF2D9B, 0 8px 35px 4px #7B5CF0; border-color: #FF2D9B !important; }
+          66%  { box-shadow: -8px 0 35px 4px #7B5CF0, 0 -8px 35px 4px #00E5CC, 8px 0 35px 4px #7B5CF0, 0 8px 35px 4px #00E5CC; border-color: #7B5CF0 !important; }
+          100% { box-shadow: -8px 0 35px 4px #00D4FF, 0 -8px 35px 4px #FF2D9B, 8px 0 35px 4px #00D4FF, 0 8px 35px 4px #FF2D9B; border-color: #00D4FF !important; }
         }
 
+        /* ── Card glow pulse ── */
         @keyframes cardGlow {
-          0%,100% { box-shadow: 0 0 12px rgba(123,92,240,0.5), 0 0 24px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.5) !important; }
-          50%     { box-shadow: 0 0 18px rgba(0,212,255,0.5), 0 0 36px rgba(0,212,255,0.2); border-color: rgba(0,212,255,0.5) !important; }
+          0%,100% { box-shadow: 0 0 14px rgba(123,92,240,0.55), 0 0 28px rgba(123,92,240,0.2); border-color: rgba(123,92,240,0.55) !important; }
+          50%     { box-shadow: 0 0 20px rgba(0,212,255,0.55), 0 0 40px rgba(0,212,255,0.2);   border-color: rgba(0,212,255,0.55) !important; }
         }
 
-        @keyframes btnGlow {
-          0%,100% { box-shadow: 0 0 14px rgba(123,92,240,0.7), 0 0 28px rgba(123,92,240,0.3); }
-          50%     { box-shadow: 0 0 22px rgba(123,92,240,1),   0 0 44px rgba(123,92,240,0.5); }
-        }
+        /* ── Button glows ── */
+        @keyframes btnGlow  { 0%,100%{box-shadow:0 0 16px rgba(123,92,240,0.8),0 0 32px rgba(123,92,240,0.35)} 50%{box-shadow:0 0 28px rgba(123,92,240,1),0 0 56px rgba(123,92,240,0.55)} }
+        @keyframes tealGlow { 0%,100%{box-shadow:0 0 16px rgba(0,212,255,0.8),0 0 32px rgba(0,212,255,0.35)}   50%{box-shadow:0 0 28px rgba(0,212,255,1),0 0 56px rgba(0,212,255,0.55)}   }
 
-        @keyframes tealGlow {
-          0%,100% { box-shadow: 0 0 14px rgba(0,212,255,0.7), 0 0 28px rgba(0,212,255,0.3); }
-          50%     { box-shadow: 0 0 22px rgba(0,212,255,1),   0 0 44px rgba(0,212,255,0.5); }
-        }
+        /* ── Input focus ── */
+        @keyframes inputFocus { 0%,100%{box-shadow:0 0 12px rgba(0,212,255,0.5)} 50%{box-shadow:0 0 28px #00D4FF,0 0 56px rgba(0,212,255,0.4)} }
 
-        @keyframes inputFocus {
-          0%,100% { box-shadow: 0 0 10px rgba(0,212,255,0.4); }
-          50%     { box-shadow: 0 0 22px rgba(0,212,255,0.8), 0 0 44px rgba(0,212,255,0.3); }
-        }
-
+        /* ── Navbar ── */
         @keyframes navGlow {
-          0%,100% { box-shadow: 0 2px 20px rgba(0,212,255,0.15); border-bottom-color: rgba(0,212,255,0.3) !important; }
-          50%     { box-shadow: 0 2px 28px rgba(255,45,155,0.2); border-bottom-color: rgba(255,45,155,0.3) !important; }
+          0%,100% { box-shadow: 0 2px 24px rgba(0,212,255,0.2);  border-bottom-color: rgba(0,212,255,0.35) !important; }
+          50%     { box-shadow: 0 2px 32px rgba(255,45,155,0.25); border-bottom-color: rgba(255,45,155,0.35) !important; }
         }
 
+        /* ── Online dot ── */
         @keyframes onlinePulse {
-          0%,100% { color: #00E5CC; text-shadow: 0 0 8px #00E5CC, 0 0 16px #00E5CC; }
-          50%     { color: #00D4FF; text-shadow: 0 0 14px #00D4FF, 0 0 28px #00D4FF; }
+          0%,100% { color:#00E5CC; text-shadow:0 0 8px #00E5CC,0 0 18px #00E5CC; }
+          50%     { color:#00D4FF; text-shadow:0 0 16px #00D4FF,0 0 32px #00D4FF; }
         }
 
+        /* ── Heading glow ── */
+        @keyframes headingGlow {
+          0%,100% { text-shadow: 0 0 20px rgba(123,92,240,0.6), 0 0 40px rgba(123,92,240,0.3); }
+          50%     { text-shadow: 0 0 30px rgba(0,212,255,0.7),  0 0 60px rgba(0,212,255,0.35); }
+        }
+
+        /* ── Floating particles ── */
+        @keyframes floatUp {
+          0%   { transform: translateY(100vh) scale(0) rotate(0deg);   opacity: 0; }
+          10%  { opacity: 1; }
+          90%  { opacity: 0.6; }
+          100% { transform: translateY(-20px) scale(1) rotate(360deg); opacity: 0; }
+        }
+
+        /* ── Image reveal ── */
+        @keyframes imageReveal {
+          0%   { opacity: 0; transform: scale(0.92); box-shadow: 0 0 60px #00D4FF, 0 0 120px rgba(0,212,255,0.5); }
+          60%  { box-shadow: 0 0 30px #00E5CC, 0 0 60px rgba(0,229,204,0.4); }
+          100% { opacity: 1; transform: scale(1); box-shadow: 0 0 20px rgba(0,229,204,0.5); }
+        }
+
+        /* ── Ripple ── */
+        @keyframes ripple {
+          0%   { transform: scale(0); opacity: 0.6; }
+          100% { transform: scale(4); opacity: 0; }
+        }
+
+        /* ── Shimmer skeleton ── */
+        @keyframes skeletonShimmer {
+          0%   { background-position: -200% 0; }
+          100% { background-position:  200% 0; }
+        }
+
+        /* ── Hero ring pulse ── */
+        @keyframes ringPulse {
+          0%   { transform: scale(1);    opacity: 0.6; }
+          100% { transform: scale(1.8);  opacity: 0; }
+        }
+
+        /* ── Base resets ── */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #06040f; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
-        button { -webkit-tap-highlight-color: transparent; }
+        button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
 
-        /* ── Navbar ── */
-        nav { animation: navGlow 4s ease-in-out infinite !important; }
+        /* ════════════════════════════════════════
+           NAVBAR
+        ════════════════════════════════════════ */
+        nav {
+          animation: navGlow 4s ease-in-out infinite !important;
+          border-bottom: 1px solid rgba(0,212,255,0.3) !important;
+        }
 
-        /* ── Main chat panel and widget ── */
+        /* Nav link hover neon trail */
+        nav a:hover {
+          color: #00D4FF !important;
+          text-shadow: 0 0 12px #00D4FF, 0 0 24px rgba(0,212,255,0.5) !important;
+          transition: color 0.2s ease, text-shadow 0.2s ease !important;
+        }
+
+        /* ════════════════════════════════════════
+           NEON PANEL — chat + widget
+        ════════════════════════════════════════ */
         .neon-panel {
-          border: 1.5px solid #00D4FF !important;
+          border: 2px solid #00D4FF !important;
           animation: rotateBorder 5s ease-in-out infinite !important;
+          border-radius: 16px !important;
         }
 
-        /* ── ALL cards and panels site-wide ── */
-        [style*="borderRadius: 16"],
-        [style*="borderRadius: 14"],
-        [style*="borderRadius: 20"],
-        [style*="borderRadius: 24"] {
-          border: 1px solid rgba(123,92,240,0.45) !important;
+        /* ════════════════════════════════════════
+           ALL CARDS SITE-WIDE
+           FIXED: using DOM kebab-case selectors
+        ════════════════════════════════════════ */
+        [style*="border-radius: 16px"],
+        [style*="border-radius: 14px"],
+        [style*="border-radius: 20px"],
+        [style*="border-radius: 24px"],
+        [style*="border-radius: 12px"] {
+          border: 1px solid rgba(123,92,240,0.5) !important;
           animation: cardGlow 4s ease-in-out infinite !important;
-          transition: transform 0.2s ease !important;
+          transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }
-        [style*="borderRadius: 16"]:hover,
-        [style*="borderRadius: 14"]:hover,
-        [style*="borderRadius: 20"]:hover,
-        [style*="borderRadius: 24"]:hover {
-          transform: translateY(-2px) !important;
-          box-shadow: 0 0 30px rgba(0,212,255,0.5), 0 0 60px rgba(255,45,155,0.2) !important;
-          border-color: rgba(0,212,255,0.8) !important;
+        [style*="border-radius: 16px"]:hover,
+        [style*="border-radius: 14px"]:hover,
+        [style*="border-radius: 20px"]:hover,
+        [style*="border-radius: 24px"]:hover,
+        [style*="border-radius: 12px"]:hover {
+          transform: translateY(-3px) !important;
+          box-shadow: 0 0 32px rgba(0,212,255,0.6), 0 0 64px rgba(255,45,155,0.25) !important;
+          border-color: rgba(0,212,255,0.85) !important;
+          animation: none !important;
         }
 
-        /* ── Chat bubbles ── */
+        /* ════════════════════════════════════════
+           HEADINGS — neon glow
+        ════════════════════════════════════════ */
+        h1 {
+          animation: headingGlow 4s ease-in-out infinite !important;
+        }
+        h2 { text-shadow: 0 0 16px rgba(123,92,240,0.5) !important; }
+        h3 { text-shadow: 0 0 12px rgba(0,212,255,0.4) !important; }
+
+        /* ════════════════════════════════════════
+           FROSTED GLASS on modals/overlays
+        ════════════════════════════════════════ */
+        [style*="backdrop-filter"],
+        [style*="backdropFilter"] {
+          backdrop-filter: blur(20px) saturate(1.8) !important;
+          -webkit-backdrop-filter: blur(20px) saturate(1.8) !important;
+        }
+
+        /* ════════════════════════════════════════
+           CHAT BUBBLES
+        ════════════════════════════════════════ */
         .bubble-user {
-          box-shadow: 4px 0 22px #FF2D9B, 0 4px 16px #7B5CF0, 0 0 10px rgba(255,45,155,0.3) inset !important;
-          border: 1px solid rgba(255,45,155,0.5) !important;
+          box-shadow:
+            5px 0 24px #FF2D9B,
+            0 5px 18px #7B5CF0,
+            0 0 12px rgba(255,45,155,0.35) inset !important;
+          border: 1px solid rgba(255,45,155,0.55) !important;
         }
         .bubble-ai {
-          box-shadow: -4px 0 22px #00D4FF, 0 -4px 16px #00E5CC, 0 0 10px rgba(0,212,255,0.2) inset !important;
-          border: 1px solid rgba(0,212,255,0.45) !important;
+          box-shadow:
+            -5px 0 24px #00D4FF,
+            0 -5px 18px #00E5CC,
+            0 0 12px rgba(0,212,255,0.25) inset !important;
+          border: 1px solid rgba(0,212,255,0.5) !important;
         }
 
-        /* ── Input fields ── */
+        /* ════════════════════════════════════════
+           INPUT FIELDS — all inputs site-wide
+        ════════════════════════════════════════ */
         .neon-input {
-          border: 1px solid rgba(123,92,240,0.5) !important;
+          border: 1px solid rgba(123,92,240,0.55) !important;
           transition: box-shadow 0.3s ease, border-color 0.3s ease !important;
         }
         .neon-input:focus {
           border-color: #00D4FF !important;
-          box-shadow: 0 0 0 2px rgba(0,212,255,0.15), 0 0 28px #00D4FF, 0 0 56px rgba(0,212,255,0.3) !important;
+          box-shadow: 0 0 0 2px rgba(0,212,255,0.18), 0 0 32px #00D4FF, 0 0 64px rgba(0,212,255,0.35) !important;
           outline: none !important;
           animation: inputFocus 2s ease-in-out infinite !important;
         }
-        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]),
-        textarea {
-          border: 1px solid rgba(123,92,240,0.35) !important;
+
+        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]),
+        textarea,
+        select {
+          border: 1px solid rgba(123,92,240,0.4) !important;
           transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
         }
-        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):focus,
-        textarea:focus {
+        input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):not([type="radio"]):focus,
+        textarea:focus,
+        select:focus {
           border-color: #00D4FF !important;
-          box-shadow: 0 0 0 2px rgba(0,212,255,0.12), 0 0 24px #00D4FF, 0 0 48px rgba(0,212,255,0.25) !important;
+          box-shadow: 0 0 0 2px rgba(0,212,255,0.15), 0 0 26px #00D4FF, 0 0 52px rgba(0,212,255,0.3) !important;
           outline: none !important;
         }
 
-        /* ── Purple buttons ── */
+        /* ════════════════════════════════════════
+           BUTTONS — glow + ripple
+        ════════════════════════════════════════ */
+        /* Purple gradient buttons */
         button[style*="7B5CF0"],
         button[style*="7C5CFC"],
         button[style*="4B2FD0"] {
           animation: btnGlow 2.5s ease-in-out infinite !important;
           transition: transform 0.15s ease !important;
+          position: relative !important;
+          overflow: hidden !important;
         }
         button[style*="7B5CF0"]:hover,
         button[style*="7C5CFC"]:hover,
-        button[style*="4B2FD0"]:hover {
-          transform: translateY(-2px) !important;
-        }
+        button[style*="4B2FD0"]:hover { transform: translateY(-2px) scale(1.02) !important; }
 
-        /* ── Teal/cyan buttons ── */
+        /* Teal buttons */
         button[style*="00A884"],
         button[style*="00D4FF"],
         button[style*="00E5CC"] {
           animation: tealGlow 2.5s ease-in-out infinite !important;
+          position: relative !important;
+          overflow: hidden !important;
         }
 
-        /* ── Online status dot ── */
+        /* Ripple effect on all buttons */
+        button::after {
+          content: '';
+          position: absolute;
+          top: 50%; left: 50%;
+          width: 10px; height: 10px;
+          margin: -5px 0 0 -5px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.4);
+          transform: scale(0);
+          opacity: 0;
+          pointer-events: none;
+        }
+        button:active::after {
+          animation: ripple 0.5s ease-out forwards !important;
+        }
+
+        /* ════════════════════════════════════════
+           IMAGE GLOW
+        ════════════════════════════════════════ */
+        .neon-img-frame {
+          box-shadow: 0 0 24px rgba(0,229,204,0.7), 0 0 12px rgba(0,212,255,0.5) !important;
+          border: 1px solid rgba(0,229,204,0.6) !important;
+          animation: imageReveal 0.8s ease-out !important;
+        }
+        .neon-img-frame:hover {
+          box-shadow: 0 0 40px rgba(0,229,204,1), 0 0 20px rgba(0,212,255,0.7) !important;
+        }
+
+        img[style*="object-fit: cover"]:hover,
+        img[style*="object-fit: contain"]:hover {
+          box-shadow: 0 0 30px rgba(0,229,204,0.65), 0 0 60px rgba(0,212,255,0.3) !important;
+          transition: box-shadow 0.3s ease !important;
+        }
+
+        /* ════════════════════════════════════════
+           STATUS DOT
+        ════════════════════════════════════════ */
         .status-dot-online {
           animation: onlinePulse 2s ease-in-out infinite !important;
         }
 
-        /* ── Logo lock ── */
+        /* ════════════════════════════════════════
+           LOGO LOCK
+        ════════════════════════════════════════ */
         .logo-icon ~ span span:first-child {
           color: #7B5CF0 !important;
           -webkit-text-fill-color: #7B5CF0 !important;
-          text-shadow: 0 0 14px rgba(123,92,240,0.9), 0 0 28px rgba(123,92,240,0.4) !important;
+          text-shadow: 0 0 16px rgba(123,92,240,0.95), 0 0 32px rgba(123,92,240,0.45) !important;
           background: none !important;
           animation: none !important;
         }
@@ -2893,24 +3060,65 @@ export default function App() {
           animation: none !important;
         }
 
-        /* ── Image hover glow ── */
-        img[style*="objectFit"]:hover {
-          box-shadow: 0 0 28px rgba(0,229,204,0.6), 0 0 56px rgba(0,212,255,0.3) !important;
-          transition: box-shadow 0.3s ease !important;
+        /* ════════════════════════════════════════
+           SKELETON SHIMMER (loading states)
+        ════════════════════════════════════════ */
+        .skeleton {
+          background: linear-gradient(90deg, rgba(123,92,240,0.1) 25%, rgba(0,212,255,0.2) 50%, rgba(255,45,155,0.1) 75%);
+          background-size: 200% 100%;
+          animation: skeletonShimmer 2s infinite !important;
+          border-radius: 8px;
         }
 
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #00D4FF, #FF2D9B); border-radius: 3px; }
+        /* ════════════════════════════════════════
+           FLOATING PARTICLES
+        ════════════════════════════════════════ */
+        .ds-particle {
+          position: fixed;
+          bottom: -20px;
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 0;
+          animation: floatUp linear infinite;
+        }
 
-        /* ── Selection ── */
-        ::selection { background: rgba(123,92,240,0.45); color: #fff; }
+        /* ════════════════════════════════════════
+           HERO NEON RINGS
+        ════════════════════════════════════════ */
+        .hero-ring {
+          position: absolute;
+          border-radius: 50%;
+          border: 2px solid rgba(123,92,240,0.4);
+          animation: ringPulse 3s ease-out infinite;
+          pointer-events: none;
+        }
+
+        /* ════════════════════════════════════════
+           GOLD GLOW
+        ════════════════════════════════════════ */
+        [style*="F5C842"] { text-shadow: 0 0 12px rgba(245,200,66,0.7) !important; }
+
+        /* ════════════════════════════════════════
+           SCROLLBAR
+        ════════════════════════════════════════ */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, #00D4FF, #7B5CF0, #FF2D9B);
+          border-radius: 3px;
+        }
+
+        /* ════════════════════════════════════════
+           SELECTION
+        ════════════════════════════════════════ */
+        ::selection { background: rgba(123,92,240,0.5); color: #fff; }
 
         @media (max-width: 640px) { .nav-links { display: none !important; } .mobile-menu-btn { display: flex !important; } }
       `}</style>
 
       <CosmicBackground />
+      <FloatingParticles />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh' }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
