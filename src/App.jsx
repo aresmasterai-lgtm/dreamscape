@@ -2850,12 +2850,6 @@ function PayoutsCard({ user, profile }) {
     </div>
   )
 }
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ── My Profile Page (/profile) ────────────────────────────────
 function ProfilePage({ user, profile: initialProfile }) {
