@@ -2406,10 +2406,7 @@ function DiscoverPage({ user, onSignIn }) {
   const navigate = useNavigate()
   return (
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
-      {/* Neon rings */}
-      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '0s' }} />
-      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '1s', borderColor: 'rgba(255,45,155,0.4)' }} />
-      <div className="hero-ring" style={{ width: 300, height: 300, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animationDelay: '2s', borderColor: 'rgba(0,212,255,0.4)' }} />
+
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
