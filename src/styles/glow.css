@@ -1,59 +1,53 @@
 /* ═══════════════════════════════════════════════════════════
-   DREAMSCAPE NEON GLOW SYSTEM — Full Site
+   DREAMSCAPE NEON GLOW — Intense Mode
    ═══════════════════════════════════════════════════════════ */
 
 :root {
   --glow-cyan:    #00D4FF;
   --glow-magenta: #FF2D9B;
   --glow-purple:  #7B5CF0;
-  --glow-violet:  #A855F7;
   --glow-teal:    #00E5CC;
   --glow-gold:    #F5C842;
 }
 
 /* ── Keyframes ─────────────────────────────────────────────── */
-@keyframes panelPulse {
+@keyframes rotateBorder {
   0%   {
     box-shadow:
-      -4px 0 20px rgba(0,212,255,0.8),
-      0 -4px 20px rgba(255,45,155,0.8),
-      4px 0 20px rgba(0,212,255,0.5),
-      0 4px 20px rgba(255,45,155,0.5),
-      inset 0 0 30px rgba(0,212,255,0.03);
-    border-color: rgba(0,212,255,0.65) !important;
+      -6px 0 25px 2px rgba(0,212,255,0.95),
+      0 -6px 25px 2px rgba(255,45,155,0.95),
+      6px 0 25px 2px rgba(0,212,255,0.6),
+      0 6px 25px 2px rgba(255,45,155,0.6),
+      0 0 60px rgba(0,212,255,0.15) inset;
+    border-color: rgba(0,212,255,0.9) !important;
   }
   33%  {
     box-shadow:
-      -4px 0 24px rgba(255,45,155,0.9),
-      0 -4px 24px rgba(123,92,240,0.9),
-      4px 0 24px rgba(255,45,155,0.6),
-      0 4px 24px rgba(123,92,240,0.6),
-      inset 0 0 30px rgba(255,45,155,0.03);
-    border-color: rgba(255,45,155,0.75) !important;
+      -6px 0 25px 2px rgba(255,45,155,0.95),
+      0 -6px 25px 2px rgba(123,92,240,0.95),
+      6px 0 25px 2px rgba(255,45,155,0.6),
+      0 6px 25px 2px rgba(123,92,240,0.6),
+      0 0 60px rgba(255,45,155,0.15) inset;
+    border-color: rgba(255,45,155,0.9) !important;
   }
   66%  {
     box-shadow:
-      -4px 0 22px rgba(123,92,240,0.8),
-      0 -4px 22px rgba(0,229,204,0.8),
-      4px 0 22px rgba(123,92,240,0.5),
-      0 4px 22px rgba(0,229,204,0.5),
-      inset 0 0 30px rgba(123,92,240,0.03);
-    border-color: rgba(123,92,240,0.7) !important;
+      -6px 0 25px 2px rgba(123,92,240,0.95),
+      0 -6px 25px 2px rgba(0,229,204,0.95),
+      6px 0 25px 2px rgba(123,92,240,0.6),
+      0 6px 25px 2px rgba(0,229,204,0.6),
+      0 0 60px rgba(123,92,240,0.15) inset;
+    border-color: rgba(123,92,240,0.9) !important;
   }
   100% {
     box-shadow:
-      -4px 0 20px rgba(0,212,255,0.8),
-      0 -4px 20px rgba(255,45,155,0.8),
-      4px 0 20px rgba(0,212,255,0.5),
-      0 4px 20px rgba(255,45,155,0.5),
-      inset 0 0 30px rgba(0,212,255,0.03);
-    border-color: rgba(0,212,255,0.65) !important;
+      -6px 0 25px 2px rgba(0,212,255,0.95),
+      0 -6px 25px 2px rgba(255,45,155,0.95),
+      6px 0 25px 2px rgba(0,212,255,0.6),
+      0 6px 25px 2px rgba(255,45,155,0.6),
+      0 0 60px rgba(0,212,255,0.15) inset;
+    border-color: rgba(0,212,255,0.9) !important;
   }
-}
-
-@keyframes cardHoverGlow {
-  0%,100% { box-shadow: 0 0 15px rgba(123,92,240,0.4), 0 4px 20px rgba(0,0,0,0.4); }
-  50%     { box-shadow: 0 0 25px rgba(123,92,240,0.6), 0 4px 24px rgba(0,0,0,0.5); }
 }
 
 @keyframes shimmer {
@@ -62,176 +56,174 @@
 }
 
 @keyframes glowPulse {
-  0%,100% { opacity: 0.75; text-shadow: 0 0 8px rgba(0,229,204,0.6); }
-  50%     { opacity: 1;    text-shadow: 0 0 14px rgba(0,229,204,1);   }
-}
-
-@keyframes navGlow {
-  0%,100% { box-shadow: 0 1px 20px rgba(0,212,255,0.15), 0 0 0 rgba(255,45,155,0); }
-  50%     { box-shadow: 0 1px 28px rgba(255,45,155,0.2), 0 0 0 rgba(0,212,255,0);  }
+  0%,100% { opacity: 0.8; text-shadow: 0 0 8px rgba(0,229,204,0.7); }
+  50%     { opacity: 1;   text-shadow: 0 0 16px rgba(0,229,204,1);   }
 }
 
 @keyframes buttonPulse {
-  0%,100% { box-shadow: 0 0 12px rgba(123,92,240,0.5), 0 2px 8px rgba(0,0,0,0.3); }
-  50%     { box-shadow: 0 0 22px rgba(123,92,240,0.8), 0 2px 12px rgba(0,0,0,0.4); }
+  0%,100% { box-shadow: 0 0 14px rgba(123,92,240,0.6), 0 2px 8px rgba(0,0,0,0.3); }
+  50%     { box-shadow: 0 0 26px rgba(123,92,240,0.95), 0 2px 14px rgba(0,0,0,0.4); }
 }
 
-@keyframes tealButtonPulse {
-  0%,100% { box-shadow: 0 0 12px rgba(0,212,255,0.5), 0 2px 8px rgba(0,0,0,0.3); }
-  50%     { box-shadow: 0 0 22px rgba(0,212,255,0.8), 0 2px 12px rgba(0,0,0,0.4); }
+@keyframes tealPulse {
+  0%,100% { box-shadow: 0 0 14px rgba(0,212,255,0.6), 0 2px 8px rgba(0,0,0,0.3); }
+  50%     { box-shadow: 0 0 26px rgba(0,212,255,0.95), 0 2px 14px rgba(0,0,0,0.4); }
 }
 
-@keyframes floatUp {
-  0%,100% { transform: translateY(0px); }
-  50%     { transform: translateY(-3px); }
+@keyframes navPulse {
+  0%,100% { border-bottom-color: rgba(0,212,255,0.3) !important; box-shadow: 0 2px 20px rgba(0,212,255,0.1); }
+  50%     { border-bottom-color: rgba(255,45,155,0.3) !important; box-shadow: 0 2px 20px rgba(255,45,155,0.1); }
 }
 
 /* ── Navbar ─────────────────────────────────────────────────── */
 nav {
-  animation: navGlow 4s ease-in-out infinite !important;
-  border-bottom: 1px solid rgba(0,212,255,0.2) !important;
+  border-bottom: 1px solid rgba(0,212,255,0.3) !important;
+  animation: navPulse 4s ease-in-out infinite !important;
 }
 
-/* ── Neon Panel (chat container + widget) ───────────────────── */
+/* ── Main Neon Panel — Chat + Widget ────────────────────────── */
 .neon-panel {
-  border: 1px solid rgba(0,212,255,0.5) !important;
-  animation: panelPulse 5s ease-in-out infinite !important;
+  border: 1.5px solid rgba(0,212,255,0.85) !important;
+  animation: rotateBorder 5s ease-in-out infinite !important;
+  border-radius: 16px !important;
 }
 
 .neon-panel--intense {
-  border: 1.5px solid rgba(0,212,255,0.7) !important;
-  animation: panelPulse 3s ease-in-out infinite !important;
+  border: 2px solid rgba(0,212,255,0.95) !important;
+  animation: rotateBorder 3s ease-in-out infinite !important;
 }
 
-/* ── Global Card Hover Glow ─────────────────────────────────── */
-/* Every card/panel on the site gets a hover glow */
-[style*="borderRadius: 16"][style*="background"],
-[style*="borderRadius: 14"][style*="background"],
-[style*="borderRadius: 20"][style*="background"],
-[style*="border-radius: 16px"],
-[style*="border-radius: 20px"] {
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
+/* ── Force visible borders on ALL cards site-wide ───────────── */
+/* This targets every rounded card/panel on the site */
+[style*="borderRadius: 16"],
+[style*="borderRadius: 14"],
+[style*="borderRadius: 20"],
+[style*="borderRadius: 24"],
+[style*="borderRadius: 12"] {
+  border: 1px solid rgba(123,92,240,0.35) !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease !important;
 }
 
-[style*="borderRadius: 16"][style*="background"]:hover,
-[style*="borderRadius: 14"][style*="background"]:hover,
-[style*="borderRadius: 20"][style*="background"]:hover {
-  box-shadow: 0 0 20px rgba(123,92,240,0.35), 0 8px 32px rgba(0,0,0,0.4) !important;
-  border-color: rgba(123,92,240,0.4) !important;
+[style*="borderRadius: 16"]:hover,
+[style*="borderRadius: 14"]:hover,
+[style*="borderRadius: 20"]:hover,
+[style*="borderRadius: 24"]:hover,
+[style*="borderRadius: 12"]:hover {
+  border-color: rgba(0,212,255,0.7) !important;
+  box-shadow:
+    0 0 18px rgba(0,212,255,0.3),
+    0 0 36px rgba(255,45,155,0.15),
+    0 8px 32px rgba(0,0,0,0.4) !important;
+  transform: translateY(-1px);
 }
 
 /* ── Chat Bubbles ───────────────────────────────────────────── */
 .bubble-user {
   box-shadow:
-    3px 0 18px rgba(255,45,155,0.6),
-    0 3px 14px rgba(123,92,240,0.5) !important;
+    4px 0 20px rgba(255,45,155,0.7),
+    0 4px 16px rgba(123,92,240,0.6),
+    0 0 8px rgba(255,45,155,0.3) inset !important;
+  border: 1px solid rgba(255,45,155,0.4) !important;
 }
 
 .bubble-ai {
   box-shadow:
-    -3px 0 18px rgba(0,212,255,0.5),
-    0 -3px 12px rgba(0,229,204,0.35) !important;
-  border: 1px solid rgba(0,212,255,0.3) !important;
+    -4px 0 20px rgba(0,212,255,0.65),
+    0 -4px 14px rgba(0,229,204,0.45),
+    0 0 8px rgba(0,212,255,0.2) inset !important;
+  border: 1px solid rgba(0,212,255,0.4) !important;
 }
 
-/* ── Neon Input ─────────────────────────────────────────────── */
+/* ── Neon Input Fields ──────────────────────────────────────── */
 .neon-input {
-  border: 1px solid rgba(255,255,255,0.1) !important;
+  border: 1px solid rgba(123,92,240,0.4) !important;
   transition: box-shadow 0.3s ease, border-color 0.3s ease !important;
 }
+
 .neon-input:focus {
-  border-color: rgba(0,212,255,0.8) !important;
+  border-color: rgba(0,212,255,0.9) !important;
+  box-shadow:
+    0 0 0 2px rgba(0,212,255,0.15),
+    0 0 24px rgba(0,212,255,0.5),
+    0 0 48px rgba(0,212,255,0.2) !important;
+  outline: none !important;
+}
+
+/* All inputs site-wide */
+input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]),
+textarea {
+  border: 1px solid rgba(123,92,240,0.3) !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+input:not([type="range"]):not([type="file"]):not([type="date"]):not([type="checkbox"]):focus,
+textarea:focus {
+  border-color: rgba(0,212,255,0.85) !important;
   box-shadow:
     0 0 0 2px rgba(0,212,255,0.12),
-    0 0 20px rgba(0,212,255,0.4) !important;
+    0 0 20px rgba(0,212,255,0.45),
+    0 0 40px rgba(0,212,255,0.15) !important;
   outline: none !important;
 }
 
-/* All inputs site-wide get focus glow */
-input:not([type="range"]):not([type="file"]):not([type="date"]):focus,
-textarea:focus {
-  border-color: rgba(0,212,255,0.7) !important;
-  box-shadow: 0 0 0 2px rgba(0,212,255,0.1), 0 0 16px rgba(0,212,255,0.3) !important;
-  outline: none !important;
-}
-
-/* ── Buttons ────────────────────────────────────────────────── */
-/* Purple/accent gradient buttons */
-button[style*="7C5CFC"],
-button[style*="7B5CF0"],
-button[style*="4B2FD0"],
-button[style*="linear-gradient(135deg, #7"] {
-  animation: buttonPulse 3s ease-in-out infinite !important;
-  transition: transform 0.15s ease !important;
-}
-button[style*="7C5CFC"]:hover,
-button[style*="7B5CF0"]:hover,
-button[style*="4B2FD0"]:hover,
-button[style*="linear-gradient(135deg, #7"]:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 0 28px rgba(123,92,240,0.9) !important;
-}
-
-/* Teal/cyan buttons */
-button[style*="00A884"],
-button[style*="00D4FF"],
-button[style*="00E5CC"],
-button[style*="linear-gradient(135deg, #0"] {
-  animation: tealButtonPulse 3s ease-in-out infinite !important;
-}
-
-/* Generate Image button gets extra glow */
-button[style*="generatePulse"],
-button[style*="Generate"] {
-  box-shadow: 0 0 20px rgba(0,229,204,0.7), 0 0 40px rgba(0,212,255,0.3) !important;
-}
-
-/* ── Neon Button Classes ─────────────────────────────────────── */
+/* ── Neon Buttons ───────────────────────────────────────────── */
 .neon-btn-primary {
-  box-shadow: 0 0 14px rgba(123,92,240,0.6) !important;
-  animation: buttonPulse 3s ease-in-out infinite !important;
+  animation: buttonPulse 2.5s ease-in-out infinite !important;
   transition: transform 0.15s ease !important;
 }
 .neon-btn-primary:hover {
-  box-shadow: 0 0 28px rgba(123,92,240,0.95) !important;
   transform: translateY(-2px) !important;
+  box-shadow: 0 0 32px rgba(123,92,240,0.99) !important;
 }
 
 .neon-btn-cyan {
-  box-shadow: 0 0 14px rgba(0,212,255,0.5) !important;
-  animation: tealButtonPulse 3s ease-in-out infinite !important;
+  animation: tealPulse 2.5s ease-in-out infinite !important;
 }
 .neon-btn-cyan:hover {
-  box-shadow: 0 0 26px rgba(0,212,255,0.85) !important;
+  box-shadow: 0 0 32px rgba(0,212,255,0.95) !important;
 }
 
-/* ── Logo Shimmer ───────────────────────────────────────────── */
+/* Purple gradient buttons */
+button[style*="linear-gradient(135deg, #7B5CF0"],
+button[style*="linear-gradient(135deg, #7C5CFC"],
+button[style*="4B2FD0"] {
+  animation: buttonPulse 2.5s ease-in-out infinite !important;
+  transition: transform 0.15s ease !important;
+}
+button[style*="linear-gradient(135deg, #7B5CF0"]:hover,
+button[style*="linear-gradient(135deg, #7C5CFC"]:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* Teal buttons */
+button[style*="linear-gradient(135deg, #00"],
+button[style*="00A884"] {
+  animation: tealPulse 2.5s ease-in-out infinite !important;
+}
+
+/* ── Logo Text ──────────────────────────────────────────────── */
+.logo-icon ~ span span:first-child {
+  color: #7B5CF0 !important;
+  -webkit-text-fill-color: #7B5CF0 !important;
+  text-shadow: 0 0 14px rgba(123,92,240,0.9), 0 0 28px rgba(123,92,240,0.4) !important;
+  background: none !important;
+  animation: none !important;
+}
+.logo-icon ~ span span:last-child {
+  color: #E8EAF0 !important;
+  -webkit-text-fill-color: #E8EAF0 !important;
+  background: none !important;
+  animation: none !important;
+}
+
+/* ── Shimmer Text Class ─────────────────────────────────────── */
 .glow-text-shimmer {
-  background: linear-gradient(
-    90deg,
-    #E8EAF0 0%,
-    #00D4FF 20%,
-    #FF2D9B 45%,
-    #7B5CF0 70%,
-    #00E5CC 85%,
-    #E8EAF0 100%
-  );
+  background: linear-gradient(90deg, #7B5CF0 0%, #00D4FF 30%, #FF2D9B 60%, #7B5CF0 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: shimmer 3.5s linear infinite;
-}
-
-.glow-text-cyan {
-  color: var(--glow-cyan) !important;
-  text-shadow: 0 0 12px rgba(0,212,255,0.8);
-}
-
-.glow-text-magenta {
-  color: var(--glow-magenta) !important;
-  text-shadow: 0 0 12px rgba(255,45,155,0.8);
+  animation: shimmer 3s linear infinite;
 }
 
 /* ── Status Dot ─────────────────────────────────────────────── */
@@ -242,99 +234,37 @@ button[style*="Generate"] {
 
 /* ── Image Frames ───────────────────────────────────────────── */
 .neon-img-frame {
-  box-shadow:
-    0 0 20px rgba(0,229,204,0.65),
-    0 0 8px rgba(0,212,255,0.45) !important;
-  border: 1px solid rgba(0,229,204,0.55) !important;
-  transition: box-shadow 0.3s ease !important;
+  box-shadow: 0 0 22px rgba(0,229,204,0.7), 0 0 10px rgba(0,212,255,0.5) !important;
+  border: 1px solid rgba(0,229,204,0.6) !important;
 }
 .neon-img-frame:hover {
-  box-shadow:
-    0 0 32px rgba(0,229,204,0.95),
-    0 0 14px rgba(0,212,255,0.7) !important;
+  box-shadow: 0 0 36px rgba(0,229,204,0.99), 0 0 16px rgba(0,212,255,0.7) !important;
 }
 
-/* All artwork images site-wide get teal glow on hover */
-img[style*="objectFit: cover"]:hover,
-img[style*="objectFit: contain"]:hover {
-  box-shadow: 0 0 24px rgba(0,229,204,0.5) !important;
+/* All artwork/product images hover glow */
+img[style*="objectFit"]:hover {
+  box-shadow: 0 0 28px rgba(0,229,204,0.55) !important;
   transition: box-shadow 0.3s ease !important;
 }
 
-/* ── Float Card ─────────────────────────────────────────────── */
-.float-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.float-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 48px rgba(123,92,240,0.35) !important;
-}
-
-/* ── Pricing / Tier Badges ──────────────────────────────────── */
-/* Gold/studio tier glow */
+/* ── Gold text glow ─────────────────────────────────────────── */
 [style*="F5C842"] {
-  text-shadow: 0 0 10px rgba(245,200,66,0.6);
-}
-
-/* ── Tags and Pills ─────────────────────────────────────────── */
-[style*="borderRadius: 20"][style*="7B5CF0"],
-[style*="borderRadius: 20"][style*="7C5CFC"],
-[style*="border-radius: 20px"] {
-  transition: box-shadow 0.2s ease !important;
-}
-[style*="borderRadius: 20"][style*="7B5CF0"]:hover,
-[style*="borderRadius: 20"][style*="7C5CFC"]:hover {
-  box-shadow: 0 0 12px rgba(123,92,240,0.5) !important;
-}
-
-/* ── Hero Heading Gradient ──────────────────────────────────── */
-/* The "Create & Thrive" gradient text on homepage */
-[style*="gradientShift"] {
-  filter: drop-shadow(0 0 20px rgba(123,92,240,0.4));
+  text-shadow: 0 0 10px rgba(245,200,66,0.65) !important;
 }
 
 /* ── Custom Scrollbar ───────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(0,212,255,0.5), rgba(255,45,155,0.5));
+  background: linear-gradient(180deg, #00D4FF, #FF2D9B);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(0,212,255,0.8), rgba(255,45,155,0.8));
+  background: linear-gradient(180deg, #00D4FF, #7B5CF0, #FF2D9B);
 }
 
-/* ── Selection Color ────────────────────────────────────────── */
+/* ── Text Selection ─────────────────────────────────────────── */
 ::selection {
-  background: rgba(123,92,240,0.4);
+  background: rgba(123,92,240,0.45);
   color: #ffffff;
-}
-/* ── Logo color lock ─────────────────────────────────────────── */
-.logo-icon ~ span span:first-child {
-  -webkit-text-fill-color: #7B5CF0 !important;
-  color: #7B5CF0 !important;
-  background: none !important;
-  animation: none !important;
-}
-.logo-icon ~ span span:last-child {
-  -webkit-text-fill-color: #E8EAF0 !important;
-  color: #E8EAF0 !important;
-  background: none !important;
-  animation: none !important;
-}
-/* ── Force glowing borders on all cards and panels ──────────── */
-[style*="borderRadius: 16"],
-[style*="borderRadius: 14"],
-[style*="borderRadius: 20"],
-[style*="borderRadius: 24"] {
-  border: 1px solid rgba(123,92,240,0.3) !important;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
-}
-
-[style*="borderRadius: 16"]:hover,
-[style*="borderRadius: 14"]:hover,
-[style*="borderRadius: 20"]:hover,
-[style*="borderRadius: 24"]:hover {
-  border-color: rgba(0,212,255,0.6) !important;
-  box-shadow: 0 0 20px rgba(0,212,255,0.25), 0 0 40px rgba(255,45,155,0.15) !important;
 }
