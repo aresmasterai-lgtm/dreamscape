@@ -1224,7 +1224,6 @@ function DreamChat({ user, onSignIn }) {
           onSuccess={() => setCreateProductImage(null)}
         />
       )}
-      </div>{/* close inner card */}
       </div>{/* close position:relative outer wrapper */}
     </>
   )
