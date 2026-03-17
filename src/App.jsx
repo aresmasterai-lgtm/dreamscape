@@ -606,8 +606,34 @@ function DreamChat({ user, onSignIn }) {
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const img = new Image()
+
+    // Clear input value immediately so the same file can be re-selected
+    // We've already grabbed the file reference above so this is safe
+    e.target.value = ''
+
+    // If the file is a HEIC/HEIF (common from iPhone camera), the canvas
+    // API can't always decode it. Fall back to reading it as-is via FileReader.
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')
+
+    if (isHeic) {
+      // Can't resize HEIC reliably — just pass it through at original quality
+      const reader = new FileReader()
+      reader.onload = ev => setReferenceImage({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', name: file.name })
+      reader.readAsDataURL(file)
+      return
+    }
+
     const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+
+    img.onerror = () => {
+      // Canvas can't decode this format — read raw as fallback
+      URL.revokeObjectURL(objectUrl)
+      const reader = new FileReader()
+      reader.onload = ev => setReferenceImage({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', name: file.name })
+      reader.readAsDataURL(file)
+    }
+
     img.onload = () => {
       URL.revokeObjectURL(objectUrl)
       const MAX = 800
@@ -621,13 +647,20 @@ function DreamChat({ user, onSignIn }) {
       canvas.height = height
       canvas.getContext('2d').drawImage(img, 0, 0, width, height)
       canvas.toBlob(blob => {
+        if (!blob) {
+          // Canvas produced no blob — fall back to raw file
+          const reader = new FileReader()
+          reader.onload = ev => setReferenceImage({ dataUrl: ev.target.result, mimeType: file.type || 'image/jpeg', name: file.name })
+          reader.readAsDataURL(file)
+          return
+        }
         const reader = new FileReader()
         reader.onload = ev => setReferenceImage({ dataUrl: ev.target.result, mimeType: 'image/jpeg', name: file.name })
         reader.readAsDataURL(blob)
       }, 'image/jpeg', 0.75)
     }
+
     img.src = objectUrl
-    e.target.value = ''
   }
 
   const send = async () => {
@@ -1028,7 +1061,7 @@ function DreamChat({ user, onSignIn }) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+            <input ref={fileInputRef} type="file" accept="image/*,image/heic,image/heif" onChange={handleFileSelect} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current?.click()}
               title="Attach reference image"
               style={{ background: referenceImage ? `${C.accent}22` : 'none', border: `1px solid ${referenceImage ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '10px 12px', color: referenceImage ? C.accent : C.muted, fontSize: 16, cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
