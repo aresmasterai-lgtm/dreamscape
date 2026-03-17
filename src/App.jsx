@@ -2486,7 +2486,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
           onMouseLeave={e => { e.currentTarget.querySelector('.logo-icon').style.background = `linear-gradient(135deg, ${C.accent}, #4B2FD0)`; e.currentTarget.querySelector('.logo-icon').style.color = '#ffffff' }}>
           <div className="logo-icon" style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: '#ffffff', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>✦</div>
           <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 20 }}>
-            <span className="glow-text-shimmer">Dream</span><span style={{ color: '#E8EAF0' }}>scape</span>
+            <span style={{ color: '#7B5CF0', textShadow: '0 0 12px rgba(123,92,240,0.8)' }}>Dream</span><span style={{ color: '#E8EAF0' }}>scape</span>
           </span>
         </Link>
         <div className="nav-links-full" style={{ display: 'flex', gap: 2, flex: 1, alignItems: 'center' }}>
