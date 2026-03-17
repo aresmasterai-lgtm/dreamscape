@@ -2910,7 +2910,7 @@ export default function App() {
         /* ══════════════════════════════════════
            HEADINGS
         ══════════════════════════════════════ */
-        h1 { animation: headingGlow 5s ease-in-out infinite !important; letter-spacing: -0.5px; }
+        h1:not(.splash-title) { animation: headingGlow 5s ease-in-out infinite !important; letter-spacing: -0.5px; }
         h2 { text-shadow: 0 0 20px rgba(123,92,240,0.45) !important; }
         h3 { text-shadow: 0 0 14px rgba(0,212,255,0.35) !important; }
 
