@@ -16,6 +16,39 @@ const CATEGORY_COLORS = {
   'Platform Updates & News': '#00B4D8',
 }
 
+// ── Meta tag setter ───────────────────────────────────────────
+function setPageMeta({ title, description, image }) {
+  const base = 'Dreamscape — AI Artist Platform'
+  const fullTitle = title ? `${title} | ${base}` : base
+  const desc = description || 'Generate AI art, connect with artists worldwide, and sell merchandise globally.'
+  const img = image || 'https://trydreamscape.com/og-image.png'
+
+  document.title = fullTitle
+
+  const set = (attr, key, content) => {
+    if (!content) return
+    let el = document.querySelector(`meta[${attr}="${key}"]`)
+    if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el) }
+    el.setAttribute('content', content)
+  }
+
+  set('name',     'description',        desc)
+  set('property', 'og:title',           fullTitle)
+  set('property', 'og:description',     desc)
+  set('property', 'og:image',           img)
+  set('property', 'og:image:width',     '1200')
+  set('property', 'og:image:height',    '630')
+  set('property', 'og:image:alt',       title || base)
+  set('property', 'og:url',             window.location.href)
+  set('property', 'og:type',            'article')
+  set('property', 'og:site_name',       'Dreamscape')
+  set('name',     'twitter:card',       'summary_large_image')
+  set('name',     'twitter:title',      fullTitle)
+  set('name',     'twitter:description',desc)
+  set('name',     'twitter:image',      img)
+  set('name',     'twitter:image:alt',  title || base)
+}
+
 function Spinner() {
   return (
     <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '80px 0' }}>
@@ -47,6 +80,13 @@ export default function BlogPost() {
     if (!data) { setLoading(false); return }
     setPost(data)
 
+    // ── Set OG meta as soon as post loads ──
+    setPageMeta({
+      title: data.title,
+      description: data.excerpt || data.content?.replace(/<[^>]*>/g, '').slice(0, 160),
+      image: data.cover_image || 'https://trydreamscape.com/og-image.png',
+    })
+
     const { data: rel } = await supabase
       .from('blog_posts')
       .select('id, title, slug, excerpt, category, cover_image, published_at')
@@ -57,6 +97,17 @@ export default function BlogPost() {
     setRelated(rel || [])
     setLoading(false)
   }
+
+  // Reset meta on unmount
+  useEffect(() => {
+    return () => {
+      setPageMeta({
+        title: null,
+        description: null,
+        image: 'https://trydreamscape.com/og-image.png',
+      })
+    }
+  }, [])
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href)
@@ -80,7 +131,6 @@ export default function BlogPost() {
   return (
     <div style={{ padding: '40px 20px', maxWidth: 780, margin: '0 auto' }}>
 
-      {/* Global blog styles injected once */}
       <style>{`
         .ds-blog-content {
           color: ${C.text};
@@ -214,7 +264,6 @@ export default function BlogPost() {
           border-top: 1px solid ${C.border};
           margin: 36px 0;
         }
-        /* Featured image — full width with caption */
         .ds-blog-content .ds-image {
           margin: 36px 0;
           border-radius: 16px;
@@ -232,7 +281,6 @@ export default function BlogPost() {
           margin-top: 10px;
           font-style: italic;
         }
-        /* Side by side images */
         .ds-blog-content .ds-image-pair {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -244,7 +292,6 @@ export default function BlogPost() {
           border-radius: 12px;
           display: block;
         }
-        /* Prompt box */
         .ds-blog-content .ds-prompt {
           background: ${C.accent}12;
           border: 1px solid ${C.accent}44;
@@ -267,7 +314,6 @@ export default function BlogPost() {
           line-height: 1.8;
           margin: 0;
         }
-        /* Tip callout */
         .ds-blog-content .ds-tip {
           background: ${C.teal}12;
           border: 1px solid ${C.teal}44;
@@ -290,7 +336,6 @@ export default function BlogPost() {
           line-height: 1.7;
           margin: 0;
         }
-        /* Warning callout */
         .ds-blog-content .ds-warning {
           background: ${C.gold}12;
           border: 1px solid ${C.gold}44;
@@ -313,7 +358,6 @@ export default function BlogPost() {
           line-height: 1.7;
           margin: 0;
         }
-        /* Stat / highlight box */
         .ds-blog-content .ds-stat {
           background: linear-gradient(135deg, ${C.accent}18, ${C.teal}12);
           border: 1px solid ${C.accent}33;
@@ -372,14 +416,10 @@ export default function BlogPost() {
         <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.8, marginBottom: 36, borderLeft: `3px solid ${C.accent}`, paddingLeft: 20, fontStyle: 'italic' }}>{post.excerpt}</p>
       )}
 
-      {/* Divider */}
       <div style={{ height: 1, background: C.border, marginBottom: 44 }} />
 
       {/* Rich HTML content */}
-      <div
-        className="ds-blog-content"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
+      <div className="ds-blog-content" dangerouslySetInnerHTML={{ __html: post.content }} />
 
       {/* CTA box */}
       <div style={{ background: `linear-gradient(135deg, ${C.accent}18, ${C.teal}12)`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '36px 40px', margin: '48px 0', textAlign: 'center' }}>
