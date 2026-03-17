@@ -203,6 +203,17 @@ const STARS = (() => {
   return stars
 })()
 
+const SPARKLES = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  top: Math.random() * 100,
+  left: Math.random() * 100,
+  size: Math.random() * 10 + 6,
+  color: ['#c4b5fd','#67e8f9','#f0abfc','#fde68a','#ffffff'][i % 5],
+  opacity: Math.random() * 0.25 + 0.05,
+  duration: Math.random() * 5 + 3,
+  delay: Math.random() * 6,
+}))
+
 function StarField() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#04060f' }}>
@@ -353,18 +364,18 @@ function StarField() {
         }} />
       ))}
 
-      {/* ── Sparkle ✦ stars scattered ── */}
-      {[...Array(20)].map((_, i) => (
-        <div key={`sp${i}`} style={{
+      {/* ── Sparkle ✦ stars ── */}
+      {SPARKLES.map(s => (
+        <div key={`sp${s.id}`} style={{
           position: 'absolute',
-          top: `${Math.random() * 100}%`,
-          left: `${Math.random() * 100}%`,
-          fontSize: `${Math.random() * 10 + 6}px`,
-          color: ['#c4b5fd','#67e8f9','#f0abfc','#fde68a','#ffffff'][i % 5],
-          opacity: Math.random() * 0.25 + 0.05,
+          top: `${s.top}%`,
+          left: `${s.left}%`,
+          fontSize: `${s.size}px`,
+          color: s.color,
+          opacity: s.opacity,
           textShadow: '0 0 8px currentColor',
-          animation: `twinkle ${Math.random() * 5 + 3}s ease-in-out infinite`,
-          animationDelay: `${Math.random() * 6}s`,
+          animation: `twinkle ${s.duration}s ease-in-out infinite`,
+          animationDelay: `${s.delay}s`,
           userSelect: 'none', lineHeight: 1,
         }}>✦</div>
       ))}
@@ -931,22 +942,14 @@ function DreamChat({ user, onSignIn }) {
   return (
     <>
       {saveSuccess && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 16px', marginBottom: 12, fontSize: 13, color: C.teal }}>✅ Saved to your gallery!</div>}
-      <div style={{ position: 'relative', borderRadius: 18 }}>
-        {/* Animated chromatic border — wraps the card */}
-        <div style={{
-          position: 'absolute', inset: -2, borderRadius: 18, zIndex: 0,
-          background: 'linear-gradient(135deg, #7C5CFC, #00D4AA, #FF6B9D, #F5C842, #7C5CFC)',
-          backgroundSize: '300% 300%',
-          animation: 'chromaticBorder 4s ease-in-out infinite',
-          filter: 'blur(1px)',
-        }} />
-        <div style={{ position: 'absolute', inset: -4, borderRadius: 20, zIndex: -1,
-          background: 'linear-gradient(135deg, #7C5CFC88, #00D4AA44, #FF6B9D44, #7C5CFC88)',
-          backgroundSize: '300% 300%',
-          animation: 'chromaticBorder 4s ease-in-out infinite reverse',
-          filter: 'blur(12px)',
-        }} />
-      <div style={{ background: C.card, border: 'none', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+      {/* ── Chromatic animated border wrapper ── */}
+      <div style={{ position: 'relative', borderRadius: 18, isolation: 'isolate' }}>
+        {/* Glow layer 1 — crisp 2px chromatic ring */}
+        <div style={{ position: 'absolute', inset: -2, borderRadius: 18, zIndex: 0, background: 'linear-gradient(135deg, #7C5CFC, #00D4AA, #FF6B9D, #F5C842, #7C5CFC)', backgroundSize: '300% 300%', animation: 'chromaticBorder 4s ease-in-out infinite', filter: 'blur(1px)' }} />
+        {/* Glow layer 2 — diffuse ambient halo */}
+        <div style={{ position: 'absolute', inset: -4, borderRadius: 20, zIndex: -1, background: 'linear-gradient(135deg, #7C5CFC88, #00D4AA44, #FF6B9D44, #7C5CFC88)', backgroundSize: '300% 300%', animation: 'chromaticBorder 4s ease-in-out infinite reverse', filter: 'blur(12px)' }} />
+        {/* Inner card */}
+        <div style={{ background: C.card, border: 'none', borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
 
         {/* Header */}
         <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -1222,7 +1225,7 @@ function DreamChat({ user, onSignIn }) {
         />
       )}
       </div>{/* close inner card */}
-      </div>{/* close chromatic wrapper */}
+      </div>{/* close position:relative outer wrapper */}
     </>
   )
 }
@@ -1466,7 +1469,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
               {art.image_url && hover === art.id && !isOwner && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
                   onClick={e => e.stopPropagation()}>
-                  <button onClick={() => openLightbox({ nativeEvent: {} }, art)}
+                  <button onClick={e => { e.stopPropagation(); openLightbox(e, art) }}
                     style={{ background: 'rgba(8,11,20,0.8)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     🔍 View
                   </button>
@@ -2966,7 +2969,7 @@ function ProfilePage({ user, profile: initialProfile }) {
     const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
     if (followRows?.length) {
       const ids = followRows.map(r => r.following_id)
-      const { data: feedArt } = await supabase.from('artwork').select('*, profiles(username, avatar_url)').in('user_id', ids).eq('is_public', true).order('created_at', { ascending: false }).limit(40)
+      const { data: feedArt } = await supabase.from('artwork').select('*, profiles!user_id(username, avatar_url)').in('user_id', ids).eq('is_public', true).order('created_at', { ascending: false }).limit(40)
       setFeedArtworks(feedArt || [])
     }
     setLoadingFeed(false)

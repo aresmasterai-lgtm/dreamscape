@@ -229,7 +229,7 @@ function ShopView({ user, onSignIn }) {
     try {
       const { data } = await supabase
         .from('products')
-        .select('*, profiles(id, username)')
+        .select('*, profiles!user_id(id, username)')
         .order('created_at', { ascending: false })
         .limit(100)
       setProducts(data || [])
