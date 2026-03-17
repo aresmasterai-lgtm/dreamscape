@@ -1,0 +1,187 @@
+/* ── Dreamscape Glow System ─────────────────────────────────── */
+
+:root {
+  --glow-cyan: #00D4FF;
+  --glow-magenta: #FF2D9B;
+  --glow-purple: #7B5CF0;
+  --glow-violet: #A855F7;
+  --glow-teal: #00E5CC;
+}
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes panelPulse {
+  0%   { box-shadow: 0 0 0 0 transparent, -3px 0 20px rgba(0,212,255,0.0),   3px 0 20px rgba(255,45,155,0.0);   border-color: rgba(0,212,255,0.3); }
+  25%  { box-shadow: 0 0 30px rgba(0,212,255,0.25), -4px 0 30px rgba(0,212,255,0.4),  4px 0 30px rgba(255,45,155,0.15);  border-color: rgba(0,212,255,0.7); }
+  50%  { box-shadow: 0 0 40px rgba(255,45,155,0.3),  -4px 0 30px rgba(0,212,255,0.15), 4px 0 40px rgba(255,45,155,0.5);  border-color: rgba(255,45,155,0.7); }
+  75%  { box-shadow: 0 0 30px rgba(123,92,240,0.3),  -4px 0 30px rgba(0,212,255,0.3),  4px 0 30px rgba(255,45,155,0.3);  border-color: rgba(123,92,240,0.6); }
+  100% { box-shadow: 0 0 0 0 transparent, -3px 0 20px rgba(0,212,255,0.0),   3px 0 20px rgba(255,45,155,0.0);   border-color: rgba(0,212,255,0.3); }
+}
+
+@keyframes bubbleAppear {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes inputFocusGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,212,255,0); }
+  50%       { box-shadow: 0 0 16px rgba(0,212,255,0.5), 0 0 32px rgba(0,212,255,0.2); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.8; }
+  50%       { opacity: 1; }
+}
+
+@keyframes borderFlow {
+  0%   { border-color: rgba(0,212,255,0.6); box-shadow: 0 0 18px rgba(0,212,255,0.4); }
+  33%  { border-color: rgba(123,92,240,0.6); box-shadow: 0 0 18px rgba(123,92,240,0.4); }
+  66%  { border-color: rgba(255,45,155,0.6); box-shadow: 0 0 18px rgba(255,45,155,0.4); }
+  100% { border-color: rgba(0,212,255,0.6); box-shadow: 0 0 18px rgba(0,212,255,0.4); }
+}
+
+/* ── Neon Panel ──────────────────────────────────────────────── */
+.neon-panel {
+  border: 1.5px solid rgba(0,212,255,0.4) !important;
+  box-shadow:
+    0 0 0 1px rgba(0,212,255,0.08),
+    -4px 0 24px rgba(0,212,255,0.35),
+    4px 0 24px rgba(255,45,155,0.35),
+    0 0 40px rgba(123,92,240,0.15),
+    inset 0 0 30px rgba(0,212,255,0.04) !important;
+  animation: panelPulse 5s ease-in-out infinite !important;
+  border-radius: 16px;
+}
+
+.neon-panel--intense {
+  box-shadow:
+    -6px 0 36px rgba(0,212,255,0.55),
+    6px 0 36px rgba(255,45,155,0.55),
+    0 0 60px rgba(123,92,240,0.25),
+    inset 0 0 40px rgba(0,212,255,0.06) !important;
+}
+
+/* ── Chat Bubbles ────────────────────────────────────────────── */
+.bubble-user {
+  box-shadow:
+    2px 0 16px rgba(255,45,155,0.5),
+    0 -2px 12px rgba(255,45,155,0.3),
+    0 4px 20px rgba(123,92,240,0.3) !important;
+  animation: bubbleAppear 0.25s ease forwards !important;
+}
+
+.bubble-ai {
+  border-color: rgba(0,212,255,0.35) !important;
+  box-shadow:
+    -2px 0 16px rgba(0,212,255,0.4),
+    0 2px 12px rgba(0,212,255,0.2),
+    0 0 24px rgba(0,229,204,0.15) !important;
+  animation: bubbleAppear 0.25s ease forwards !important;
+}
+
+/* ── Neon Input ──────────────────────────────────────────────── */
+.neon-input {
+  border: 1.5px solid rgba(0,212,255,0.35) !important;
+  box-shadow: 0 0 10px rgba(0,212,255,0.15) !important;
+  transition: border-color 0.3s, box-shadow 0.3s !important;
+}
+
+.neon-input:focus {
+  border-color: rgba(0,212,255,0.8) !important;
+  box-shadow:
+    0 0 0 3px rgba(0,212,255,0.12),
+    0 0 20px rgba(0,212,255,0.45),
+    0 0 40px rgba(0,212,255,0.2) !important;
+  outline: none !important;
+  animation: inputFocusGlow 2s ease-in-out infinite !important;
+}
+
+/* ── Neon Buttons ────────────────────────────────────────────── */
+.neon-btn-primary {
+  box-shadow:
+    0 0 16px rgba(123,92,240,0.6),
+    0 0 32px rgba(123,92,240,0.3),
+    0 4px 12px rgba(75,47,208,0.4) !important;
+  transition: box-shadow 0.2s, transform 0.15s !important;
+}
+
+.neon-btn-primary:hover {
+  box-shadow:
+    0 0 24px rgba(123,92,240,0.8),
+    0 0 48px rgba(123,92,240,0.4),
+    0 6px 20px rgba(75,47,208,0.5) !important;
+  transform: translateY(-1px) !important;
+}
+
+.neon-btn-cyan {
+  border: 1.5px solid rgba(0,212,255,0.6) !important;
+  box-shadow: 0 0 14px rgba(0,212,255,0.4), 0 0 28px rgba(0,212,255,0.2) !important;
+}
+
+/* ── Shimmer Text ────────────────────────────────────────────── */
+.glow-text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #E8EAF0 0%,
+    #00D4FF 20%,
+    #A855F7 40%,
+    #FF2D9B 60%,
+    #00E5CC 80%,
+    #E8EAF0 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+.glow-text-cyan {
+  color: var(--glow-cyan);
+  text-shadow: 0 0 10px rgba(0,212,255,0.6), 0 0 20px rgba(0,212,255,0.3);
+}
+
+.glow-text-magenta {
+  color: var(--glow-magenta);
+  text-shadow: 0 0 10px rgba(255,45,155,0.6), 0 0 20px rgba(255,45,155,0.3);
+}
+
+/* ── Neon Image Frame ────────────────────────────────────────── */
+.neon-img-frame {
+  border: 1.5px solid rgba(0,229,204,0.5) !important;
+  box-shadow:
+    0 0 12px rgba(0,229,204,0.4),
+    0 0 24px rgba(0,229,204,0.2),
+    inset 0 0 10px rgba(0,229,204,0.06) !important;
+  transition: box-shadow 0.2s !important;
+}
+
+.neon-img-frame:hover {
+  box-shadow:
+    0 0 20px rgba(0,229,204,0.6),
+    0 0 40px rgba(0,229,204,0.3) !important;
+}
+
+/* ── Status Dot ──────────────────────────────────────────────── */
+.status-dot-online {
+  color: #00E5CC;
+  text-shadow: 0 0 8px rgba(0,229,204,0.8), 0 0 16px rgba(0,229,204,0.4);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* ── Float Card ──────────────────────────────────────────────── */
+.float-card {
+  animation: borderFlow 4s ease-in-out infinite;
+  border-radius: 16px;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+.neon-panel ::-webkit-scrollbar { width: 4px; }
+.neon-panel ::-webkit-scrollbar-track { background: transparent; }
+.neon-panel ::-webkit-scrollbar-thumb { background: rgba(123,92,240,0.4); border-radius: 2px; }
+.neon-panel ::-webkit-scrollbar-thumb:hover { background: rgba(0,212,255,0.6); }
