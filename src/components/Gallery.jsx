@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import CreateProductModal from './CreateProductModal'
 
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return { 'Authorization': `Bearer ${session.access_token}` }
+  } catch {}
+  return {}
+}
+
 // Netlify Image CDN transform
 function imgUrl(src, w = 800, q = 80) {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
@@ -105,7 +113,7 @@ function ImageLightbox({ image, onClose, onSell, onDownload }) {
 }
 
 // ── Art Card ──────────────────────────────────────────────────
-function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
+function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete, onEdit }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
@@ -119,10 +127,11 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
 
   const menuItems = isOwn
     ? [
-        { icon: '🔍', label: 'View Full', action: () => onLightbox(art), color: C.text },
-        { icon: '🛍', label: 'Sell This', action: () => onSell(art), color: C.accent },
-        { icon: '↻',  label: 'Use Again', action: () => onUseAgain(art), color: C.teal },
-        { icon: '🗑', label: 'Delete', action: () => onDelete(art), color: C.red },
+        { icon: '✏️', label: 'Edit Details', action: () => onEdit(art), color: C.text },
+        { icon: '🔍', label: 'View Full',    action: () => onLightbox(art), color: C.muted },
+        { icon: '🛍', label: 'Sell This',    action: () => onSell(art), color: C.accent },
+        { icon: '↻',  label: 'Use Again',    action: () => onUseAgain(art), color: C.teal },
+        { icon: '🗑', label: 'Delete',       action: () => onDelete(art), color: C.red },
       ]
     : [
         { icon: '🔍', label: 'View Full', action: () => onLightbox(art), color: C.text },
@@ -172,6 +181,77 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
         <div style={{ fontSize: 11, color: C.muted, cursor: 'pointer' }}
           onClick={e => { e.stopPropagation(); if (art.profiles?.username) { if (e.ctrlKey || e.metaKey) { window.open(`/u/${art.profiles.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${art.profiles.username}`) } } }}>
           @{art.profiles?.username || 'artist'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Edit Artwork Modal ────────────────────────────────────────
+function EditArtworkModal({ art, onSave, onClose }) {
+  const [title, setTitle]      = useState(art.title || '')
+  const [description, setDesc] = useState(art.prompt || '')
+  const [tags, setTags]        = useState((art.style_tags || []).join(', '))
+  const [saving, setSaving]    = useState(false)
+  const [error, setError]      = useState('')
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Title is required.'); return }
+    setError(''); setSaving(true)
+    const styleTags = tags.split(',').map(t => t.trim()).filter(Boolean)
+    const updates = { title: title.trim(), prompt: description.trim(), style_tags: styleTags }
+    const { error: dbErr } = await supabase.from('artwork').update(updates).eq('id', art.id)
+    if (dbErr) { setError('Failed to save.'); setSaving(false); return }
+    onSave({ ...art, ...updates })
+    onClose()
+  }
+
+  const inp = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 500, overflow: 'hidden', boxShadow: `0 0 60px rgba(124,92,252,0.2)` }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 2 }}>Edit Artwork</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Update title, description and tags</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        {art.image_url && (
+          <div style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
+            <img src={art.image_url} alt={art.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(19,24,38,0.9) 0%, transparent 60%)' }} />
+          </div>
+        )}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Title</label>
+            <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder="Artwork title..." maxLength={100} style={inp} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Description</label>
+            <textarea value={description} onChange={e => setDesc(e.target.value)} placeholder="Describe this artwork..." rows={3} maxLength={1000} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Style Tags</label>
+            <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. surrealism, dark, neon" style={inp} />
+            {tags.trim() && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                {tags.split(',').map(t => t.trim()).filter(Boolean).map((tag, i) => (
+                  <span key={i} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+          {error && <div style={{ background: 'rgba(255,77,77,0.12)', border: '1px solid rgba(255,77,77,0.4)', borderRadius: 8, padding: '9px 14px', fontSize: 13, color: C.red }}>{error}</div>}
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : '✦ Save Changes'}
+          </button>
         </div>
       </div>
     </div>
@@ -297,6 +377,7 @@ export default function Gallery({ user, onSignIn }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [search, setSearch] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [editTarget, setEditTarget] = useState(null)
 
   useEffect(() => { loadArtworks() }, [tab, user])
 
@@ -329,6 +410,11 @@ export default function Gallery({ user, onSignIn }) {
     setArtworks(prev => prev.filter(a => a.id !== art.id))
     setDeleteConfirm(null)
     setDeleting(false)
+  }
+
+  const handleEditSave = (updated) => {
+    setArtworks(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
+    setEditTarget(null)
   }
 
   const openLightbox = (art) => {
@@ -419,9 +505,19 @@ export default function Gallery({ user, onSignIn }) {
               onSell={setCreateTarget}
               onUseAgain={setReuseTarget}
               onDelete={setDeleteConfirm}
+              onEdit={setEditTarget}
             />
           ))}
         </div>
+      )}
+
+      {/* Edit Artwork Modal */}
+      {editTarget && (
+        <EditArtworkModal
+          art={editTarget}
+          onSave={handleEditSave}
+          onClose={() => setEditTarget(null)}
+        />
       )}
 
       {/* Use Again Modal */}

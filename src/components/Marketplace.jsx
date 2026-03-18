@@ -2,6 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return { 'Authorization': `Bearer ${session.access_token}` }
+  } catch {}
+  return {}
+}
+
 // Netlify Image CDN transform
 function imgUrl(src, w = 800, q = 80) {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
@@ -115,6 +123,7 @@ function CatalogView({ user, onSignIn }) {
   const [form, setForm] = useState({ title: '', description: '', imageUrl: '' })
   const [error, setError] = useState('')
   const [lightbox, setLightbox] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
 
   useEffect(() => { loadProducts(0, true) }, [])
 
@@ -162,6 +171,14 @@ function CatalogView({ user, onSignIn }) {
   return (
     <div>
       {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
+      {editTarget && user && (
+        <EditProductModal
+          product={editTarget}
+          user={user}
+          onSave={handleEditSave}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
       {success && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '12px 18px', marginBottom: 24, fontSize: 14, color: C.teal }}>✅ Product created successfully in your Printful store!</div>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
         {products.map(product => (
@@ -260,6 +277,11 @@ function ShopView({ user, onSignIn }) {
     setLoading(false)
   }
 
+  const handleEditSave = (updated) => {
+    setProducts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
+    setEditTarget(null)
+  }
+
   const filtered = products.filter(p => {
     const matchStyle = styleFilter === 'All' || p.tags?.includes(styleFilter)
     const matchType = typeFilter === 'All' || (p.product_type || '').toLowerCase().includes(typeFilter.toLowerCase())
@@ -295,6 +317,14 @@ function ShopView({ user, onSignIn }) {
   return (
     <div>
       {lightbox && <ImageLightbox image={lightbox} onClose={() => setLightbox(null)} />}
+      {editTarget && user && (
+        <EditProductModal
+          product={editTarget}
+          user={user}
+          onSave={handleEditSave}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
 
       <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
@@ -340,10 +370,12 @@ function ShopView({ user, onSignIn }) {
             <ProductCard
               key={product.id}
               product={product}
+              user={user}
               onView={() => setSelectedProduct(product)}
               onLightbox={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}
               onBuy={() => handleBuy(product)}
               buyingId={buyingId}
+              onEdit={setEditTarget}
             />
           ))}
         </div>
@@ -395,8 +427,112 @@ function ShopView({ user, onSignIn }) {
 
 // ── Main Export ───────────────────────────────────────────────
 
+// ── Edit Product Modal ────────────────────────────────────────
+function EditProductModal({ product, user, onSave, onClose }) {
+  const [title, setTitle]       = useState(product.title || '')
+  const [description, setDesc]  = useState(product.description || '')
+  const [tags, setTags]         = useState((product.tags || []).join(', '))
+  const [price, setPrice]       = useState(String(product.price || ''))
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Title is required.'); return }
+    if (!price || isNaN(parseFloat(price))) { setError('Enter a valid price.'); return }
+    setError(''); setSaving(true)
+    try {
+      const updates = {
+        title: title.trim(),
+        description: description.trim() || null,
+        tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+        price: parseFloat(price),
+        updated_at: new Date().toISOString(),
+      }
+      const { error: dbErr } = await supabase.from('products').update(updates).eq('id', product.id).eq('user_id', user.id)
+      if (dbErr) throw dbErr
+      // Sync price to Printful (fire-and-forget)
+      if (product.printful_variant_ids?.length) {
+        getAuthHeader().then(h => fetch('/api/printful?action=updateVariantPrice', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({ variantIds: product.printful_variant_ids, retailPrice: parseFloat(price).toFixed(2) }),
+        }).catch(() => {}))
+      }
+      onSave({ ...product, ...updates })
+      onClose()
+    } catch (e) { setError(e.message || 'Failed to save.') }
+    setSaving(false)
+  }
+
+  const TAGS = ['Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Vintage', 'Geometric']
+  const currentTags = tags.split(',').map(t => t.trim()).filter(Boolean)
+  const toggleTag = (tag) => {
+    const updated = currentTags.includes(tag) ? currentTags.filter(t => t !== tag) : [...currentTags, tag]
+    setTags(updated.join(', '))
+  }
+
+  const inp = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(8,11,20,0.96)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 0 60px rgba(124,92,252,0.2)' }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: C.card, zIndex: 1 }}>
+          <div>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 2 }}>Edit Product</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Update title, description, tags and price</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        {product.mockup_url && (
+          <div style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
+            <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(19,24,38,0.9) 0%, transparent 60%)' }} />
+            <div style={{ position: 'absolute', bottom: 10, left: 14, fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{product.product_type}</div>
+          </div>
+        )}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Title</label>
+            <input autoFocus value={title} onChange={e => setTitle(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder="Product title..." maxLength={100} style={inp} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Description</label>
+            <textarea value={description} onChange={e => setDesc(e.target.value)} placeholder="Describe this product..." rows={3} maxLength={1000} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Price (USD)</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 14 }}>$</span>
+              <input value={price} onChange={e => setPrice(e.target.value)} placeholder="29.99" type="number" min="0" step="0.01" style={{ ...inp, paddingLeft: 28 }} />
+            </div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Style Tags</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {TAGS.map(tag => (
+                <button key={tag} onClick={() => toggleTag(tag)}
+                  style={{ background: currentTags.includes(tag) ? `${C.accent}22` : 'none', border: `1px solid ${currentTags.includes(tag) ? C.accent + '66' : C.border}`, borderRadius: 20, padding: '4px 12px', color: currentTags.includes(tag) ? C.accent : C.muted, fontSize: 11, fontWeight: currentTags.includes(tag) ? 700 : 400, cursor: 'pointer' }}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+            <input value={tags} onChange={e => setTags(e.target.value)} placeholder="Or type custom tags, comma-separated" style={{ ...inp, fontSize: 12 }} />
+          </div>
+          {error && <div style={{ background: 'rgba(255,77,77,0.12)', border: '1px solid rgba(255,77,77,0.4)', borderRadius: 8, padding: '9px 14px', fontSize: 13, color: '#FF4D4D' }}>{error}</div>}
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, position: 'sticky', bottom: 0, background: C.card }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : '✦ Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Product Card with kebab menu ─────────────────────────────
-function ProductCard({ product, onView, onLightbox, onBuy, buyingId }) {
+function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
@@ -426,8 +562,11 @@ function ProductCard({ product, onView, onLightbox, onBuy, buyingId }) {
           {menuOpen && (
             <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.7), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
               {[
-                { icon: '🔍', label: 'View Details', action: onView, color: C.text },
-                { icon: '🖼', label: 'Full Image', action: onLightbox, color: C.muted },
+                ...(user && product.user_id === user.id
+                  ? [{ icon: '✏️', label: 'Edit Details', action: () => onEdit(product), color: C.text }]
+                  : []),
+                { icon: '🔍', label: 'View Details', action: onView, color: C.muted },
+                { icon: '🖼', label: 'Full Image',   action: onLightbox, color: C.muted },
                 { icon: '🛍', label: `Buy — $${parseFloat(product.price || 29.99).toFixed(2)}`, action: onBuy, color: C.teal },
               ].map(item => (
                 <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
