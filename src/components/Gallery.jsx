@@ -3,6 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import CreateProductModal from './CreateProductModal'
 
+// Netlify Image CDN transform
+function imgUrl(src, w = 800, q = 80) {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
+  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+}
+
+// Blur-up lazy image
+function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
+  const [loaded, setLoaded] = React.useState(false)
+  const [error, setError] = React.useState(false)
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+      {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
+      {src && <img src={imgUrl(src, width, quality)} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async"
+        onLoad={() => setLoaded(true)} onError={() => { setError(true); setLoaded(true) }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }} />}
+      {error && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🎨</div>}
+    </div>
+  )
+}
+
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
@@ -12,7 +33,9 @@ const C = {
 function Spinner() {
   return (
     <div style={{ textAlign: 'center', padding: '60px 0' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <style>{`
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
         {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
@@ -96,11 +119,11 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
       <div style={{ position: 'relative' }} onClick={() => art.image_url && onLightbox(art)}>
         {art.image_url
           ? <>
-              <img
+              <LazyImage
                 src={art.image_url}
                 alt={artAltTag(art)}
-                style={{ width: '100%', display: 'block', cursor: 'zoom-in' }}
-                loading="lazy"
+                width={400}
+                style={{ width: '100%' }}
               />
               {/* Zoom hint on hover */}
               {hover && (

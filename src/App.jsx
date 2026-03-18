@@ -153,6 +153,86 @@ function ProtectedImage({ src, alt, style, isOwner = false, onClick, className }
   )
 }
 
+// ── Image utilities ───────────────────────────────────────────
+
+// Upload a base64 dataUrl to Supabase Storage, return public URL.
+// Used after image generation so we store a URL not raw base64 in the DB.
+async function uploadArtworkToStorage(userId, base64DataUrl, mimeType = 'image/png') {
+  try {
+    const ext = mimeType.includes('jpeg') ? 'jpg' : 'png'
+    const filename = `${userId}/${Date.now()}.${ext}`
+    // Convert base64 to blob
+    const res = await fetch(base64DataUrl)
+    const blob = await res.blob()
+    const { error } = await supabase.storage
+      .from('artwork')
+      .upload(filename, blob, { contentType: mimeType, upsert: false })
+    if (error) throw error
+    const { data: { publicUrl } } = supabase.storage.from('artwork').getPublicUrl(filename)
+    return publicUrl
+  } catch (err) {
+    console.warn('Storage upload failed, falling back to base64:', err.message)
+    return null // caller falls back to base64
+  }
+}
+
+// Apply Netlify Image CDN transform to any external URL.
+// Returns optimised WebP at requested width — massively smaller than originals.
+// Supabase storage URLs and Printful CDN URLs both work.
+// Base64 dataUrls are passed through unchanged (can't be transformed).
+function imgUrl(src, width = 800, quality = 80) {
+  if (!src) return src
+  if (src.startsWith('data:')) return src // base64 — can't transform
+  if (src.startsWith('blob:')) return src  // local blob — can't transform
+  // Netlify Image CDN — transforms any URL to WebP at specified width
+  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${width}&q=${quality}&fm=webp`
+}
+
+// ── LazyImage — blur-up placeholder + lazy load ───────────────
+// Replaces every <img> on art/product cards for instant perceived performance.
+function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false }) {
+  const [loaded, setLoaded] = React.useState(false)
+  const [error, setError] = React.useState(false)
+  const optimised = imgUrl(src, width, quality)
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+      {/* Shimmer placeholder — visible until image loads */}
+      {!loaded && !error && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`,
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.4s ease-in-out infinite',
+        }} />
+      )}
+      {/* Actual image */}
+      {src && (
+        <img
+          src={optimised}
+          alt={alt}
+          className={className}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchpriority={priority ? 'high' : 'low'}
+          onLoad={() => setLoaded(true)}
+          onError={() => { setError(true); setLoaded(true) }}
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            opacity: loaded ? 1 : 0,
+            transition: 'opacity 0.3s ease',
+            display: 'block',
+          }}
+        />
+      )}
+      {/* Error state */}
+      {error && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🎨</div>
+      )}
+    </div>
+  )
+}
+
 // ── Tier Limits ───────────────────────────────────────────────
 const TIER_LIMITS = {
   free:    { gens: 10,  products: 3  },
@@ -893,14 +973,17 @@ function DreamChat({ user, onSignIn }) {
       if (data.success) {
         const imageDataUrl = `data:${data.mimeType};base64,${data.imageData}`
         setGeneratedImages(prev => ({ ...prev, [index]: imageDataUrl }))
-        // Auto-save to artwork as private (user can publish later)
+        // Auto-save to artwork — upload to Storage first so we store a URL not raw base64
         if (user) {
           const promptText = typeof prompt === 'string' ? prompt : ''
+          // Try to upload to Supabase Storage for efficient CDN delivery
+          const storageUrl = await uploadArtworkToStorage(user.id, imageDataUrl, data.mimeType || 'image/png')
+          const finalImageUrl = storageUrl || imageDataUrl // fall back to base64 if upload fails
           const { data: savedArt } = await supabase.from('artwork').insert({
             user_id: user.id,
             title: 'Untitled Generation',
             prompt: promptText,
-            image_url: imageDataUrl,
+            image_url: finalImageUrl,
             style_tags: [],
             is_public: false,
           }).select().single()
@@ -1089,8 +1172,7 @@ function DreamChat({ user, onSignIn }) {
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <img src={generatedImages[lastAiIndex]} alt={`AI generated artwork — ${(messages[lastAiIndex]?.content || '').slice(0, 100)}`} onClick={() => setLightboxImage(generatedImages[lastAiIndex])}
-                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.teal}55`, cursor: 'zoom-in', flexShrink: 0 }} />
+                <LazyImage src={generatedImages[lastAiIndex]} alt="Generated artwork" width={96} priority style={{ width: 48, height: 48, borderRadius: 8, flexShrink: 0 }} onClick={() => setLightboxImage(generatedImages[lastAiIndex])} />
                 {/* Regenerate */}
                 <button onClick={() => generatingIndex === null && generateImage(messages[lastAiIndex].content, lastAiIndex)} disabled={generatingIndex !== null}
                   title="Generate again"
@@ -1479,8 +1561,13 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
             <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
               onClick={(e) => art.image_url ? openLightbox(e, art) : setExpanded(expanded === art.id ? null : art.id)}>
               {art.image_url
-                ? <img src={art.image_url} alt={artAltTag(art)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} />
-                : '🎨'}
+                ? <LazyImage
+                    src={art.image_url}
+                    alt={artAltTag(art)}
+                    width={480}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 40 }}>🎨</div>}
               {/* Zoom hint / Use This Art on hover for non-owners */}
               {art.image_url && hover === art.id && !isOwner && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
@@ -2260,7 +2347,7 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
                   onClick={e => { if (e.ctrlKey || e.metaKey) { window.open(`/u/${u.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${u.username}`); onClose() } }}
                   style={{ width: 44, height: 44, borderRadius: '50%', background: u.avatar_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff' }}>
                   {u.avatar_url
-                    ? <img src={u.avatar_url} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <LazyImage src={u.avatar_url} alt={u.username} width={80} style={{ width: '100%', height: '100%' }} />
                     : u.username?.[0]?.toUpperCase()}
                 </div>
                 {/* Info */}
@@ -4162,6 +4249,10 @@ export default function App() {
         @keyframes generateReady {
           0%,100% { filter: brightness(1); }
           50%     { filter: brightness(1.15); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }

@@ -2,6 +2,27 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+// Netlify Image CDN transform
+function imgUrl(src, w = 800, q = 80) {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
+  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+}
+
+// Blur-up lazy image
+function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
+  const [loaded, setLoaded] = React.useState(false)
+  const [error, setError] = React.useState(false)
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+      {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
+      {src && <img src={imgUrl(src, width, quality)} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async"
+        onLoad={() => setLoaded(true)} onError={() => { setError(true); setLoaded(true) }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }} />}
+      {error && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🛍</div>}
+    </div>
+  )
+}
+
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
@@ -40,7 +61,9 @@ function Spinner() {
       <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
         {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <style>{`
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
     </div>
   )
 }
@@ -323,7 +346,7 @@ function ShopView({ user, onSignIn }) {
                 style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative', cursor: 'zoom-in' }}
                 onClick={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}>
                 {product.mockup_url
-                  ? <img src={product.mockup_url} alt={productAltTag(product)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} style={{ width: '100%', height: '100%' }} />
                   : <span style={{ fontSize: 52 }}>🎨</span>}
                 {/* Zoom hint */}
                 <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: C.muted }}>🔍 View</div>
@@ -357,7 +380,7 @@ function ShopView({ user, onSignIn }) {
               style={{ height: 240, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: selectedProduct.mockup_url ? 'zoom-in' : 'default' }}
               onClick={() => selectedProduct.mockup_url && setLightbox({ src: selectedProduct.mockup_url, alt: productAltTag(selectedProduct), title: selectedProduct.title, caption: `by @${selectedProduct.profiles?.username || 'artist'}` })}>
               {selectedProduct.mockup_url
-                ? <img src={selectedProduct.mockup_url} alt={productAltTag(selectedProduct)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ? <LazyImage src={selectedProduct.mockup_url} alt={productAltTag(selectedProduct)} width={600} priority style={{ width: '100%', height: '100%' }} />
                 : <span style={{ fontSize: 64 }}>🎨</span>}
               {selectedProduct.mockup_url && (
                 <div style={{ position: 'absolute', bottom: 10, right: 10, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: C.muted }}>🔍 View full image</div>
