@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-import { supabase } from '../lib/supabase'
-
 async function getAuthHeader() {
   try {
     const { data: { session } } = await supabase.auth.getSession()
