@@ -1410,7 +1410,7 @@ function DreamChat({ user, onSignIn }) {
 }
 
 // ── Shared Image Lightbox ─────────────────────────────────────
-function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublishToggle, onDelete, isPublic, showActions = true }) {
+function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublishToggle, onDelete, onEdit, isPublic, showActions = true }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -1456,6 +1456,11 @@ function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublish
             {onPublishToggle && (
               <button onClick={onPublishToggle} style={btnStyle(isPublic ? C.teal : C.accent, isPublic ? `${C.teal}18` : `${C.accent}18`)}>
                 {isPublic ? '🔒 Make Private' : '🌐 Publish'}
+              </button>
+            )}
+            {onEdit && (
+              <button onClick={onEdit} style={btnStyle(C.text, `${C.border}`)}>
+                ✏️ Edit Details
               </button>
             )}
             {onRefine && (
@@ -1758,6 +1763,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
           onRefine={isOwner && onRefine ? () => { onRefine(lightbox.art); setLightbox(null) } : null}
           onSell={isOwner && onSell ? () => { onSell(lightbox.art); setLightbox(null) } : null}
           onDelete={isOwner && onDelete ? () => { onDelete(lightbox.art); setLightbox(null) } : null}
+          onEdit={isOwner && onEdit ? () => { setEditTarget(lightbox.art); setLightbox(null) } : null}
         />
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
@@ -1847,7 +1853,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
                       {/* Delete */}
                       {onDelete && (
                         <button onClick={() => { setMenuOpen(null); onDelete(art) }}
-                          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 14px', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                          style={{ width: '100%', background: 'none', border: 'none', borderTop: `1px solid ${C.border}`, padding: '10px 14px', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9, WebkitAppearance: 'none', appearance: 'none' }}>
                           <span>🗑</span> Delete
                         </button>
                       )}
@@ -5232,7 +5238,7 @@ export default function App() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #030508; font-size: 15px; }
         a { -webkit-tap-highlight-color: transparent; }
-        button { -webkit-tap-highlight-color: transparent; }
+        button { -webkit-tap-highlight-color: transparent; color: inherit; }
 
         /* ── Image protection ── */
         img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }

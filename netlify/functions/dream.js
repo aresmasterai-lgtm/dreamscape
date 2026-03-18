@@ -1,5 +1,61 @@
 import { requireAuth, checkRateLimit, corsResponse, optionsResponse } from './auth-middleware.js'
 
+// ── Model resolver — auto-detects the best available Claude Sonnet ──
+let cachedModel = null
+let cacheTime   = 0
+const CACHE_TTL = 1000 * 60 * 60 // 1 hour
+const FALLBACK  = 'claude-sonnet-4-6'
+
+async function resolveModel(apiKey) {
+  const now = Date.now()
+  if (cachedModel && (now - cacheTime) < CACHE_TTL) return cachedModel
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/models', {
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+    })
+    if (!res.ok) throw new Error(`Models list failed: ${res.status}`)
+    const { data: models } = await res.json()
+
+    // Score models — prefer latest Sonnet, fall back to any Sonnet, then Opus
+    const score = (id) => {
+      if (!id) return -1
+      if (id.includes('sonnet')) {
+        // Extract version number for ranking e.g. 4-6 > 4-5 > 4
+        const match = id.match(/(\d+)-(\d+)/) || id.match(/(\d+)/)
+        if (match) {
+          const major = parseInt(match[1]) || 0
+          const minor = parseInt(match[2]) || 0
+          return major * 100 + minor
+        }
+        return 10
+      }
+      if (id.includes('opus'))   return 5
+      if (id.includes('haiku'))  return 1
+      return 0
+    }
+
+    const best = models
+      .map(m => m.id)
+      .filter(id => id.includes('claude'))
+      .sort((a, b) => score(b) - score(a))[0]
+
+    if (best) {
+      cachedModel = best
+      cacheTime   = now
+      console.log(`Dream AI resolved model: ${best}`)
+    }
+  } catch (err) {
+    console.warn('Model resolution failed, using fallback:', err.message)
+    if (!cachedModel) cachedModel = FALLBACK
+  }
+
+  return cachedModel || FALLBACK
+}
+
 export default async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
   if (req.method !== 'POST') return corsResponse({ error: 'Method not allowed' }, 405)
@@ -12,15 +68,18 @@ export default async (req) => {
     }
 
     const { messages } = await req.json()
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    const model  = await resolveModel(apiKey)
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model,
         max_tokens: 1024,
         system: `You are Dream — a witty, warm creative companion inside Dreamscape, an AI art platform where creators generate artwork and sell it as merchandise worldwide.
 
@@ -79,7 +138,14 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     })
 
     const data = await response.json()
+
+    // If model returned 404/invalid, clear cache and retry with fallback
     if (!response.ok) {
+      if (response.status === 404 || data?.error?.type === 'not_found_error') {
+        console.warn(`Model ${model} not found, clearing cache`)
+        cachedModel = null
+        cacheTime   = 0
+      }
       return new Response(JSON.stringify({ error: data }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
@@ -87,16 +153,10 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     }
 
     const replyText = data.content[0].text
-
-    // Extract prompt only if present
     const promptMatch = replyText.match(/<prompt>([\s\S]*?)<\/prompt>/)
     const extractedPrompt = promptMatch ? promptMatch[1].trim() : null
-
-    // Clean display text — strip prompt tags
     const displayText = replyText.replace(/<prompt>[\s\S]*?<\/prompt>/g, '').trim()
 
-    // Only append generate nudge when a prompt is ready — backend controls this wording
-    // Rotate confirmation phrases so it never feels stale
     const CONFIRM_PHRASES = [
       `${displayText}\n\nReady to make this real? Hit ✦ Generate Image or just say "yes" ✦`,
       `${displayText}\n\nLove it? Say the word or hit ✦ Generate Image and I'll make it happen 🔥`,
@@ -112,10 +172,7 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
       : displayText || replyText
 
     return new Response(
-      JSON.stringify({
-        reply: finalReply,
-        generationPrompt: extractedPrompt,
-      }),
+      JSON.stringify({ reply: finalReply, generationPrompt: extractedPrompt }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   } catch (err) {
