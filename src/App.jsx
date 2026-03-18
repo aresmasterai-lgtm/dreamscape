@@ -250,16 +250,17 @@ function LazyImage({ src, alt, style, className, onClick, width = 800, quality =
 
 // ── Tier Limits ───────────────────────────────────────────────
 const TIER_LIMITS = {
-  free:     { gens: 10,        products: 3,        commission: 0.30 },
-  starter:  { gens: 50,        products: 15,       commission: 0.25 },
-  pro:      { gens: 200,       products: 50,       commission: 0.20 },
-  studio:   { gens: Infinity,  products: Infinity, commission: 0.15 },
-  business: { gens: 100,       products: Infinity, commission: 0.08 },
+  free:       { gens: 10,       products: 3,        commission: 0.30 },
+  starter:    { gens: 50,       products: 15,       commission: 0.25 },
+  pro:        { gens: 200,      products: 50,       commission: 0.20 },
+  studio:     { gens: Infinity, products: Infinity, commission: 0.15 },
+  merchant:   { gens: 100,      products: Infinity, commission: 0.08 },
+  brand:      { gens: 500,      products: Infinity, commission: 0.06 },
+  enterprise: { gens: Infinity, products: Infinity, commission: 0.04 },
 }
 
 async function checkGenerationLimit(userId, tier) {
-  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
-  if (tier === 'business' && TIER_LIMITS.business.gens === Infinity) return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'studio' || tier === 'enterprise') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.gens || 10
   const startOfMonth = new Date()
   startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0)
@@ -272,7 +273,7 @@ async function checkGenerationLimit(userId, tier) {
 }
 
 async function checkProductLimit(userId, tier) {
-  if (tier === 'studio' || tier === 'business') return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'studio' || tier === 'merchant' || tier === 'brand' || tier === 'enterprise') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.products || 3
   const { count } = await supabase
     .from('products')
@@ -673,8 +674,14 @@ function GenUsageCounter({ user }) {
   if (tier === 'studio') return (
     <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, background: C.gold + '18', border: `1px solid ${C.gold}33`, borderRadius: 10, padding: '3px 9px' }}>∞ Studio</span>
   )
-  if (tier === 'business') return (
-    <span style={{ fontSize: 11, color: '#FF6B4A', fontWeight: 600, background: 'rgba(255,107,74,0.15)', border: '1px solid rgba(255,107,74,0.3)', borderRadius: 10, padding: '3px 9px' }}>🏢 Business</span>
+  if (tier === 'merchant') return (
+    <span style={{ fontSize: 11, color: '#FF6B4A', fontWeight: 600, background: 'rgba(255,107,74,0.15)', border: '1px solid rgba(255,107,74,0.3)', borderRadius: 10, padding: '3px 9px' }}>🏪 Merchant</span>
+  )
+  if (tier === 'brand') return (
+    <span style={{ fontSize: 11, color: '#FF4F9A', fontWeight: 600, background: 'rgba(255,79,154,0.15)', border: '1px solid rgba(255,79,154,0.3)', borderRadius: 10, padding: '3px 9px' }}>🏷 Brand</span>
+  )
+  if (tier === 'enterprise') return (
+    <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '3px 9px' }}>🏢 Enterprise</span>
   )
 
   const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0
@@ -3095,7 +3102,8 @@ function PayoutsCard({ user, profile }) {
   const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0, royalties: 0, royaltiesPending: 0 })
 
   const canSell = profile?.subscription_tier && profile.subscription_tier !== 'free'
-  const isBusiness = profile?.subscription_tier === 'business'
+  const BUSINESS_TIERS = ['merchant', 'brand', 'enterprise']
+  const isBusiness = BUSINESS_TIERS.includes(profile?.subscription_tier)
 
   useEffect(() => {
     if (user && canSell) { checkStatus(); loadEarnings() }
@@ -3465,7 +3473,7 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div>
                 {(() => {
                   const tier = profile?.subscription_tier || 'free'
-                  const colors = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold, business: '#FF6B4A' }
+                  const colors = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold, merchant: '#FF6B4A', brand: '#FF4F9A', enterprise: C.gold }
                   const color = colors[tier] || C.muted
                   return (
                     <div>
@@ -3473,8 +3481,12 @@ function ProfilePage({ user, profile: initialProfile }) {
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
                         {tier === 'free'
                           ? 'Upgrade to start selling and earning.'
-                          : tier === 'business'
-                          ? 'Active — 8% commission · Unlimited products · Business tools'
+                          : tier === 'merchant'
+                          ? 'Active — 8% commission · Unlimited products · Brand storefront'
+                          : tier === 'brand'
+                          ? 'Active — 6% commission · Unlimited products · Custom domain'
+                          : tier === 'enterprise'
+                          ? 'Active — 4% commission · Unlimited everything · White-label + API'
                           : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}
                       </div>
                     </div>
@@ -4106,7 +4118,9 @@ function Navbar({ user, profile, signOut, onSignIn }) {
                   starter:  { label: 'Starter',  color: C.teal,     bg: C.teal + '20' },
                   pro:      { label: 'Pro',      color: C.accent,   bg: C.accent + '20' },
                   studio:   { label: 'Studio',   color: C.gold,     bg: C.gold + '20' },
-                  business: { label: 'Business', color: '#FF6B4A',  bg: 'rgba(255,107,74,0.18)' },
+                  merchant:   { label: 'Merchant',   color: '#FF6B4A', bg: 'rgba(255,107,74,0.18)' },
+                  brand:      { label: 'Brand',      color: '#FF4F9A', bg: 'rgba(255,79,154,0.18)' },
+                  enterprise: { label: 'Enterprise', color: C.gold,    bg: C.gold + '22' },
                 }
                 const t = tierConfig[tier] || tierConfig.free
                 if (tier === 'free') return null

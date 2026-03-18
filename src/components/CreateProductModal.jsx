@@ -12,15 +12,17 @@ async function getAuthHeader() {
 
 
 const TIER_LIMITS = {
-  free:     { products: 3        },
-  starter:  { products: 15       },
-  pro:      { products: 50       },
-  studio:   { products: Infinity },
-  business: { products: Infinity },
+  free:       { products: 3        },
+  starter:    { products: 15       },
+  pro:        { products: 50       },
+  studio:     { products: Infinity },
+  merchant:   { products: Infinity },
+  brand:      { products: Infinity },
+  enterprise: { products: Infinity },
 }
 
 async function checkProductLimit(userId, tier) {
-  if (tier === 'studio' || tier === 'business') return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'studio' || tier === 'merchant' || tier === 'brand' || tier === 'enterprise') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.products || 3
   const { count } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('user_id', userId)
   return { allowed: (count || 0) < limit, used: count || 0, limit }
