@@ -235,14 +235,16 @@ function LazyImage({ src, alt, style, className, onClick, width = 800, quality =
 
 // ── Tier Limits ───────────────────────────────────────────────
 const TIER_LIMITS = {
-  free:    { gens: 10,  products: 3  },
-  starter: { gens: 50,  products: 15 },
-  pro:     { gens: 200, products: 50 },
-  studio:  { gens: Infinity, products: Infinity },
+  free:     { gens: 10,        products: 3,        commission: 0.30 },
+  starter:  { gens: 50,        products: 15,       commission: 0.25 },
+  pro:      { gens: 200,       products: 50,       commission: 0.20 },
+  studio:   { gens: Infinity,  products: Infinity, commission: 0.15 },
+  business: { gens: 100,       products: Infinity, commission: 0.08 },
 }
 
 async function checkGenerationLimit(userId, tier) {
   if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'business' && TIER_LIMITS.business.gens === Infinity) return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.gens || 10
   const startOfMonth = new Date()
   startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0)
@@ -255,7 +257,7 @@ async function checkGenerationLimit(userId, tier) {
 }
 
 async function checkProductLimit(userId, tier) {
-  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'studio' || tier === 'business') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.products || 3
   const { count } = await supabase
     .from('products')
@@ -613,6 +615,9 @@ function GenUsageCounter({ user }) {
   if (!usage) return null
   if (tier === 'studio') return (
     <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, background: C.gold + '18', border: `1px solid ${C.gold}33`, borderRadius: 10, padding: '3px 9px' }}>∞ Studio</span>
+  )
+  if (tier === 'business') return (
+    <span style={{ fontSize: 11, color: '#FF6B4A', fontWeight: 600, background: 'rgba(255,107,74,0.15)', border: '1px solid rgba(255,107,74,0.3)', borderRadius: 10, padding: '3px 9px' }}>🏢 Business</span>
   )
 
   const pct = usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0
@@ -1446,7 +1451,7 @@ function LicensePickerModal({ art, onConfirm, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 650, background: 'rgba(8,11,20,0.94)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: `0 0 60px ${C.accent}22` }}>
+      <div className='ds-modal' style={{ background: C.card, borderRadius: 20, width: '100%', maxWidth: 480, overflow: 'hidden' }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
           <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 3 }}>Publish Artwork</h3>
           <div style={{ fontSize: 12, color: C.muted }}>Choose how others can use <strong style={{ color: C.text }}>{art.title || 'this artwork'}</strong></div>
@@ -1497,13 +1502,140 @@ function LicensePickerModal({ art, onConfirm, onClose }) {
   )
 }
 
+// ── Edit Artwork Modal ────────────────────────────────────────
+function EditArtworkModal({ art, onSave, onClose }) {
+  const [title, setTitle]       = useState(art.title || '')
+  const [description, setDesc]  = useState(art.prompt || '')
+  const [tags, setTags]         = useState((art.style_tags || []).join(', '))
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Title is required.'); return }
+    setError(''); setSaving(true)
+    const styleTags = tags.split(',').map(t => t.trim()).filter(Boolean)
+    const updates = { title: title.trim(), prompt: description.trim(), style_tags: styleTags }
+    const { error: dbErr } = await supabase.from('artwork').update(updates).eq('id', art.id)
+    if (dbErr) { setError('Failed to save. Please try again.'); setSaving(false); return }
+    onSave({ ...art, ...updates })
+    onClose()
+  }
+
+  const inputStyle = {
+    width: '100%', background: C.bg, border: `1px solid ${C.border}`,
+    borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13,
+    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+    transition: 'border-color 0.15s',
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: 'rgba(8,11,20,0.95)', backdropFilter: 'blur(16px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, borderRadius: 20, width: '100%', maxWidth: 500, overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 2 }}>Edit Artwork</h3>
+            <div style={{ fontSize: 12, color: C.muted }}>Update title, description and tags</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* Preview */}
+        {art.image_url && (
+          <div style={{ height: 140, overflow: 'hidden', position: 'relative' }}>
+            <LazyImage src={art.image_url} alt={art.title} width={500} priority style={{ width: '100%', height: '100%' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(19,24,38,0.9) 0%, transparent 60%)' }} />
+          </div>
+        )}
+
+        {/* Fields */}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Title */}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Title</label>
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              placeholder="Give your artwork a name..."
+              maxLength={100}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              Description <span style={{ fontWeight: 400, textTransform: 'none', fontSize: 11 }}>(original prompt)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="Describe this artwork..."
+              rows={4}
+              maxLength={1000}
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+            />
+            <div style={{ fontSize: 10, color: C.muted, textAlign: 'right', marginTop: 3 }}>{description.length}/1000</div>
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Style Tags</label>
+            <input
+              value={tags}
+              onChange={e => setTags(e.target.value)}
+              placeholder="e.g. surrealism, dark, neon, fantasy"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Comma-separated. Used for discovery.</div>
+            {/* Tag preview */}
+            {tags.trim() && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {tags.split(',').map(t => t.trim()).filter(Boolean).map((tag, i) => (
+                  <span key={i} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && <div style={{ background: `${C.red}15`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '9px 14px', fontSize: 13, color: C.red }}>{error}</div>}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex: 2, background: saving ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Saving...' : '✦ Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Artwork Grid ──────────────────────────────────────────────
-function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPublishToggle, onRefine, onDelete }) {
+function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPublishToggle, onRefine, onDelete, onEdit }) {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(null)
-  const [hover, setHover] = useState(null)
+  const [expanded, setExpanded]   = useState(null)
+  const [hover, setHover]         = useState(null)
   const [togglingId, setTogglingId] = useState(null)
-  const [lightbox, setLightbox] = useState(null) // { src, alt, title, prompt, username }
+  const [lightbox, setLightbox]   = useState(null)
+  const [menuOpen, setMenuOpen]   = useState(null) // art.id with open menu
+  const [editTarget, setEditTarget] = useState(null) // art object to edit
+  const menuRef = useRef(null)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(null)
+    }
+    if (menuOpen) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   if (loading) return <Spinner />
   if (!artworks.length) return (
@@ -1558,98 +1690,123 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
             style={{ overflow: 'hidden', cursor: 'pointer' }}
             onMouseEnter={() => setHover(art.id)}
             onMouseLeave={() => setHover(null)}>
-            <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}
+            {/* ── Image area ── */}
+            <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={(e) => art.image_url ? openLightbox(e, art) : setExpanded(expanded === art.id ? null : art.id)}>
               {art.image_url
-                ? <LazyImage
-                    src={art.image_url}
-                    alt={artAltTag(art)}
-                    width={480}
-                    style={{ width: '100%', height: '100%' }}
-                  />
+                ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={480} style={{ width: '100%', height: '100%' }} />
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 40 }}>🎨</div>}
-              {/* Zoom hint / Use This Art on hover for non-owners */}
+
+              {/* Non-owner hover — View + Use This Art */}
               {art.image_url && hover === art.id && !isOwner && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                   onClick={e => e.stopPropagation()}>
                   <button onClick={e => { e.stopPropagation(); openLightbox(e, art) }}
                     style={{ background: 'rgba(8,11,20,0.8)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                     🔍 View
                   </button>
-                  {art.license === 'royalty' || art.license === 'free' ? (
+                  {(art.license === 'royalty' || art.license === 'free') && (
                     <button onClick={() => onReuse && onReuse(art)}
                       style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       🛍 Use This Art
                     </button>
-                  ) : null}
+                  )}
                 </div>
               )}
-            {/* Public/private + license badge */}
-            <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4 }}>
-              <div style={{ background: 'rgba(8,11,20,0.8)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
-                {art.is_public ? '🌐 Public' : '🔒 Private'}
+
+              {/* Public/private + license badge — top left */}
+              <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, pointerEvents: 'none' }}>
+                <div style={{ background: 'rgba(8,11,20,0.82)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.is_public ? C.teal : C.muted }}>
+                  {art.is_public ? '🌐 Public' : '🔒 Private'}
+                </div>
+                {art.is_public && art.license && art.license !== 'private' && (
+                  <div style={{ background: 'rgba(8,11,20,0.82)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.license === 'royalty' ? C.gold : C.teal }}>
+                    {art.license === 'royalty' ? `✦ ${art.royalty_pct || 15}%` : '🎁'}
+                  </div>
+                )}
               </div>
-              {art.is_public && art.license && art.license !== 'private' && (
-                <div style={{ background: 'rgba(8,11,20,0.8)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.license === 'royalty' ? C.gold : C.teal }}>
-                  {art.license === 'royalty' ? `✦ ${art.royalty_pct || 15}% royalty` : '🎁 Free use'}
+
+              {/* ⋯ Kebab menu button — top right, owner only */}
+              {isOwner && (
+                <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuOpen === art.id ? menuRef : null}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === art.id ? null : art.id) }}
+                    style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen === art.id ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, transition: 'all 0.15s' }}>
+                    ⋯
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {menuOpen === art.id && (
+                    <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 170, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.6), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}
+                      onClick={e => e.stopPropagation()}>
+
+                      {/* Edit Details */}
+                      <button onClick={() => { setMenuOpen(null); setEditTarget(art) }}
+                        style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span>✏️</span> Edit Details
+                      </button>
+
+                      {/* Publish toggle */}
+                      <button onClick={async (e) => { setMenuOpen(null); await handlePublish(e, art) }}
+                        disabled={togglingId === art.id}
+                        style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: art.is_public ? C.teal : C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span>{art.is_public ? '🔒' : '🌐'}</span> {togglingId === art.id ? 'Working...' : art.is_public ? 'Make Private' : 'Publish'}
+                      </button>
+
+                      {/* Refine */}
+                      <button onClick={() => { setMenuOpen(null); onRefine && onRefine(art) }}
+                        style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span>✨</span> Refine in Dream
+                      </button>
+
+                      {/* Sell */}
+                      <button onClick={() => { setMenuOpen(null); onSell && onSell(art) }}
+                        style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <span>🛍</span> Sell This
+                      </button>
+
+                      {/* Delete */}
+                      {onDelete && (
+                        <button onClick={() => { setMenuOpen(null); onDelete(art) }}
+                          style={{ width: '100%', background: 'none', border: 'none', padding: '10px 14px', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <span>🗑</span> Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-            {/* Owner quick actions on hover */}
-            {isOwner && hover === art.id && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: 8 }}
-                onClick={e => e.stopPropagation()}>
-                <button onClick={(e) => handlePublish(e, art)} disabled={togglingId === art.id}
-                  style={{ background: art.is_public ? `${C.teal}30` : `${C.accent}30`, border: `1px solid ${art.is_public ? C.teal + '66' : C.accent + '66'}`, borderRadius: 8, padding: '7px 12px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Make Private' : '🌐 Publish'}
-                </button>
-                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
-                  style={{ background: `${C.accent}30`, border: `1px solid ${C.accent}66`, borderRadius: 8, padding: '7px 12px', color: C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 Sell
-                </button>
-              </div>
-            )}
+
+            {/* ── Card footer ── */}
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.title || 'Untitled'}</div>
+              {art.profiles?.username && (
+                <div onClick={e => { e.stopPropagation(); navOrNewTab(e, `/u/${art.profiles.username}`, navigate) }}
+                  style={{ fontSize: 11, color: C.accent, marginBottom: 4, cursor: 'pointer' }}>@{art.profiles.username}</div>
+              )}
+              {art.style_tags?.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                  {art.style_tags.slice(0, 3).map(tag => (
+                    <span key={tag} style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '1px 8px', fontSize: 10, color: C.accent }}>{tag}</span>
+                  ))}
+                  {art.style_tags.length > 3 && <span style={{ fontSize: 10, color: C.muted, alignSelf: 'center' }}>+{art.style_tags.length - 3}</span>}
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            </div>
           </div>
-          <div style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 4 }}>{art.title}</div>
-            {art.profiles?.username && (
-              <div onClick={e => { e.stopPropagation(); navOrNewTab(e, `/u/${art.profiles.username}`, navigate) }}
-                style={{ fontSize: 11, color: C.accent, marginBottom: 6, cursor: 'pointer' }}>@{art.profiles.username}</div>
-            )}
-            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, overflow: 'hidden', maxHeight: expanded === art.id ? 300 : 36, transition: 'max-height 0.3s' }}>{art.prompt}</div>
-            {art.style_tags?.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {art.style_tags.map(tag => <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '2px 10px', fontSize: 11, color: C.accent }}>{tag}</span>)}
-              </div>
-            )}
-            {isOwner && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                <button onClick={e => { e.stopPropagation(); handlePublish(e, art) }} disabled={togglingId === art.id}
-                  style={{ flex: 1, background: art.is_public ? `${C.teal}18` : `${C.accent}18`, border: `1px solid ${art.is_public ? C.teal + '33' : C.accent + '33'}`, borderRadius: 8, padding: '6px', color: art.is_public ? C.teal : C.accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 80 }}>
-                  {togglingId === art.id ? '...' : art.is_public ? '🔒 Private' : '🌐 Publish'}
-                </button>
-                <button onClick={e => { e.stopPropagation(); onRefine && onRefine(art) }}
-                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 70 }}>
-                  ✏️ Refine
-                </button>
-                <button onClick={e => { e.stopPropagation(); onSell && onSell(art) }}
-                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px', color: C.muted, fontSize: 11, fontWeight: 700, cursor: 'pointer', minWidth: 60 }}>
-                  🛍 Sell
-                </button>
-                {onDelete && (
-                  <button onClick={e => { e.stopPropagation(); onDelete && onDelete(art) }}
-                    title="Delete artwork"
-                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
-                    🗑
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>{new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-          </div>
+        ))}
         </div>
-      ))}
-    </div>
+
+        {/* Edit artwork modal */}
+        {editTarget && (
+          <EditArtworkModal
+            art={editTarget}
+            onSave={(updated) => { onEdit && onEdit(updated); setEditTarget(null) }}
+            onClose={() => setEditTarget(null)}
+          />
+        )}
     </>
   )
 }
@@ -2425,7 +2582,7 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
 
         {/* Name + username + meta */}
         <div style={{ marginBottom: 12 }}>
-          {profile?.display_name && <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 2 }}>{profile.display_name}</div>}
+          {profile?.display_name && <div className='ds-heading-glow' style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 2 }}>{profile.display_name}</div>}
           <div style={{ fontSize: 14, color: C.muted, marginBottom: 8 }}>@{profile?.username}</div>
           {profile?.bio && <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, marginBottom: 10, maxWidth: 560 }}>{profile.bio}</p>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 12, color: C.muted }}>
@@ -2879,6 +3036,7 @@ function PayoutsCard({ user, profile }) {
   const [earnings, setEarnings] = useState({ total: 0, pending: 0, paid: 0, royalties: 0, royaltiesPending: 0 })
 
   const canSell = profile?.subscription_tier && profile.subscription_tier !== 'free'
+  const isBusiness = profile?.subscription_tier === 'business'
 
   useEffect(() => {
     if (user && canSell) { checkStatus(); loadEarnings() }
@@ -2972,7 +3130,7 @@ function PayoutsCard({ user, profile }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
             {[['Total Earned', earnings.total, C.gold], ['Pending', earnings.pending, C.accent], ['Paid Out', earnings.paid, C.teal]].map(([label, amount, color]) => (
               <div key={label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color }}>${parseFloat(amount || 0).toFixed(2)}</div>
+                <div className='ds-stat-num' style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color }}>${parseFloat(amount || 0).toFixed(2)}</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}</div>
               </div>
             ))}
@@ -2983,7 +3141,7 @@ function PayoutsCard({ user, profile }) {
           {earnings.royalties > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}33`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.gold }}>${parseFloat(earnings.royalties || 0).toFixed(2)}</div>
+                <div className='ds-stat-num' style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, fontWeight: 900, color: C.gold }}>${parseFloat(earnings.royalties || 0).toFixed(2)}</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Total Royalties</div>
               </div>
               <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
@@ -3102,7 +3260,6 @@ function ProfilePage({ user, profile: initialProfile }) {
   }
 
   const handleRefine = (art) => {
-    // Store prompt in sessionStorage so CreatePage/DreamChat can pick it up
     sessionStorage.setItem('dreamRefinePrompt', art.prompt || '')
     navigate('/create')
   }
@@ -3111,6 +3268,10 @@ function ProfilePage({ user, profile: initialProfile }) {
     if (!window.confirm(`Delete "${art.title}"? This cannot be undone.`)) return
     const { error } = await supabase.from('artwork').delete().eq('id', art.id)
     if (!error) setArtworks(prev => prev.filter(a => a.id !== art.id))
+  }
+
+  const handleEditArtwork = (updated) => {
+    setArtworks(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
   }
 
   const tabs = [
@@ -3197,6 +3358,7 @@ function ProfilePage({ user, profile: initialProfile }) {
             onPublishToggle={handlePublishToggle}
             onRefine={handleRefine}
             onDelete={handleDelete}
+            onEdit={handleEditArtwork}
           />
         </>
       )}
@@ -3244,13 +3406,17 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div>
                 {(() => {
                   const tier = profile?.subscription_tier || 'free'
-                  const colors = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold }
+                  const colors = { free: C.muted, starter: C.teal, pro: C.accent, studio: C.gold, business: '#FF6B4A' }
                   const color = colors[tier] || C.muted
                   return (
                     <div>
                       <span style={{ background: color + '20', border: `1px solid ${color}44`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 700, color, textTransform: 'capitalize' }}>✦ {tier} Plan</span>
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
-                        {tier === 'free' ? 'Upgrade to start selling and earning.' : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}
+                        {tier === 'free'
+                          ? 'Upgrade to start selling and earning.'
+                          : tier === 'business'
+                          ? 'Active — 8% commission · Unlimited products · Business tools'
+                          : `Active — ${tier === 'starter' ? '25%' : tier === 'pro' ? '20%' : '15%'} Dreamscape commission`}
                       </div>
                     </div>
                   )
@@ -3624,7 +3790,7 @@ function CreatePage({ user, onSignIn }) {
   return (
     <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(26px, 5vw, 36px)', marginBottom: 10, color: C.text }}>Create with Dream AI</h1>
+        <h1 className='ds-heading-glow' style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(26px, 5vw, 36px)', marginBottom: 10, color: C.text }}>Create with Dream AI</h1>
         <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>Describe your vision and Dream will craft the perfect prompt — then generate an image and sell it globally.</p>
       </div>
       <DreamChat user={user} onSignIn={onSignIn} />
@@ -3832,10 +3998,11 @@ function Navbar({ user, profile, signOut, onSignIn }) {
               {(() => {
                 const tier = profile?.subscription_tier || 'free'
                 const tierConfig = {
-                  free:    { label: 'Free',    color: C.muted,   bg: C.muted + '20' },
-                  starter: { label: 'Starter', color: C.teal,    bg: C.teal + '20' },
-                  pro:     { label: 'Pro',     color: C.accent,  bg: C.accent + '20' },
-                  studio:  { label: 'Studio',  color: C.gold,    bg: C.gold + '20' },
+                  free:     { label: 'Free',     color: C.muted,    bg: C.muted + '20' },
+                  starter:  { label: 'Starter',  color: C.teal,     bg: C.teal + '20' },
+                  pro:      { label: 'Pro',      color: C.accent,   bg: C.accent + '20' },
+                  studio:   { label: 'Studio',   color: C.gold,     bg: C.gold + '20' },
+                  business: { label: 'Business', color: '#FF6B4A',  bg: 'rgba(255,107,74,0.18)' },
                 }
                 const t = tierConfig[tier] || tierConfig.free
                 if (tier === 'free') return null
@@ -4227,15 +4394,19 @@ export default function App() {
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
-        @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+        @keyframes pulse        { 0%,100%{opacity:.3} 50%{opacity:1} }
+        @keyframes shimmer      { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes generateReady{ 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.15)} }
+
         @keyframes chromaticBorder {
           0%   { background-position: 0% 50%; }
           50%  { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
         @keyframes cardGlow {
-          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0), 0 4px 24px rgba(8,11,20,0.4), 0 0 30px rgba(124,92,252,0.08); }
-          50%      { box-shadow: 0 0 0 0 rgba(124,92,252,0), 0 4px 24px rgba(8,11,20,0.4), 0 0 50px rgba(124,92,252,0.15); }
+          0%,100% { box-shadow: 0 0 20px rgba(124,92,252,0.12), 0 4px 24px rgba(4,6,15,0.5); }
+          50%      { box-shadow: 0 0 35px rgba(124,92,252,0.22), 0 4px 32px rgba(4,6,15,0.5); }
         }
         @keyframes dreamPulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.7), 0 4px 24px rgba(124,92,252,0.5), 0 0 16px rgba(0,212,170,0.2); }
@@ -4246,13 +4417,22 @@ export default function App() {
           50%  { box-shadow: 0 0 0 10px rgba(0,212,170,0), 0 0 28px rgba(124,92,252,0.7); }
           100% { box-shadow: 0 0 0 0 rgba(0,212,170,0), 0 0 12px rgba(124,92,252,0.4); }
         }
-        @keyframes generateReady {
-          0%,100% { filter: brightness(1); }
-          50%     { filter: brightness(1.15); }
+        @keyframes avatarRing {
+          0%   { background-position: 0% 50%; box-shadow: 0 0 12px rgba(124,92,252,0.5), 0 0 24px rgba(0,212,170,0.2); }
+          50%  { background-position: 100% 50%; box-shadow: 0 0 20px rgba(0,212,170,0.6), 0 0 36px rgba(255,107,157,0.25); }
+          100% { background-position: 0% 50%; box-shadow: 0 0 12px rgba(124,92,252,0.5), 0 0 24px rgba(0,212,170,0.2); }
         }
-        @keyframes shimmer {
-          0%   { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
+        @keyframes navGlow {
+          0%,100% { opacity: 0.5; }
+          50%      { opacity: 1; }
+        }
+        @keyframes btnGlow {
+          0%,100% { box-shadow: 0 0 12px rgba(124,92,252,0.35), 0 4px 16px rgba(4,6,15,0.4); }
+          50%      { box-shadow: 0 0 24px rgba(124,92,252,0.6), 0 4px 24px rgba(4,6,15,0.5); }
+        }
+        @keyframes tealBtnGlow {
+          0%,100% { box-shadow: 0 0 12px rgba(0,212,170,0.35), 0 4px 16px rgba(4,6,15,0.4); }
+          50%      { box-shadow: 0 0 24px rgba(0,212,170,0.6), 0 4px 24px rgba(4,6,15,0.5); }
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -4260,40 +4440,134 @@ export default function App() {
         a { -webkit-tap-highlight-color: transparent; }
         button { -webkit-tap-highlight-color: transparent; }
 
-        /* ── Consistent chromatic glow — applied to every card ── */
+        /* ── Image protection ── */
+        img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }
+
+        /* ── Navbar bottom chromatic edge ── */
+        nav::after {
+          content: '';
+          position: absolute;
+          bottom: 0; left: 0; right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.6) 20%, rgba(0,212,170,0.7) 50%, rgba(255,107,157,0.5) 80%, transparent 100%);
+          background-size: 200% 100%;
+          animation: chromaticBorder 5s ease-in-out infinite, navGlow 4s ease-in-out infinite;
+        }
+
+        /* ── Cards — vivid chromatic glow ── */
         .ds-card {
           position: relative;
           border-radius: 16px;
           background: ${C.card};
-          border: 1px solid ${C.border};
-          transition: box-shadow 0.3s, border-color 0.3s, transform 0.2s;
-          animation: cardGlow 6s ease-in-out infinite;
+          border: 1px solid transparent;
+          transition: transform 0.2s, box-shadow 0.3s;
+          animation: cardGlow 5s ease-in-out infinite;
         }
         .ds-card::before {
           content: '';
           position: absolute;
           inset: -1px;
           border-radius: 17px;
+          background: linear-gradient(135deg, rgba(124,92,252,0.7), rgba(0,212,170,0.45), rgba(255,107,157,0.45), rgba(245,200,66,0.3), rgba(124,92,252,0.7));
+          background-size: 300% 300%;
+          animation: chromaticBorder 5s ease-in-out infinite;
+          z-index: -1;
+          opacity: 0.75;
+          filter: blur(0.5px);
+        }
+        .ds-card::after {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          border-radius: 20px;
           background: linear-gradient(135deg, rgba(124,92,252,0.35), rgba(0,212,170,0.2), rgba(255,107,157,0.2), rgba(124,92,252,0.35));
           background-size: 300% 300%;
-          animation: chromaticBorder 6s ease-in-out infinite;
-          z-index: -1;
-          opacity: 0.6;
-          filter: blur(1px);
+          animation: chromaticBorder 5s ease-in-out infinite reverse;
+          z-index: -2;
+          opacity: 0.5;
+          filter: blur(8px);
         }
         .ds-card:hover {
-          border-color: rgba(124,92,252,0.5);
-          transform: translateY(-2px);
+          transform: translateY(-3px);
           animation: none;
-          box-shadow: 0 0 0 1px rgba(124,92,252,0.3), 0 8px 32px rgba(8,11,20,0.5), 0 0 40px rgba(124,92,252,0.2);
+          box-shadow: 0 0 0 1px rgba(124,92,252,0.5), 0 12px 40px rgba(4,6,15,0.6), 0 0 50px rgba(124,92,252,0.3), 0 0 80px rgba(0,212,170,0.1);
         }
-        .ds-card:hover::before {
-          opacity: 1;
-          filter: blur(2px);
+        .ds-card:hover::before { opacity: 1; filter: blur(1px); }
+        .ds-card:hover::after  { opacity: 0.8; filter: blur(12px); }
+
+        /* ── Modals — floating glow frame ── */
+        .ds-modal {
+          border: 1px solid rgba(124,92,252,0.4) !important;
+          box-shadow: 0 0 0 1px rgba(124,92,252,0.2), 0 24px 80px rgba(4,6,15,0.8), 0 0 60px rgba(124,92,252,0.2), 0 0 100px rgba(0,212,170,0.08) !important;
         }
 
-        /* ── Image protection ── */
-        img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }
+        /* ── Input focus glow ── */
+        input:not([type='range']):not([type='checkbox']):focus,
+        textarea:focus,
+        select:focus {
+          outline: none !important;
+          border-color: rgba(124,92,252,0.7) !important;
+          box-shadow: 0 0 0 3px rgba(124,92,252,0.15), 0 0 16px rgba(124,92,252,0.25) !important;
+        }
+
+        /* ── Primary gradient button glow ── */
+        button[style*="linear-gradient(135deg, #7C5CFC"],
+        button[style*="linear-gradient(135deg, ${C.accent}"] {
+          animation: btnGlow 3s ease-in-out infinite;
+        }
+        button[style*="linear-gradient(135deg, #7C5CFC"]:hover,
+        button[style*="linear-gradient(135deg, ${C.accent}"]:hover {
+          animation: none;
+          box-shadow: 0 0 30px rgba(124,92,252,0.6), 0 0 60px rgba(124,92,252,0.2), 0 4px 20px rgba(4,6,15,0.5) !important;
+          filter: brightness(1.1);
+        }
+        /* Teal buttons */
+        button[style*="linear-gradient(135deg, #00D4AA"],
+        button[style*="linear-gradient(135deg, ${C.teal}"] {
+          animation: tealBtnGlow 3s ease-in-out infinite;
+        }
+
+        /* ── Avatar glow ring ── */
+        .ds-avatar-ring {
+          padding: 2px;
+          background: linear-gradient(135deg, #7C5CFC, #00D4AA, #FF6B9D, #7C5CFC);
+          background-size: 300% 300%;
+          animation: avatarRing 4s ease-in-out infinite;
+          border-radius: 50%;
+        }
+        .ds-avatar-ring img,
+        .ds-avatar-ring > div {
+          border-radius: 50%;
+          display: block;
+        }
+
+        /* ── Playfair heading glow ── */
+        .ds-heading-glow {
+          text-shadow: 0 0 30px rgba(124,92,252,0.4), 0 0 60px rgba(124,92,252,0.15);
+        }
+
+        /* ── Tag / chip glow on hover ── */
+        .ds-tag {
+          transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        .ds-tag:hover {
+          box-shadow: 0 0 8px rgba(124,92,252,0.5), 0 0 16px rgba(124,92,252,0.2);
+          border-color: rgba(124,92,252,0.7) !important;
+        }
+
+        /* ── Section divider line ── */
+        .ds-divider {
+          height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.5) 30%, rgba(0,212,170,0.5) 70%, transparent 100%);
+          border: none;
+          margin: 32px 0;
+          animation: navGlow 4s ease-in-out infinite;
+        }
+
+        /* ── Stat number glow ── */
+        .ds-stat-num {
+          text-shadow: 0 0 20px currentColor;
+        }
 
         @media (max-width: 640px) {
           .nav-links { display: none !important; }

@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 const TIER_LIMITS = {
-  free:    { products: 3  },
-  starter: { products: 15 },
-  pro:     { products: 50 },
-  studio:  { products: Infinity },
+  free:     { products: 3        },
+  starter:  { products: 15       },
+  pro:      { products: 50       },
+  studio:   { products: Infinity },
+  business: { products: Infinity },
 }
 
 async function checkProductLimit(userId, tier) {
-  if (tier === 'studio') return { allowed: true, used: 0, limit: Infinity }
+  if (tier === 'studio' || tier === 'business') return { allowed: true, used: 0, limit: Infinity }
   const limit = TIER_LIMITS[tier]?.products || 3
   const { count } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('user_id', userId)
   return { allowed: (count || 0) < limit, used: count || 0, limit }
@@ -163,7 +164,7 @@ function ArtPlacementEditor({ artworkUrl, productImage, productName, onPlacement
 
 const STEPS = ['Upload', 'Product', 'Design', 'Colors', 'Details', 'Done']
 
-export default function CreateProductModal({ user, imageUrl, artworkId, originalArtwork, title: defaultTitle, onClose, onSuccess }) {
+export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [hostedImageUrl, setHostedImageUrl] = useState('')
@@ -324,15 +325,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, original
       const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
       const res = await fetch('/api/printful?action=create', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-              title, description,
-              variantIds: allVariantIds,
-              imageUrl: hostedImageUrl,
-              retailPrice: parseFloat(price).toFixed(2),
-              originalArtworkId: originalArtwork?.id || artworkId || null,
-              originalArtistId: originalArtwork?.user_id || null,
-              artistRoyaltyPct: originalArtwork?.license === 'royalty' ? (originalArtwork.royalty_pct || 15) : 0,
-            }),
+        body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
@@ -361,8 +354,40 @@ export default function CreateProductModal({ user, imageUrl, artworkId, original
     setCreating(false)
   }
 
+  const CATEGORIES = [
+    { label: 'T-Shirts',     icon: '👕', keywords: ['t-shirt', 'tee', 'unisex jersey'] },
+    { label: 'Hoodies',      icon: '🧥', keywords: ['hoodie', 'sweatshirt', 'pullover', 'crewneck'] },
+    { label: 'Mugs',         icon: '☕', keywords: ['mug', 'cup'] },
+    { label: 'Posters',      icon: '🖼',  keywords: ['poster', 'print', 'canvas', 'framed'] },
+    { label: 'Phone Cases',  icon: '📱', keywords: ['phone case', 'iphone', 'samsung'] },
+    { label: 'Tote Bags',    icon: '🛍',  keywords: ['tote', 'bag', 'canvas bag'] },
+    { label: 'Tank Tops',    icon: '👙', keywords: ['tank', 'racerback', 'sleeveless'] },
+    { label: 'Stickers',     icon: '✨', keywords: ['sticker', 'decal'] },
+    { label: 'Hats',         icon: '🧢', keywords: ['hat', 'cap', 'beanie'] },
+    { label: 'Blankets',     icon: '🛏',  keywords: ['blanket', 'throw'] },
+  ]
+
+  const [activeCategory, setActiveCategory] = useState(null)
+
+  const filtered = (() => {
+    const q = search.trim().toLowerCase()
+    // If user is typing, search across everything
+    if (q) return catalog.filter(p =>
+      (p.model || '').toLowerCase().includes(q) ||
+      (p.type  || '').toLowerCase().includes(q)
+    )
+    // If a category chip is selected, filter to that category
+    if (activeCategory) {
+      const kws = CATEGORIES.find(c => c.label === activeCategory)?.keywords || []
+      return catalog.filter(p =>
+        kws.some(kw => (p.model || '').toLowerCase().includes(kw) || (p.type || '').toLowerCase().includes(kw))
+      )
+    }
+    // Nothing selected yet — show nothing, prompt user to pick
+    return []
+  })()
+
   const progressPct = ((step - 1) / (STEPS.length - 1)) * 100
-  const filtered = catalog.filter(p => !search || (p.model || '').toLowerCase().includes(search.toLowerCase()) || (p.type || '').toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, backdropFilter: 'blur(8px)' }}
@@ -396,30 +421,94 @@ export default function CreateProductModal({ user, imageUrl, artworkId, original
           {/* Step 2: Product type */}
           {step === 2 && (
             <div style={{ padding: '0 24px 20px' }}>
+              {/* Artwork preview banner */}
               {hostedImageUrl && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                  <img src={hostedImageUrl} alt="Art" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }} />
-                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Artwork ready — pick a product to print on</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
+                  <img src={hostedImageUrl} alt="Art" style={{ width: 40, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Artwork ready — what would you like to print on?</div>
                 </div>
               )}
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search t-shirts, hoodies, mugs, posters..."
-                style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 14 }} />
-              {catalogLoading ? <Spinner label="Loading catalog..." /> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: 10 }}>
-                  {filtered.slice(0, 60).map(p => (
-                    <div key={p.id} onClick={() => selectProduct(p)}
-                      style={{ background: selected?.id === p.id ? `${C.accent}20` : C.bg, border: `2px solid ${selected?.id === p.id ? C.accent : C.border}`, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
-                      onMouseEnter={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.accent + '66' }}
-                      onMouseLeave={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.border }}>
-                      <div style={{ height: 78, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f8f8f8' }}>
-                        {p.image ? <img src={p.image} alt={p.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 26 }}>🎨</span>}
+
+              {/* Search input */}
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+                <input
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); if (e.target.value) setActiveCategory(null) }}
+                  placeholder='Type "shirt", "mug", "poster"...'
+                  style={{ width: '100%', background: C.bg, border: `1px solid ${search ? C.accent + '66' : C.border}`, borderRadius: 10, padding: '9px 14px 9px 36px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
+                )}
+              </div>
+
+              {/* Category chips */}
+              {!search && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Browse by category</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                    {CATEGORIES.map(cat => {
+                      const isActive = activeCategory === cat.label
+                      return (
+                        <button key={cat.label}
+                          onClick={() => setActiveCategory(isActive ? null : cat.label)}
+                          style={{ background: isActive ? `${C.accent}22` : C.bg, border: `1.5px solid ${isActive ? C.accent + '88' : C.border}`, borderRadius: 20, padding: '6px 14px', color: isActive ? C.accent : C.text, fontSize: 12, fontWeight: isActive ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}>
+                          <span>{cat.icon}</span> {cat.label}
+                          {isActive && <span style={{ fontSize: 10 }}>✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Product results */}
+              {catalogLoading ? (
+                <Spinner label="Loading catalog..." />
+              ) : filtered.length === 0 && !activeCategory && !search ? (
+                /* Prompt state — nothing selected yet */
+                <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                  <div style={{ fontSize: 38, marginBottom: 10 }}>👆</div>
+                  <div style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 4 }}>Pick a category above</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>Or type what you're looking for in the search box</div>
+                </div>
+              ) : filtered.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>🔍</div>
+                  <div style={{ fontSize: 13, color: C.muted }}>No products found — try a different search</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
+                    {filtered.length} product{filtered.length !== 1 ? 's' : ''} found
+                    {activeCategory && ` in ${activeCategory}`}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {filtered.slice(0, 20).map(p => (
+                      <div key={p.id} onClick={() => selectProduct(p)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, background: selected?.id === p.id ? `${C.accent}18` : C.bg, border: `2px solid ${selected?.id === p.id ? C.accent : C.border}`, borderRadius: 12, padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.accent + '44' }}
+                        onMouseLeave={e => { if (selected?.id !== p.id) e.currentTarget.style.borderColor = C.border }}>
+                        {/* Product thumbnail */}
+                        <div style={{ width: 56, height: 56, borderRadius: 8, overflow: 'hidden', background: '#f0f0f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {p.image
+                            ? <img src={p.image} alt={p.model} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <span style={{ fontSize: 24 }}>🎨</span>}
+                        </div>
+                        {/* Product info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: selected?.id === p.id ? C.accent : C.text, marginBottom: 2 }}>{p.model}</div>
+                          <div style={{ fontSize: 11, color: C.muted }}>{p.type}</div>
+                        </div>
+                        {/* Select indicator */}
+                        {selected?.id === p.id
+                          ? <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', flexShrink: 0 }}>✓</div>
+                          : <div style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${C.border}`, flexShrink: 0 }} />
+                        }
                       </div>
-                      <div style={{ padding: '6px 8px' }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: selected?.id === p.id ? C.accent : C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.model}</div>
-                        <div style={{ fontSize: 9, color: C.muted }}>{p.type}</div>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -536,17 +625,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, original
                     style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  {/* Royalty notice if using someone else's artwork */}
-                {originalArtwork && originalArtwork.license === 'royalty' && (
-                  <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16 }}>✦</span>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.gold, marginBottom: 2 }}>Artist Royalty: {originalArtwork.royalty_pct || 15}%</div>
-                      <div style={{ fontSize: 11, color: C.muted }}>@{originalArtwork.profiles?.username || 'the original artist'} will earn {originalArtwork.royalty_pct || 15}% of your profit on every sale.</div>
-                    </div>
-                  </div>
-                )}
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Retail Price (USD)</label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
                     <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="10" step="0.01"
