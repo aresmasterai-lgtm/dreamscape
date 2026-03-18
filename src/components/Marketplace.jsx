@@ -10,23 +10,54 @@ async function getAuthHeader() {
   return {}
 }
 
-// Netlify Image CDN transform
+// Image URL helper — only transform Supabase storage URLs through Netlify CDN
+// External CDN URLs (Printful, CloudFront, etc.) are served directly
 function imgUrl(src, w = 800, q = 80) {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
-  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+  // Only proxy Supabase storage through Netlify Image CDN
+  if (src.includes('supabase.co')) {
+    return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+  }
+  // Printful/external CDN — serve directly, they handle their own CDN
+  return src
 }
 
-// Blur-up lazy image
+// Blur-up lazy image with fallback retry on error
 function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
+  const [retried, setRetried] = useState(false)
+
+  const handleError = () => {
+    // On first error, try the raw URL directly (skip any transform)
+    if (!retried && src && src !== imgUrl(src, width, quality)) {
+      setRetried(true)
+      return // img src will update on re-render with retried=true
+    }
+    setError(true)
+    setLoaded(true)
+  }
+
+  const resolvedSrc = retried ? src : imgUrl(src, width, quality)
+
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
       {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
-      {src && <img src={imgUrl(src, width, quality)} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async"
-        onLoad={() => setLoaded(true)} onError={() => { setError(true); setLoaded(true) }}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }} />}
-      {error && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🛍</div>}
+      {src && <img
+        src={resolvedSrc}
+        alt={alt}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        fetchpriority={priority ? 'high' : 'auto'}
+        onLoad={() => { setLoaded(true); setError(false) }}
+        onError={handleError}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }}
+      />}
+      {error && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>
+          {getEmoji(alt)}
+        </div>
+      )}
     </div>
   )
 }
@@ -63,15 +94,53 @@ function productAltTag(product) {
   return `${title}${type}${style}${by} on Dreamscape`
 }
 
-function Spinner() {
+const LOADING_QUOTES = [
+  'Art is loading into existence...',
+  'Gathering creative energy...',
+  'Something beautiful is coming...',
+  'Every masterpiece takes a moment...',
+  'Painting the digital canvas...',
+  'The muse is working...',
+]
+
+function Spinner({ label, cards = 0 }) {
+  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * LOADING_QUOTES.length))
+
+  useEffect(() => {
+    if (!cards) return
+    const t = setInterval(() => setQuoteIdx(i => (i + 1) % LOADING_QUOTES.length), 2200)
+    return () => clearInterval(t)
+  }, [cards])
+
+  if (cards > 0) return (
+    <div>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <div style={{ textAlign: 'center', marginBottom: 20, minHeight: 28 }}>
+        <span style={{ fontSize: 13, color: C.accent, fontStyle: 'italic' }}>
+          ✦ {LOADING_QUOTES[quoteIdx]}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+        {Array.from({ length: cards }).map((_, i) => (
+          <div key={i} style={{ borderRadius: 16, overflow: 'hidden', background: C.card, border: `1px solid ${C.border}` }}>
+            <div style={{ height: 200, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ height: 14, borderRadius: 6, width: '65%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.2}s` }} />
+              <div style={{ height: 10, borderRadius: 6, width: '40%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.3}s` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
-    <div style={{ textAlign: 'center', padding: '60px 0' }}>
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '40px 0' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <div style={{ display: 'flex', gap: 6 }}>
         {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
-      <style>{`
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      {label && <p style={{ fontSize: 12, color: C.muted, margin: 0, fontStyle: 'italic' }}>{label}</p>}
     </div>
   )
 }
@@ -160,7 +229,7 @@ function CatalogView({ user, onSignIn }) {
     }
   }
 
-  if (loading) return <Spinner />
+  if (loading) return <Spinner cards={8} />
   if (products.length === 0) return (
     <div style={{ textAlign: 'center', padding: '60px 0' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
@@ -208,7 +277,7 @@ function CatalogView({ user, onSignIn }) {
         <div style={{ textAlign: 'center', marginTop: 24 }}>
           <button onClick={() => loadProducts(offset)} disabled={loadingMore}
             style={{ background: loadingMore ? C.border : `${C.accent}20`, border: `1px solid ${loadingMore ? C.border : C.accent + '55'}`, borderRadius: 10, padding: '10px 28px', color: loadingMore ? C.muted : C.accent, fontSize: 13, fontWeight: 600, cursor: loadingMore ? 'not-allowed' : 'pointer' }}>
-            {loadingMore ? 'Loading...' : 'Load More Products'}
+            {loadingMore ? 'Loading more...' : 'Load More Products'}
           </button>
         </div>
       )}
@@ -313,7 +382,7 @@ function ShopView({ user, onSignIn }) {
     setBuyingId(null)
   }
 
-  if (loading) return <Spinner />
+  if (loading) return <Spinner cards={8} />
 
   return (
     <div>
@@ -367,7 +436,7 @@ function ShopView({ user, onSignIn }) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-          {filtered.map(product => (
+          {filtered.map((product, idx) => (
             <ProductCard
               key={product.id}
               product={product}
@@ -377,6 +446,7 @@ function ShopView({ user, onSignIn }) {
               onBuy={() => handleBuy(product)}
               buyingId={buyingId}
               onEdit={setEditTarget}
+              priority={idx < 8}
             />
           ))}
         </div>
@@ -545,7 +615,7 @@ function EditProductModal({ product, user, onSave, onClose }) {
 }
 
 // ── Product Card with kebab menu ─────────────────────────────
-function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit }) {
+function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, priority = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
@@ -563,8 +633,8 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
       <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         onClick={onLightbox}>
         {product.mockup_url
-          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} style={{ width: '100%', height: '100%' }} />
-          : <span style={{ fontSize: 52 }}>🎨</span>}
+          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} priority={priority} style={{ width: '100%', height: '100%' }} />
+          : <span style={{ fontSize: 52 }}>{getEmoji(product.product_type)}</span>}
 
         {/* ⋯ Kebab button */}
         <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuRef} onClick={e => e.stopPropagation()}>

@@ -14,7 +14,10 @@ async function getAuthHeader() {
 // Netlify Image CDN transform
 function imgUrl(src, w = 800, q = 80) {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return src
-  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+  if (src.includes('supabase.co')) {
+    return `/.netlify/images?url=${encodeURIComponent(src)}&w=${w}&q=${q}&fm=webp`
+  }
+  return src
 }
 
 // Blur-up lazy image
@@ -38,15 +41,53 @@ const C = {
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494', red: '#FF4D4D',
 }
 
-function Spinner() {
+const LOADING_QUOTES = [
+  'Art is loading into existence...',
+  'Gathering creative energy...',
+  'Something beautiful is coming...',
+  'Every masterpiece takes a moment...',
+  'Painting the digital canvas...',
+  'The muse is working...',
+]
+
+function Spinner({ label, cards = 0 }) {
+  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * LOADING_QUOTES.length))
+
+  useEffect(() => {
+    if (!cards) return
+    const t = setInterval(() => setQuoteIdx(i => (i + 1) % LOADING_QUOTES.length), 2200)
+    return () => clearInterval(t)
+  }, [cards])
+
+  if (cards > 0) return (
+    <div>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <div style={{ textAlign: 'center', marginBottom: 20, minHeight: 28 }}>
+        <span style={{ fontSize: 13, color: C.accent, fontStyle: 'italic' }}>
+          ✦ {LOADING_QUOTES[quoteIdx]}
+        </span>
+      </div>
+      <div style={{ columns: '2 240px', gap: 16 }}>
+        {Array.from({ length: cards }).map((_, i) => (
+          <div key={i} style={{ breakInside: 'avoid', marginBottom: 14, borderRadius: 14, overflow: 'hidden', background: C.card, border: `1px solid ${C.border}` }}>
+            <div style={{ height: [160, 200, 140, 220, 180, 160][i % 6], background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
+            <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ height: 12, borderRadius: 6, width: '60%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.2}s` }} />
+              <div style={{ height: 10, borderRadius: 6, width: '35%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.3}s` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
-    <div style={{ textAlign: 'center', padding: '60px 0' }}>
-      <style>{`
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '40px 0' }}>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <div style={{ display: 'flex', gap: 6 }}>
         {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
       </div>
+      {label && <p style={{ fontSize: 12, color: C.muted, margin: 0, fontStyle: 'italic' }}>{label}</p>}
     </div>
   )
 }
@@ -435,7 +476,7 @@ export default function Gallery({ user, onSignIn }) {
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
 
       {/* Lightbox */}
       {lightbox && (
@@ -483,7 +524,7 @@ export default function Gallery({ user, onSignIn }) {
           <p style={{ color: C.text, marginBottom: 16, fontSize: 15 }}>Sign in to see your artwork library</p>
           <button onClick={onSignIn} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Sign In</button>
         </div>
-      ) : loading ? <Spinner /> : filtered.length === 0 ? (
+      ) : loading ? <Spinner cards={6} /> : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
           <div style={{ fontSize: 52, marginBottom: 16 }}>🎨</div>
           <p style={{ color: C.muted, fontSize: 15, marginBottom: 20 }}>
