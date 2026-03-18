@@ -2177,8 +2177,13 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [avatarPreview, setAvatarPreview] = useState(profile?.avatar_url || null)
   const [bannerFile, setBannerFile] = useState(null)
   const [bannerPreview, setBannerPreview] = useState(profile?.banner_url || null)
+  const [brandName, setBrandName] = useState(profile?.brand_name || '')
+  const [brandTagline, setBrandTagline] = useState(profile?.brand_tagline || '')
+  const [brandColor, setBrandColor] = useState(profile?.brand_color || '#7C5CFC')
+  const [storefrontActive, setStorefrontActive] = useState(profile?.storefront_active || false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const isBizTier = ['merchant', 'brand', 'enterprise'].includes(profile?.subscription_tier)
   const [activeSection, setActiveSection] = useState('basic')
   const avatarRef = useRef(null)
   const bannerRef = useRef(null)
@@ -2273,6 +2278,10 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         avatar_url: avatarUrl,
         banner_url: bannerUrl,
         date_of_birth: dob || null,
+        brand_name: brandName.trim() || null,
+        brand_tagline: brandTagline.trim() || null,
+        brand_color: brandColor || '#7C5CFC',
+        storefront_active: storefrontActive,
         updated_at: new Date().toISOString(),
       }
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
@@ -2285,7 +2294,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
     setSaving(false)
   }
 
-  const sections = [['basic', '👤 Basic'], ['artist', '🎨 Artist'], ['images', '🖼 Images']]
+  const sections = [...[['basic', '👤 Basic'], ['artist', '🎨 Artist'], ['images', '🖼 Images']], ...(isBizTier ? [['brand', '🏢 Brand']] : [])]
 
   const inputStyle = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
   const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }
@@ -2430,6 +2439,63 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                 </div>
                 <input ref={bannerRef} type="file" accept="image/*" onChange={e => { handleImageSelect(e.target.files?.[0], 'banner'); e.target.value = '' }} style={{ display: 'none' }} />
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>💡 Recommended: <span style={{ color: C.text }}>1500×500px</span> (3:1 ratio). The center shows best on all screens.</div>
+              </div>
+            </div>
+          )}
+
+          {/* Brand section — business tiers only */}
+          {activeSection === 'brand' && isBizTier && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ background: `rgba(255,107,74,0.08)`, border: `1px solid rgba(255,107,74,0.25)`, borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#FF6B4A' }}>
+                🏢 Brand Storefront — your public shop page at <strong>trydreamscape.com/u/{profile?.username}</strong> will display your brand identity instead of the standard artist layout.
+              </div>
+
+              {/* Storefront toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Enable Brand Storefront</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Show brand layout to visitors instead of standard profile</div>
+                </div>
+                <button onClick={() => setStorefrontActive(a => !a)}
+                  style={{ width: 44, height: 24, borderRadius: 12, background: storefrontActive ? '#FF6B4A' : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', top: 4, left: storefrontActive ? 22 : 4, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', display: 'block' }} />
+                </button>
+              </div>
+
+              {/* Brand name */}
+              <div>
+                <label style={labelStyle}>Brand Name</label>
+                <input value={brandName} onChange={e => setBrandName(e.target.value)}
+                  placeholder="e.g. Acme Merch Co."
+                  maxLength={60}
+                  style={inputStyle} />
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Displayed prominently on your storefront. Defaults to your display name if left blank.</div>
+              </div>
+
+              {/* Tagline */}
+              <div>
+                <label style={labelStyle}>Tagline</label>
+                <input value={brandTagline} onChange={e => setBrandTagline(e.target.value)}
+                  placeholder="e.g. Premium art-driven merchandise"
+                  maxLength={100}
+                  style={inputStyle} />
+              </div>
+
+              {/* Brand color */}
+              <div>
+                <label style={labelStyle}>Brand Color</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input type="color" value={brandColor} onChange={e => setBrandColor(e.target.value)}
+                    style={{ width: 48, height: 48, borderRadius: 10, border: `1px solid ${C.border}`, background: 'none', cursor: 'pointer', padding: 2 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{brandColor}</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Used for storefront accents, buttons and borders</div>
+                  </div>
+                  {/* Preview */}
+                  <div style={{ marginLeft: 'auto', background: `${brandColor}18`, border: `2px solid ${brandColor}66`, borderRadius: 10, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: brandColor }}>
+                    Preview
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -3611,6 +3677,133 @@ function ProfilePage({ user, profile: initialProfile }) {
   )
 }
 
+// ── Brand Storefront (/u/:username for business tiers) ────────
+function BrandStorefront({ profile, products, artworks, viewerUser, onFollow, isFollowing, followLoading, followerCount }) {
+  const navigate = useNavigate()
+  const bc = profile.brand_color || '#FF6B4A'
+  const brandName = profile.brand_name || profile.display_name || profile.username
+  const [tab, setTab] = useState('products')
+
+  return (
+    <div style={{ minHeight: '100vh' }}>
+      {/* Hero banner */}
+      <div style={{ position: 'relative', height: 280, overflow: 'hidden', background: `linear-gradient(135deg, ${bc}30, ${bc}10, #030508)` }}>
+        {profile.banner_url && (
+          <img src={profile.banner_url} alt="Brand banner" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.5 }} />
+        )}
+        {/* Overlay gradient */}
+        <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, transparent 30%, #030508 100%)` }} />
+        {/* Chromatic brand accent line */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${bc}, ${bc}88, transparent)` }} />
+
+        {/* Brand identity */}
+        <div style={{ position: 'absolute', bottom: 32, left: 32, right: 32, display: 'flex', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' }}>
+          {/* Logo / Avatar */}
+          <div style={{ width: 80, height: 80, borderRadius: 16, background: profile.avatar_url ? 'transparent' : `linear-gradient(135deg, ${bc}, ${bc}88)`, border: `3px solid ${bc}`, overflow: 'hidden', flexShrink: 0, boxShadow: `0 0 24px ${bc}44` }}>
+            {profile.avatar_url
+              ? <img src={profile.avatar_url} alt={brandName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, fontWeight: 900, color: '#fff' }}>{brandName[0]?.toUpperCase()}</div>
+            }
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Tier badge */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: `${bc}22`, border: `1px solid ${bc}55`, borderRadius: 8, padding: '2px 10px', marginBottom: 6 }}>
+              <span style={{ fontSize: 10 }}>🏢</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: bc, textTransform: 'capitalize' }}>{profile.subscription_tier}</span>
+            </div>
+            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(22px, 4vw, 36px)', fontWeight: 900, color: '#fff', marginBottom: 4, textShadow: `0 0 30px ${bc}44` }}>
+              {brandName}
+            </h1>
+            {profile.brand_tagline && (
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: 0 }}>{profile.brand_tagline}</p>
+            )}
+          </div>
+          {/* Follow button */}
+          {viewerUser && viewerUser.id !== profile.id && (
+            <button onClick={onFollow} disabled={followLoading}
+              style={{ background: isFollowing ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${bc}, ${bc}99)`, border: `2px solid ${isFollowing ? 'rgba(255,255,255,0.2)' : bc}`, borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+              {followLoading ? '...' : isFollowing ? 'Following ✓' : '+ Follow'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      <div style={{ background: `${bc}08`, borderBottom: `1px solid ${bc}22`, padding: '14px 32px' }}>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+          {[
+            [products.length, 'Products'],
+            [artworks.filter(a => a.is_public).length, 'Artworks'],
+            [followerCount, 'Followers'],
+          ].map(([val, label]) => (
+            <div key={label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: bc, fontFamily: 'Playfair Display, serif' }}>{val}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{label}</div>
+            </div>
+          ))}
+          {profile.website && (
+            <a href={profile.website} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12, color: bc, alignSelf: 'center', textDecoration: 'none', borderBottom: `1px solid ${bc}44` }}>
+              🔗 {profile.website.replace(/^https?:\/\//, '')}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Tab nav */}
+      <div style={{ display: 'flex', gap: 4, padding: '16px 32px 0', borderBottom: `1px solid ${C.border}` }}>
+        {[['products', '🛍 Products'], ['artwork', '🎨 Artwork'], ['about', '✦ About']].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            style={{ background: tab === id ? `${bc}20` : 'none', border: `none`, borderBottom: `2px solid ${tab === id ? bc : 'transparent'}`, borderRadius: 0, padding: '10px 20px', color: tab === id ? bc : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
+        {tab === 'products' && (
+          products.length === 0
+            ? <div style={{ textAlign: 'center', padding: '60px 0', color: C.muted }}>No products listed yet.</div>
+            : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                {products.map(product => (
+                  <div key={product.id} className="ds-card" style={{ overflow: 'hidden', cursor: 'pointer' }}
+                    onClick={() => navigate(`/marketplace`)}>
+                    <div style={{ height: 180, background: `linear-gradient(135deg, ${bc}22, ${bc}11)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {product.mockup_url
+                        ? <LazyImage src={product.mockup_url} alt={product.title} width={400} style={{ width: '100%', height: '100%' }} />
+                        : <span style={{ fontSize: 48 }}>🛍</span>}
+                    </div>
+                    <div style={{ padding: '12px 14px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
+                      <div style={{ fontSize: 14, color: bc, fontWeight: 700 }}>${parseFloat(product.price || 0).toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+        )}
+
+        {tab === 'artwork' && (
+          <ArtworkGrid artworks={artworks.filter(a => a.is_public)} loading={false} isOwner={false} />
+        )}
+
+        {tab === 'about' && (
+          <div style={{ maxWidth: 600 }}>
+            {profile.bio && <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.8, marginBottom: 20 }}>{profile.bio}</p>}
+            {profile.artist_statement && (
+              <div style={{ background: `${bc}0C`, border: `1px solid ${bc}33`, borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: bc, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Brand Statement</div>
+                <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, margin: 0 }}>{profile.artist_statement}</p>
+              </div>
+            )}
+            {profile.location && <div style={{ fontSize: 13, color: C.muted }}>📍 {profile.location}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Public Artist Profile (/u/:username) ──────────────────────
 function ArtistProfilePage({ viewerUser }) {
   const { username } = useParams()
@@ -3682,6 +3875,24 @@ function ArtistProfilePage({ viewerUser }) {
   )
 
   const isOwnProfile = viewerUser?.id === profile.id
+  const BUSINESS_TIERS = ['merchant', 'brand', 'enterprise']
+  const isBrandStorefront = BUSINESS_TIERS.includes(profile.subscription_tier) && profile.storefront_active && !isOwnProfile
+
+  // Render brand storefront for business accounts with storefront enabled
+  if (isBrandStorefront) {
+    return (
+      <BrandStorefront
+        profile={profile}
+        products={products}
+        artworks={artworks}
+        viewerUser={viewerUser}
+        onFollow={toggleFollow}
+        isFollowing={isFollowing}
+        followLoading={followLoading}
+        followerCount={followerCount}
+      />
+    )
+  }
   const tabs = [
     ['artwork', `🎨 Artwork (${artworks.length})`],
     ['shop', `🛍 Shop (${products.length})`],

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 
 const C = {
   bg: '#030508', panel: '#0E1220', card: '#131826',
@@ -19,19 +20,19 @@ const CREATOR_PLANS = [
     id: 'starter', name: 'Starter', price: 9.99, betaPrice: 4.99,
     color: C.teal, description: 'For emerging creators',
     features: ['50 AI generations / month', '15 products listed', 'Sell in the marketplace', '25% platform commission', 'Stripe payouts', 'Basic analytics'],
-    cta: 'Get Starter', stripeLink: null,
+    cta: 'Get Starter', stripeLink: 'price_1TCExrBG6LCYdFQRb5RLG7En',
   },
   {
     id: 'pro', name: 'Pro', price: 19.99, betaPrice: 9.99,
     color: C.accent, description: 'For serious artists', popular: true,
     features: ['200 AI generations / month', '50 products listed', '20% platform commission', 'Artwork licensing + royalties', 'Priority support', 'Advanced analytics'],
-    cta: 'Go Pro', stripeLink: null,
+    cta: 'Go Pro', stripeLink: 'price_1TCEydBG6LCYdFQRvav0rzCq',
   },
   {
     id: 'studio', name: 'Studio', price: 49.99, betaPrice: 24.99,
     color: C.gold, description: 'For power creators',
     features: ['Unlimited AI generations', 'Unlimited products', '15% platform commission', 'Artwork licensing + royalties', 'Priority mockup generation', 'Full analytics suite', 'Early feature access'],
-    cta: 'Go Studio', stripeLink: null,
+    cta: 'Go Studio', stripeLink: 'price_1TCEyqBG6LCYdFQRSxhxYlKw',
   },
 ]
 
@@ -40,25 +41,26 @@ const BUSINESS_PLANS = [
     id: 'merchant', name: 'Merchant', price: 79.99, betaPrice: 39.99,
     color: C.merchant, description: 'For small businesses & shops',
     features: ['100 AI generations / month', 'Unlimited products', '8% platform commission', 'Brand storefront', 'Bulk product creation', '3 team seats', 'CSV order export', 'Basic analytics dashboard'],
-    cta: 'Start Merchant', stripeLink: null,
+    cta: 'Start Merchant', stripeLink: 'price_1TCEz5BG6LCYdFQRweIYxpIb',
   },
   {
     id: 'brand', name: 'Brand', price: 149.99, betaPrice: 74.99,
     color: C.brand, description: 'For growing brands', popular: true,
     features: ['500 AI generations / month', 'Unlimited products', '6% platform commission', 'Brand storefront + custom domain', 'Bulk product creation', '10 team seats', 'CSV order & customer export', 'Advanced analytics', 'Priority support'],
-    cta: 'Start Brand', stripeLink: null,
+    cta: 'Start Brand', stripeLink: 'price_1TCEzGBG6LCYdFQRJX7nf7xk',
   },
   {
     id: 'enterprise', name: 'Enterprise', price: 299.99, betaPrice: 149.99,
     color: C.enterprise, description: 'For large operations',
     features: ['Unlimited AI generations', 'Unlimited products', '4% platform commission', 'White-label storefront', 'Bulk product creation', 'Unlimited team seats', 'Full data export + API access', 'Full analytics suite', 'Dedicated support channel', 'SLA guarantee'],
-    cta: 'Go Enterprise', stripeLink: null,
+    cta: 'Go Enterprise', stripeLink: 'price_1TCEzRBG6LCYdFQRunvsU39V',
   },
 ]
 
-function PlanCard({ plan, annual, onCta, isBusiness = false }) {
+function PlanCard({ plan, annual, onCta, isBusiness = false, loadingId = null }) {
   const monthly = plan.betaPrice === 0 ? 0 : (annual ? plan.betaPrice * 0.8 : plan.betaPrice)
   const original = annual ? plan.price * 0.8 : plan.price
+  const isLoading = loadingId === plan.id
 
   return (
     <div style={{
@@ -97,9 +99,9 @@ function PlanCard({ plan, annual, onCta, isBusiness = false }) {
         )}
       </div>
 
-      <button onClick={() => onCta(plan)}
-        style={{ background: plan.id === 'free' ? 'none' : `linear-gradient(135deg, ${plan.color}cc, ${plan.color}88)`, border: `2px solid ${plan.color}${plan.id === 'free' ? '55' : '00'}`, borderRadius: 12, padding: '11px', color: plan.id === 'free' ? plan.color : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', marginBottom: 22 }}>
-        {plan.cta}
+      <button onClick={() => onCta(plan)} disabled={isLoading}
+        style={{ background: plan.id === 'free' ? 'none' : `linear-gradient(135deg, ${plan.color}cc, ${plan.color}88)`, border: `2px solid ${plan.color}${plan.id === 'free' ? '55' : '00'}`, borderRadius: 12, padding: '11px', color: plan.id === 'free' ? plan.color : '#fff', fontSize: 13, fontWeight: 700, cursor: isLoading ? 'not-allowed' : 'pointer', width: '100%', marginBottom: 22, opacity: isLoading ? 0.7 : 1 }}>
+        {isLoading ? '⏳ Starting checkout...' : plan.cta}
       </button>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
@@ -119,10 +121,38 @@ export default function Pricing({ user, onSignIn }) {
   const [annual, setAnnual] = useState(false)
   const [tab, setTab] = useState('creator')
 
-  const handleCta = (plan) => {
+  const [checkoutLoading, setCheckoutLoading] = useState(null)
+
+  const handleCta = async (plan) => {
     if (plan.id === 'free') { user ? navigate('/create') : onSignIn(); return }
-    if (plan.stripeLink) { window.location.href = plan.stripeLink; return }
-    user ? navigate('/profile') : onSignIn()
+    if (!user) { onSignIn(); return }
+    if (!plan.stripeLink) { navigate('/profile'); return }
+
+    setCheckoutLoading(plan.id)
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession()
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authSession?.access_token}` },
+        body: JSON.stringify({
+          priceId: plan.stripeLink,
+          userId: user.id,
+          userEmail: user.email,
+          tier: plan.id,
+          successUrl: `${window.location.origin}/profile?subscribed=true`,
+          cancelUrl: `${window.location.origin}/pricing`,
+        }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Could not start checkout. Please try again.')
+      }
+    } catch (e) {
+      alert('Something went wrong. Please try again.')
+    }
+    setCheckoutLoading(null)
   }
 
   return (
@@ -168,7 +198,7 @@ export default function Pricing({ user, onSignIn }) {
       {tab === 'creator' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, alignItems: 'start' }}>
           {CREATOR_PLANS.map(plan => (
-            <PlanCard key={plan.id} plan={plan} annual={annual} onCta={handleCta} />
+            <PlanCard key={plan.id} plan={plan} annual={annual} onCta={handleCta} loadingId={checkoutLoading} />
           ))}
         </div>
       )}
@@ -195,7 +225,7 @@ export default function Pricing({ user, onSignIn }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, alignItems: 'start' }}>
             {BUSINESS_PLANS.map(plan => (
-              <PlanCard key={plan.id} plan={plan} annual={annual} onCta={handleCta} isBusiness />
+              <PlanCard key={plan.id} plan={plan} annual={annual} onCta={handleCta} isBusiness loadingId={checkoutLoading} />
             ))}
           </div>
         </>

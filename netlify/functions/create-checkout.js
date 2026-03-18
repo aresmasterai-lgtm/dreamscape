@@ -1,58 +1,50 @@
 import Stripe from 'stripe'
+import { requireAuth, corsResponse, optionsResponse } from './auth-middleware.js'
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
 export default async (req) => {
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
-  }
-
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+  if (req.method === 'OPTIONS') return optionsResponse()
+  if (req.method !== 'POST') return corsResponse({ error: 'Method not allowed' }, 405)
 
   try {
-    const body = await req.json()
-    const { productName, variantName, price, imageUrl, printfulProductId, printfulVariantId, quantity = 1, shippingRequired = true } = body
+    // Verify auth — user must be logged in to subscribe
+    const { user } = await requireAuth(req)
 
-    if (!productName || !price) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 })
-    }
+    const { priceId, tier, successUrl, cancelUrl } = await req.json()
+
+    if (!priceId) return corsResponse({ error: 'Price ID required' }, 400)
+
+    // Valid tiers
+    const VALID_TIERS = ['starter', 'pro', 'studio', 'merchant', 'brand', 'enterprise']
+    if (!VALID_TIERS.includes(tier)) return corsResponse({ error: 'Invalid tier' }, 400)
 
     const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: productName,
-              description: variantName || undefined,
-              images: imageUrl ? [imageUrl] : [],
-            },
-            unit_amount: Math.round(price * 100), // convert dollars to cents
-          },
-          quantity,
-        },
-      ],
-      mode: 'payment',
-      shipping_address_collection: shippingRequired ? {
-        allowed_countries: ['US', 'CA', 'GB', 'AU', 'DE', 'FR', 'ES', 'IT', 'NL', 'SE', 'NO', 'DK', 'FI', 'JP', 'SG', 'NZ'],
-      } : undefined,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl || `${req.headers.get('origin')}/profile?subscribed=true`,
+      cancel_url: cancelUrl || `${req.headers.get('origin')}/pricing`,
+      customer_email: user.email,
       metadata: {
-        printful_product_id: String(printfulProductId || ''),
-        printful_variant_id: String(printfulVariantId || ''),
-        product_name: productName,
-        variant_name: variantName || '',
-        quantity: String(quantity),
+        userId: user.id,
+        tier,
       },
-      success_url: `${process.env.URL || 'https://trydreamscape.com'}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.URL || 'https://trydreamscape.com'}/marketplace`,
+      subscription_data: {
+        metadata: {
+          userId: user.id,
+          tier,
+        },
+      },
+      allow_promotion_codes: true,
     })
 
-    return new Response(JSON.stringify({ url: session.url, sessionId: session.id }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return corsResponse({ url: session.url, sessionId: session.id })
+
   } catch (err) {
-    console.error('Stripe checkout error:', err)
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    if (err instanceof Response) return err
+    console.error('create-checkout error:', err.message)
+    return corsResponse({ error: err.message }, 500)
   }
 }
 
