@@ -133,7 +133,7 @@ const protectedImgProps = (isOwner = false) => ({
 // Wrap any img tag with this overlay to block interaction on public images
 function ProtectedImage({ src, alt, style, isOwner = false, onClick, className }) {
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+    <div style={{ position: 'relative', overflow: 'hidden', pointerEvents: onClick ? 'auto' : 'none', ...style }} onClick={onClick}>
       <img
         src={src}
         alt={alt}
@@ -196,7 +196,7 @@ function LazyImage({ src, alt, style, className, onClick, width = 800, quality =
   const optimised = imgUrl(src, width, quality)
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
+    <div style={{ position: 'relative', overflow: 'hidden', pointerEvents: onClick ? 'auto' : 'none', ...style }} onClick={onClick}>
       {/* Shimmer placeholder — visible until image loads */}
       {!loaded && !error && (
         <div style={{
