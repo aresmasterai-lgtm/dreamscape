@@ -2,230 +2,269 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const C = {
-  bg: '#080B14', panel: '#0E1220', card: '#131826',
+  bg: '#030508', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
+  red: '#FF4D4D', business: '#FF6B4A',
 }
 
-const TIERS = [
+// ── Beta pricing (50% off) ─────────────────────────────────────
+const PLANS = [
   {
     id: 'free',
     name: 'Free',
     price: 0,
+    betaPrice: 0,
     color: C.muted,
-    description: 'Get started and explore',
+    border: C.border,
+    description: 'Get started exploring AI art',
     features: [
-      '10 AI generations/month',
-      'Up to 3 products listed',
-      'View & post in Channels',
-      'Basic artist profile',
-      '30% Dreamscape commission',
-      'Community support',
+      '10 AI generations / month',
+      '3 products listed',
+      'Public gallery access',
+      'Basic Dream AI chat',
     ],
-    cta: 'Get Started',
-    highlight: false,
+    cta: 'Start Free',
+    stripeLink: null,
+    tier: 'free',
   },
   {
     id: 'starter',
     name: 'Starter',
     price: 9.99,
+    betaPrice: 4.99,
     color: C.teal,
-    description: 'For emerging artists',
+    border: C.teal,
+    description: 'For emerging creators',
     features: [
-      '50 AI generations/month',
-      'Up to 15 products listed',
-      'Post & join Channels',
-      'Payout setup enabled',
-      '25% Dreamscape commission',
-      'Email support',
+      '50 AI generations / month',
+      '15 products listed',
+      'Sell in the marketplace',
+      '25% platform commission',
+      'Stripe payouts',
+      'Analytics basics',
     ],
-    cta: 'Start Selling',
-    highlight: false,
+    cta: 'Start for $4.99/mo',
+    stripeLink: null,
+    tier: 'starter',
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: 24.99,
+    price: 19.99,
+    betaPrice: 9.99,
     color: C.accent,
-    description: 'For serious creators',
+    border: C.accent,
+    popular: true,
+    description: 'For serious artists',
     features: [
-      '200 AI generations/month',
-      'Up to 50 products listed',
-      'Create your own Channels',
-      'Featured marketplace listings',
-      '20% Dreamscape commission',
-      'Full analytics dashboard',
-      'Priority email support',
+      '200 AI generations / month',
+      '50 products listed',
+      '20% platform commission',
+      'Artwork licensing + royalties',
+      'Priority support',
+      'Advanced analytics',
     ],
-    cta: 'Go Pro',
-    highlight: true,
+    cta: 'Start for $9.99/mo',
+    stripeLink: null,
+    tier: 'pro',
   },
   {
     id: 'studio',
     name: 'Studio',
-    price: 59.99,
+    price: 49.99,
+    betaPrice: 24.99,
     color: C.gold,
-    description: 'For professional studios',
+    border: C.gold,
+    description: 'For power creators',
     features: [
       'Unlimited AI generations',
-      'Unlimited products listed',
-      'Create your own Channels',
-      'Featured marketplace listings',
-      '15% Dreamscape commission',
-      'Full analytics + data export',
-      'Dedicated support',
+      'Unlimited products',
+      '15% platform commission',
+      'Artwork licensing + royalties',
+      'Priority mockup generation',
+      'Full analytics suite',
+      'Early feature access',
     ],
-    cta: 'Go Studio',
-    highlight: false,
+    cta: 'Start for $24.99/mo',
+    stripeLink: null,
+    tier: 'studio',
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    price: 79.99,
+    betaPrice: 39.99,
+    color: C.business,
+    border: C.business,
+    description: 'For brands & merchandisers',
+    isNew: true,
+    features: [
+      '100 AI generations / month',
+      'Unlimited products',
+      '8% platform commission',
+      'Brand storefront',
+      'Bulk product creation',
+      'Team seats (up to 3)',
+      'CSV order & revenue export',
+      'Priority analytics dashboard',
+      'Dedicated support channel',
+    ],
+    cta: 'Start for $39.99/mo',
+    stripeLink: null,
+    tier: 'business',
   },
 ]
 
+const BETA_END = 'when v1.0 launches'
+
 export default function Pricing({ user, onSignIn }) {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(null)
+  const [annual, setAnnual] = useState(false)
 
-  const handleSubscribe = async (tier) => {
-    if (!user) { onSignIn(); return }
-    if (tier.id === 'free') { navigate('/profile'); return }
-    setLoading(tier.id)
-    try {
-      const res = await fetch('/api/create-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier: tier.id, userId: user.id, email: user.email }),
-      })
-      const data = await res.json()
-      if (data.url) window.location.href = data.url
-      else alert('Something went wrong: ' + (data.error || 'Unknown error'))
-    } catch (err) {
-      alert('Connection error.')
+  const handleCta = (plan) => {
+    if (plan.id === 'free') {
+      if (user) navigate('/create')
+      else onSignIn()
+      return
     }
-    setLoading(null)
+    if (plan.stripeLink) {
+      window.location.href = plan.stripeLink
+    } else {
+      // Stripe not yet configured — prompt sign up
+      if (!user) { onSignIn(); return }
+      navigate('/profile')
+    }
   }
 
   return (
-    <div style={{ padding: '60px 20px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '60px 20px 80px' }}>
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16 }}>Pricing</div>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 900, color: C.text, marginBottom: 16, lineHeight: 1.1 }}>
-          Choose Your Creative Plan
-        </h1>
-        <p style={{ color: C.muted, fontSize: 16, maxWidth: 500, margin: '0 auto', lineHeight: 1.7 }}>
-          Start free, upgrade when you're ready to sell. Every plan includes access to Dream AI and the Dreamscape marketplace.
-        </p>
-      </div>
-
-      {/* Tier cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20, marginBottom: 60 }}>
-        {TIERS.map(tier => (
-          <div key={tier.id} style={{
-            background: tier.highlight ? `linear-gradient(160deg, ${C.accent}22, ${C.card})` : C.card,
-            border: `1px solid ${tier.highlight ? C.accent + '66' : C.border}`,
-            borderRadius: 20,
-            padding: '32px 28px',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            transition: 'transform 0.2s, border-color 0.2s',
-          }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            {tier.highlight && (
-              <div style={{ position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, borderRadius: 20, padding: '4px 16px', fontSize: 11, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
-                ✦ Most Popular
-              </div>
-            )}
-
-            {/* Tier name + price */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: tier.color, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{tier.name}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontFamily: 'Playfair Display, serif', fontSize: 40, fontWeight: 900, color: C.text }}>${tier.price === 0 ? '0' : tier.price}</span>
-                {tier.price > 0 && <span style={{ color: C.muted, fontSize: 14 }}>/month</span>}
-              </div>
-              <div style={{ fontSize: 13, color: C.muted }}>{tier.description}</div>
-            </div>
-
-            {/* Features */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
-              {tier.features.map(f => (
-                <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.text, lineHeight: 1.4 }}>
-                  <span style={{ color: tier.color, flexShrink: 0, marginTop: 1 }}>✓</span>
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={() => handleSubscribe(tier)}
-              disabled={loading === tier.id}
-              style={{
-                background: tier.highlight
-                  ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)`
-                  : tier.id === 'free'
-                    ? 'none'
-                    : `${tier.color}22`,
-                border: `1px solid ${tier.highlight ? 'transparent' : tier.color + '55'}`,
-                borderRadius: 12,
-                padding: '12px',
-                color: tier.highlight ? '#fff' : tier.color,
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: loading === tier.id ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-                width: '100%',
-              }}
-            >
-              {loading === tier.id ? '...' : tier.cta}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Commission comparison */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '40px 36px', marginBottom: 40 }}>
-        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 8, textAlign: 'center' }}>How Creator Earnings Work</h2>
-        <p style={{ color: C.muted, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 1.7 }}>
-          When a customer buys your product, Dreamscape deducts the Printful production cost, then splits the remaining profit with you based on your plan.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          {[
-            { tier: 'Free', commission: '30%', creator: '70%', color: C.muted, example: '$18.90' },
-            { tier: 'Starter', commission: '25%', creator: '75%', color: C.teal, example: '$20.25' },
-            { tier: 'Pro', commission: '20%', creator: '80%', color: C.accent, example: '$21.60' },
-            { tier: 'Studio', commission: '15%', creator: '85%', color: C.gold, example: '$22.95' },
-          ].map(row => (
-            <div key={row.tier} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: '20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: row.color, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>{row.tier}</div>
-              <div style={{ fontSize: 32, fontWeight: 900, color: C.text, fontFamily: 'Playfair Display, serif', marginBottom: 4 }}>{row.creator}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>your share of profit</div>
-              <div style={{ fontSize: 11, color: C.muted, background: C.bg, borderRadius: 8, padding: '6px 10px' }}>
-                e.g. <span style={{ color: row.color, fontWeight: 700 }}>{row.example}</span> on a $45 sale*
-              </div>
-            </div>
-          ))}
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 20, padding: '6px 16px', marginBottom: 20 }}>
+          <span style={{ fontSize: 14 }}>🎉</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>BETA — All plans 50% off forever as a founding member</span>
         </div>
-        <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 20 }}>* Example assumes ~$18 Printful production cost on a $45 product. Actual earnings vary by product type and price.</p>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 900, color: C.text, marginBottom: 12 }}>
+          Simple, honest pricing
+        </h1>
+        <p style={{ color: C.muted, fontSize: 15, lineHeight: 1.7, maxWidth: 500, margin: '0 auto 24px' }}>
+          Lock in founding member pricing now. These rates stay with you even after we raise prices at launch.
+        </p>
+        {/* Annual toggle */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: '6px 16px' }}>
+          <span style={{ fontSize: 13, color: annual ? C.muted : C.text, fontWeight: annual ? 400 : 600 }}>Monthly</span>
+          <button onClick={() => setAnnual(a => !a)}
+            style={{ width: 40, height: 22, borderRadius: 11, background: annual ? C.accent : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+            <span style={{ position: 'absolute', top: 3, left: annual ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+          </button>
+          <span style={{ fontSize: 13, color: annual ? C.text : C.muted, fontWeight: annual ? 600 : 400 }}>Annual <span style={{ color: C.teal, fontSize: 11 }}>Save 20%</span></span>
+        </div>
+      </div>
+
+      {/* Plan cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, alignItems: 'start' }}>
+        {PLANS.map(plan => {
+          const monthlyPrice = plan.betaPrice === 0 ? 0 : (annual ? plan.betaPrice * 0.8 : plan.betaPrice)
+          const originalPrice = plan.price
+
+          return (
+            <div key={plan.id}
+              style={{ background: C.card, border: `2px solid ${plan.popular || plan.isNew ? plan.border : C.border}`, borderRadius: 20, padding: '28px 22px', position: 'relative', display: 'flex', flexDirection: 'column', gap: 0,
+                boxShadow: plan.popular || plan.isNew ? `0 0 0 1px ${plan.border}22, 0 0 40px ${plan.border}18` : 'none',
+              }}>
+
+              {/* Badge */}
+              {plan.popular && (
+                <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, borderRadius: 10, padding: '3px 14px', fontSize: 11, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
+                  Most Popular
+                </div>
+              )}
+              {plan.isNew && (
+                <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: `linear-gradient(135deg, ${C.business}, #cc4422)`, borderRadius: 10, padding: '3px 14px', fontSize: 11, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap' }}>
+                  🏢 Business
+                </div>
+              )}
+
+              {/* Plan name + desc */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: plan.color, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{plan.name}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{plan.description}</div>
+              </div>
+
+              {/* Pricing */}
+              <div style={{ marginBottom: 24 }}>
+                {plan.price === 0 ? (
+                  <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 36, fontWeight: 900, color: C.text }}>Free</div>
+                ) : (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: 'Playfair Display, serif', fontSize: 36, fontWeight: 900, color: plan.color }}>${monthlyPrice.toFixed(2)}</span>
+                      <span style={{ fontSize: 13, color: C.muted }}>/mo</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontSize: 12, color: C.muted, textDecoration: 'line-through' }}>${(annual ? originalPrice * 0.8 : originalPrice).toFixed(2)}/mo</span>
+                      <span style={{ fontSize: 11, background: `${C.gold}22`, border: `1px solid ${C.gold}44`, borderRadius: 6, padding: '1px 6px', color: C.gold, fontWeight: 700 }}>50% OFF</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                      Beta price — locks in {BETA_END}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CTA */}
+              <button onClick={() => handleCta(plan)}
+                style={{
+                  background: plan.id === 'free' ? 'none' : `linear-gradient(135deg, ${plan.color}cc, ${plan.color}88)`,
+                  border: `2px solid ${plan.color}${plan.id === 'free' ? '55' : ''}`,
+                  borderRadius: 12, padding: '11px', color: plan.id === 'free' ? plan.color : '#fff',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', marginBottom: 24,
+                  transition: 'all 0.15s',
+                }}>
+                {plan.cta}
+              </button>
+
+              {/* Features */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+                {plan.features.map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ color: plan.color, fontSize: 13, flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ fontSize: 12, color: C.muted, lineHeight: 1.4 }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Beta note */}
+      <div style={{ textAlign: 'center', marginTop: 48, padding: '24px 32px', background: `${C.gold}0C`, border: `1px solid ${C.gold}33`, borderRadius: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: C.gold, marginBottom: 8 }}>🎉 Founding Member Guarantee</div>
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, maxWidth: 560, margin: '0 auto' }}>
+          Join during Beta and your 50% discount is <strong style={{ color: C.text }}>locked in forever</strong> — even when we raise prices at launch. As a founding member, you also get priority access to every new feature, and your feedback directly shapes the platform.
+        </p>
       </div>
 
       {/* FAQ */}
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
-        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 24, textAlign: 'center' }}>Common Questions</h2>
-        {[
-          ['Can I cancel anytime?', 'Yes — cancel from your profile at any time. You keep access until the end of your billing period.'],
-          ['When do I get paid?', 'Creator earnings are tracked per sale. Payouts are processed monthly to your connected bank account via Stripe.'],
-          ['What is the Printful cost?', 'Printful charges a base cost per product for printing and fulfillment. This is deducted before the profit split. You can see the cost breakdown when creating a product.'],
-          ['Can I upgrade or downgrade?', 'Yes — change plans anytime from your profile. Upgrades take effect immediately, downgrades apply at the next billing cycle.'],
-          ['Do Free users earn money?', 'Free users can create art but need to upgrade to Starter or above to set up payouts and sell products.'],
-        ].map(([q, a]) => (
-          <div key={q} style={{ borderBottom: `1px solid ${C.border}`, padding: '18px 0' }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 8 }}>{q}</div>
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>{a}</div>
-          </div>
-        ))}
+      <div style={{ marginTop: 56 }}>
+        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, textAlign: 'center', marginBottom: 32 }}>Common questions</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+          {[
+            ['When does Beta pricing end?', 'Beta pricing locks in when we launch Dreamscape v1.0. We haven\'t set a date yet — join now and your rate is guaranteed regardless.'],
+            ['Can I change plans?', 'Yes — upgrade or downgrade any time. Your founding member discount stays on whichever plan you\'re on.'],
+            ['What is the platform commission?', 'When you sell a product, Dreamscape takes a small cut to cover infrastructure. Lower tiers pay more; Business pays just 8%.'],
+            ['How do artist royalties work?', 'When you publish artwork with a royalty license, other creators can build products from it and you earn a % of every sale — automatically.'],
+            ['What counts as an AI generation?', 'Each image generated by Dream AI counts as one generation. Generations reset on the 1st of every month.'],
+            ['Is there a free trial?', 'The Free plan is your trial — no credit card, no time limit. Upgrade whenever you\'re ready.'],
+          ].map(([q, a]) => (
+            <div key={q} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>{q}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{a}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
