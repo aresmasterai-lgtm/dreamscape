@@ -43,7 +43,7 @@ function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priori
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
       {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
-      {src && <img
+      {src && !error && <img
         src={resolvedSrc}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
@@ -54,8 +54,9 @@ function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priori
         style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }}
       />}
       {error && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>
-          {getEmoji(alt)}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${C.accent}12`, gap: 8 }}>
+          <span style={{ fontSize: 32 }}>🛍</span>
+          <span style={{ fontSize: 10, color: C.muted }}>Image unavailable</span>
         </div>
       )}
     </div>
@@ -340,7 +341,7 @@ function ShopView({ user, onSignIn }) {
       const { data } = await supabase
         .from('products')
         .select('*, profiles!user_id(id, username)')
-        .order('created_at', { ascending: false })
+        .eq('broken_image', false).order('created_at', { ascending: false })
         .limit(100)
       setProducts(data || [])
     } catch {}
@@ -628,38 +629,41 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
   }, [menuOpen])
 
   return (
-    <div className='ds-card' style={{ overflow: 'hidden', cursor: 'pointer' }}>
+    <div className='ds-card' style={{ overflow: 'visible', cursor: 'pointer', position: 'relative' }}>
       {/* Image area */}
-      <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '14px 14px 0 0' }}
         onClick={onLightbox}>
         {product.mockup_url
-          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} priority={priority} style={{ width: '100%', height: '100%' }} />
+          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} priority={priority} style={{ width: '100%', height: '100%' }}
+            onBroken={(id) => setProducts && setProducts(prev => prev.filter(p => p.id !== id))}
+            resourceId={product.id}
+            resourceType="product" />
           : <span style={{ fontSize: 52 }}>{getEmoji(product.product_type)}</span>}
+      </div>
 
-        {/* ⋯ Kebab button */}
-        <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuRef} onClick={e => e.stopPropagation()}>
-          <button onClick={() => setMenuOpen(o => !o)}
-            style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-            ⋯
-          </button>
-          {menuOpen && (
-            <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.7), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
-              {[
-                ...(user && product.user_id === user.id
-                  ? [{ icon: '✏️', label: 'Edit Details', action: () => onEdit(product), color: C.text }]
-                  : []),
-                { icon: '🔍', label: 'View Details', action: onView, color: C.muted },
-                { icon: '🖼', label: 'Full Image',   action: onLightbox, color: C.muted },
-                { icon: '🛍', label: `Buy — $${parseFloat(product.price || 29.99).toFixed(2)}`, action: onBuy, color: C.teal },
-              ].map(item => (
-                <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
-                  style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: item.color, fontSize: 13, fontWeight: 600, cursor: buyingId === product.id ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>{item.icon}</span>{item.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* ⋯ Kebab button — outside image div to escape overflow:hidden */}
+      <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 60 }} ref={menuRef} onClick={e => e.stopPropagation()}>
+        <button onClick={() => setMenuOpen(o => !o)}
+          style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+          ⋯
+        </button>
+        {menuOpen && (
+          <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 180, zIndex: 200, boxShadow: `0 8px 32px rgba(8,11,20,0.9), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
+            {[
+              ...(user && product.user_id === user.id
+                ? [{ icon: '✏️', label: 'Edit Details', action: () => onEdit(product), color: C.text }]
+                : []),
+              { icon: '🔍', label: 'View Details', action: onView, color: C.muted },
+              { icon: '🖼',  label: 'Full Image',   action: onLightbox, color: C.muted },
+              { icon: '🛍',  label: `Buy — $${parseFloat(product.price || 29.99).toFixed(2)}`, action: onBuy, color: C.teal },
+            ].map((item, idx, arr) => (
+              <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
+                style={{ width: '100%', background: 'none', border: 'none', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', padding: '10px 14px', color: item.color, fontSize: 12, fontWeight: 600, cursor: buyingId === product.id ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 13, flexShrink: 0 }}>{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Card footer — click to product detail modal */}

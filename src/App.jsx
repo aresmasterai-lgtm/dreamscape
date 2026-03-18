@@ -205,24 +205,37 @@ function imgUrl(src, width = 800, quality = 80) {
 
 // ── LazyImage — blur-up placeholder + lazy load ───────────────
 // Replaces every <img> on art/product cards for instant perceived performance.
-function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false }) {
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(false)
+function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false, onBroken = null, resourceId = null, resourceType = null }) {
+  const [loaded, setLoaded]     = useState(false)
+  const [error, setError]       = useState(false)
+  const [reported, setReported] = useState(false)
   const optimised = imgUrl(src, width, quality)
+
+  const handleError = async () => {
+    setError(true)
+    setLoaded(true)
+    if (onBroken && resourceId && resourceType && !reported) {
+      setReported(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          fetch('/api/report-broken', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ resourceId, resourceType }),
+          }).catch(() => {})
+          onBroken(resourceId)
+        }
+      } catch {}
+    }
+  }
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden', pointerEvents: onClick ? 'auto' : 'none', ...style }} onClick={onClick}>
-      {/* Shimmer placeholder — visible until image loads */}
       {!loaded && !error && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`,
-          backgroundSize: '200% 100%',
-          animation: 'shimmer 1.4s ease-in-out infinite',
-        }} />
+        <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       )}
-      {/* Actual image */}
-      {src && (
+      {src && !error && (
         <img
           src={optimised}
           alt={alt}
@@ -231,22 +244,20 @@ function LazyImage({ src, alt, style, className, onClick, width = 800, quality =
           decoding="async"
           fetchpriority={priority ? 'high' : 'low'}
           onLoad={() => setLoaded(true)}
-          onError={() => { setError(true); setLoaded(true) }}
-          style={{
-            width: '100%', height: '100%', objectFit: 'cover',
-            opacity: loaded ? 1 : 0,
-            transition: 'opacity 0.3s ease',
-            display: 'block',
-          }}
+          onError={handleError}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s ease', display: 'block' }}
         />
       )}
-      {/* Error state */}
       {error && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🎨</div>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${C.accent}10`, gap: 6 }}>
+          <span style={{ fontSize: 20, opacity: 0.35 }}>✦</span>
+          <span style={{ fontSize: 10, color: C.muted, opacity: 0.5 }}>Unavailable</span>
+        </div>
       )}
     </div>
   )
 }
+
 
 // ── Tier Limits ───────────────────────────────────────────────
 const TIER_LIMITS = {
@@ -1760,7 +1771,9 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
             <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={(e) => art.image_url ? openLightbox(e, art) : setExpanded(expanded === art.id ? null : art.id)}>
               {art.image_url
-                ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={480} style={{ width: '100%', height: '100%' }} />
+                ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={480} style={{ width: '100%', height: '100%' }}
+                    onBroken={isOwner ? null : (id) => setArtworks(prev => prev.filter(a => a.id !== id))}
+                    resourceId={art.id} resourceType="artwork" />
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 40 }}>🎨</div>}
 
               {/* Non-owner hover — View + Use This Art */}
@@ -1846,6 +1859,13 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
 
             {/* ── Card footer ── */}
             <div style={{ padding: '12px 14px' }}>
+              {/* Broken image warning — owner only */}
+              {isOwner && art.broken_image && (
+                <div style={{ background: `${C.red}12`, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12 }}>⚠️</span>
+                  <span style={{ fontSize: 11, color: C.red, fontWeight: 600 }}>Image unavailable — please fix or delete</span>
+                </div>
+              )}
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.title || 'Untitled'}</div>
               {art.profiles?.username && (
                 <div onClick={e => { e.stopPropagation(); navOrNewTab(e, `/u/${art.profiles.username}`, navigate) }}
@@ -4602,6 +4622,105 @@ function FloatingFeedback({ user }) {
 }
 
 // ── Navbar ────────────────────────────────────────────────────
+
+// ── Notification Bell ─────────────────────────────────────────
+function NotificationBell({ user }) {
+  const [notifications, setNotifications] = useState([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const bellRef = useRef(null)
+
+  const unread = notifications.filter(n => !n.read).length
+
+  useEffect(() => {
+    if (!user) return
+    loadNotifications()
+    // Real-time subscription
+    const sub = supabase
+      .channel('notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => loadNotifications()
+      )
+      .subscribe()
+    return () => supabase.removeChannel(sub)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (bellRef.current && !bellRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const loadNotifications = async () => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setNotifications(data || [])
+  }
+
+  const markRead = async (id) => {
+    await supabase.from('notifications').update({ read: true }).eq('id', id)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+  }
+
+  const markAllRead = async () => {
+    await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  }
+
+  if (!user) return null
+
+  return (
+    <div style={{ position: 'relative' }} ref={bellRef}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ position: 'relative', background: open ? `${C.accent}20` : 'none', border: `1px solid ${open ? C.accent + '55' : C.border}`, borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16, transition: 'all 0.15s' }}>
+        🔔
+        {unread > 0 && (
+          <div style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: C.red, border: `2px solid rgba(8,11,20,0.95)` }} />
+        )}
+      </button>
+
+      {open && (
+        <div style={{ position: 'absolute', top: 44, right: 0, width: 320, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, zIndex: 200, boxShadow: `0 8px 40px rgba(4,6,15,0.8), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Notifications {unread > 0 && <span style={{ background: C.red, borderRadius: 8, padding: '1px 6px', fontSize: 10, color: '#fff', marginLeft: 6 }}>{unread}</span>}</div>
+            {unread > 0 && <button onClick={markAllRead} style={{ background: 'none', border: 'none', fontSize: 11, color: C.accent, cursor: 'pointer', fontWeight: 600 }}>Mark all read</button>}
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: '32px 18px', textAlign: 'center', color: C.muted, fontSize: 13 }}>No notifications yet</div>
+            ) : notifications.map(n => (
+              <div key={n.id} onClick={() => { markRead(n.id); setOpen(false) }}
+                style={{ padding: '12px 18px', borderBottom: `1px solid ${C.border}`, background: n.read ? 'none' : `${C.accent}08`, cursor: 'pointer', transition: 'background 0.15s' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>
+                    {n.type === 'broken_artwork' || n.type === 'broken_product' ? '⚠️' : '🔔'}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: n.read ? C.muted : C.text, marginBottom: 3 }}>{n.title}</div>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{n.message}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 4, opacity: 0.7 }}>
+                      {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  {!n.read && <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, flexShrink: 0, marginTop: 4 }} />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Navbar({ user, profile, signOut, onSignIn }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -4664,6 +4783,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
               {profile?.is_admin && (
                 <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
               )}
+              <NotificationBell user={user} />
               <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
 
               {/* Subscription tier badge */}

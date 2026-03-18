@@ -21,19 +21,45 @@ function imgUrl(src, w = 800, q = 80) {
 }
 
 // Blur-up lazy image
-function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(false)
+function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false, onBroken = null, resourceId = null, resourceType = null }) {
+  const [loaded, setLoaded]     = useState(false)
+  const [error, setError]       = useState(false)
+  const [reported, setReported] = useState(false)
+
+  const handleError = async () => {
+    setError(true); setLoaded(true)
+    if (onBroken && resourceId && resourceType && !reported) {
+      setReported(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          fetch('/api/report-broken', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ resourceId, resourceType }),
+          }).catch(() => {})
+          onBroken(resourceId)
+        }
+      } catch {}
+    }
+  }
+
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
       {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
-      {src && <img src={imgUrl(src, width, quality)} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async"
-        onLoad={() => setLoaded(true)} onError={() => { setError(true); setLoaded(true) }}
+      {src && !error && <img src={imgUrl(src, width, quality)} alt={alt} loading={priority ? 'eager' : 'lazy'} decoding="async"
+        onLoad={() => setLoaded(true)} onError={handleError}
         style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }} />}
-      {error && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${C.accent}15`, fontSize: 28 }}>🎨</div>}
+      {error && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${C.accent}10`, gap: 6 }}>
+          <span style={{ fontSize: 20, opacity: 0.35 }}>✦</span>
+          <span style={{ fontSize: 10, color: C.muted, opacity: 0.5 }}>Unavailable</span>
+        </div>
+      )}
     </div>
   )
 }
+
 
 const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
@@ -186,7 +212,9 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete, onEdit 
       {/* Image */}
       <div style={{ position: 'relative' }} onClick={() => art.image_url && onLightbox(art)}>
         {art.image_url
-          ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={400} style={{ width: '100%' }} />
+          ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={400} style={{ width: '100%' }}
+              onBroken={(id) => setArtworks(prev => prev.filter(a => a.id !== id))}
+              resourceId={art.id} resourceType="artwork" />
           : <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}20, ${C.teal}15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🎨</div>
         }
 
@@ -204,11 +232,11 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete, onEdit 
             ⋯
           </button>
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.7), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
-              {menuItems.map(item => (
+            <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 152, zIndex: 200, boxShadow: `0 8px 32px rgba(8,11,20,0.9), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
+              {menuItems.map((item, idx, arr) => (
                 <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
-                  style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: item.color, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>{item.icon}</span>{item.label}
+                  style={{ width: '100%', background: 'none', border: 'none', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', padding: '9px 13px', color: item.color, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 13, flexShrink: 0 }}>{item.icon}</span>{item.label}
                 </button>
               ))}
             </div>
@@ -434,8 +462,8 @@ export default function Gallery({ user, onSignIn }) {
         if (!user) { setArtworks([]); setLoading(false); return }
         query = query.eq('user_id', user.id)
       } else {
-        // Public gallery — only show is_public artworks
-        query = query.eq('is_public', true)
+        // Public gallery — only show is_public, non-broken artworks
+        query = query.eq('is_public', true).eq('broken_image', false)
       }
       const { data } = await query
       setArtworks(data || [])
