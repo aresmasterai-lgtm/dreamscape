@@ -191,8 +191,8 @@ function imgUrl(src, width = 800, quality = 80) {
 // ── LazyImage — blur-up placeholder + lazy load ───────────────
 // Replaces every <img> on art/product cards for instant perceived performance.
 function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false }) {
-  const [loaded, setLoaded] = React.useState(false)
-  const [error, setError] = React.useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
   const optimised = imgUrl(src, width, quality)
 
   return (

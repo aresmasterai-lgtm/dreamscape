@@ -11,8 +11,8 @@ function imgUrl(src, w = 800, q = 80) {
 
 // Blur-up lazy image
 function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
-  const [loaded, setLoaded] = React.useState(false)
-  const [error, setError] = React.useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
       {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
