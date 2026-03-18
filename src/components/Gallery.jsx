@@ -463,7 +463,7 @@ export default function Gallery({ user, onSignIn }) {
         query = query.eq('user_id', user.id)
       } else {
         // Public gallery — only show is_public, non-broken artworks
-        query = query.eq('is_public', true).eq('broken_image', false)
+        query = query.eq('is_public', true).or('broken_image.is.null,broken_image.eq.false')
       }
       const { data } = await query
       setArtworks(data || [])

@@ -341,7 +341,7 @@ function ShopView({ user, onSignIn }) {
       const { data } = await supabase
         .from('products')
         .select('*, profiles!user_id(id, username)')
-        .eq('broken_image', false).order('created_at', { ascending: false })
+        .or('broken_image.is.null,broken_image.eq.false').order('created_at', { ascending: false })
         .limit(100)
       setProducts(data || [])
     } catch {}
@@ -351,6 +351,12 @@ function ShopView({ user, onSignIn }) {
   const handleEditSave = (updated) => {
     setProducts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
     setEditTarget(null)
+  }
+
+  const handleDelete = async (product) => {
+    if (!window.confirm(`Delete "${product.title}"? This cannot be undone.`)) return
+    const { error } = await supabase.from('products').delete().eq('id', product.id).eq('user_id', user.id)
+    if (!error) setProducts(prev => prev.filter(p => p.id !== product.id))
   }
 
   const filtered = products.filter(p => {
@@ -447,6 +453,7 @@ function ShopView({ user, onSignIn }) {
               onBuy={() => handleBuy(product)}
               buyingId={buyingId}
               onEdit={setEditTarget}
+              onDelete={handleDelete}
               priority={idx < 8}
             />
           ))}
@@ -616,7 +623,7 @@ function EditProductModal({ product, user, onSave, onClose }) {
 }
 
 // ── Product Card with kebab menu ─────────────────────────────
-function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, priority = false }) {
+function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, onDelete, priority = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
@@ -651,7 +658,10 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
           <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 180, zIndex: 200, boxShadow: `0 8px 32px rgba(8,11,20,0.9), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
             {[
               ...(user && product.user_id === user.id
-                ? [{ icon: '✏️', label: 'Edit Details', action: () => onEdit(product), color: C.text }]
+                ? [
+                    { icon: '✏️', label: 'Edit Details', action: () => onEdit(product), color: C.text },
+                    { icon: '🗑', label: 'Delete', action: () => onDelete && onDelete(product), color: C.red },
+                  ]
                 : []),
               { icon: '🔍', label: 'View Details', action: onView, color: C.muted },
               { icon: '🖼',  label: 'Full Image',   action: onLightbox, color: C.muted },
