@@ -258,6 +258,7 @@ function ShopView({ user, onSignIn }) {
   const [typeFilter, setTypeFilter] = useState('All')
   const [search, setSearch] = useState('')
   const [lightbox, setLightbox] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
   const navigate = useNavigate()
 
   const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art']
@@ -420,6 +421,18 @@ function ShopView({ user, onSignIn }) {
             </div>
           </div>
         </div>
+      )}
+
+      {editTarget && user && (
+        <EditProductModal
+          product={editTarget}
+          user={user}
+          onSave={(updated) => {
+            setProducts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))
+            setEditTarget(null)
+          }}
+          onClose={() => setEditTarget(null)}
+        />
       )}
     </div>
   )

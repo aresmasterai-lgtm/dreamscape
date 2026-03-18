@@ -14,25 +14,28 @@ const CREATOR_PLANS = [
     id: 'free', name: 'Free', price: 0, betaPrice: 0,
     color: C.muted, description: 'Get started exploring AI art',
     features: ['10 AI generations / month', '3 products listed', 'Public gallery access', 'Basic Dream AI chat', '30% platform commission'],
-    cta: 'Start Free', stripeLink: null,
+    cta: 'Start Free', stripeLink: null, annualStripeLink: null,
   },
   {
     id: 'starter', name: 'Starter', price: 9.99, betaPrice: 4.99,
     color: C.teal, description: 'For emerging creators',
     features: ['50 AI generations / month', '15 products listed', 'Sell in the marketplace', '25% platform commission', 'Stripe payouts', 'Basic analytics'],
     cta: 'Get Starter', stripeLink: 'price_1TCExrBG6LCYdFQRb5RLG7En',
+    annualStripeLink: 'price_1TCFHOBG6LCYdFQRyIPVFNEj',
   },
   {
     id: 'pro', name: 'Pro', price: 19.99, betaPrice: 9.99,
     color: C.accent, description: 'For serious artists', popular: true,
     features: ['200 AI generations / month', '50 products listed', '20% platform commission', 'Artwork licensing + royalties', 'Priority support', 'Advanced analytics'],
     cta: 'Go Pro', stripeLink: 'price_1TCEydBG6LCYdFQRvav0rzCq',
+    annualStripeLink: 'price_1TCFHnBG6LCYdFQRXXQDW7Yp',
   },
   {
     id: 'studio', name: 'Studio', price: 49.99, betaPrice: 24.99,
     color: C.gold, description: 'For power creators',
     features: ['Unlimited AI generations', 'Unlimited products', '15% platform commission', 'Artwork licensing + royalties', 'Priority mockup generation', 'Full analytics suite', 'Early feature access'],
     cta: 'Go Studio', stripeLink: 'price_1TCEyqBG6LCYdFQRSxhxYlKw',
+    annualStripeLink: 'price_1TCFI4BG6LCYdFQRuw8tFmQr',
   },
 ]
 
@@ -42,18 +45,21 @@ const BUSINESS_PLANS = [
     color: C.merchant, description: 'For small businesses & shops',
     features: ['100 AI generations / month', 'Unlimited products', '8% platform commission', 'Brand storefront', 'Bulk product creation', '3 team seats', 'CSV order export', 'Basic analytics dashboard'],
     cta: 'Start Merchant', stripeLink: 'price_1TCEz5BG6LCYdFQRweIYxpIb',
+    annualStripeLink: 'price_1TCFIMBG6LCYdFQRlkcj9nVa',
   },
   {
     id: 'brand', name: 'Brand', price: 149.99, betaPrice: 74.99,
     color: C.brand, description: 'For growing brands', popular: true,
     features: ['500 AI generations / month', 'Unlimited products', '6% platform commission', 'Brand storefront + custom domain', 'Bulk product creation', '10 team seats', 'CSV order & customer export', 'Advanced analytics', 'Priority support'],
     cta: 'Start Brand', stripeLink: 'price_1TCEzGBG6LCYdFQRJX7nf7xk',
+    annualStripeLink: 'price_1TCFIdBG6LCYdFQR9l8LEVlG',
   },
   {
     id: 'enterprise', name: 'Enterprise', price: 299.99, betaPrice: 149.99,
     color: C.enterprise, description: 'For large operations',
     features: ['Unlimited AI generations', 'Unlimited products', '4% platform commission', 'White-label storefront', 'Bulk product creation', 'Unlimited team seats', 'Full data export + API access', 'Full analytics suite', 'Dedicated support channel', 'SLA guarantee'],
     cta: 'Go Enterprise', stripeLink: 'price_1TCEzRBG6LCYdFQRunvsU39V',
+    annualStripeLink: 'price_1TCFJXBG6LCYdFQR3NRptnIV',
   },
 ]
 
@@ -131,11 +137,12 @@ export default function Pricing({ user, onSignIn }) {
     setCheckoutLoading(plan.id)
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession()
+      const priceId = annual && plan.annualStripeLink ? plan.annualStripeLink : plan.stripeLink
       const res = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authSession?.access_token}` },
         body: JSON.stringify({
-          priceId: plan.stripeLink,
+          priceId,
           userId: user.id,
           userEmail: user.email,
           tier: plan.id,

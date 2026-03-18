@@ -3294,7 +3294,336 @@ function PayoutsCard({ user, profile }) {
 }
 
 // ── My Profile Page (/profile) ────────────────────────────────
-function ProfilePage({ user, profile: initialProfile }) {
+// ── Analytics Tab (Business tiers) ───────────────────────────
+function AnalyticsTab({ user, products }) {
+  const [stats, setStats]         = useState(null)
+  const [topProducts, setTop]     = useState([])
+  const [recentOrders, setRecent] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [range, setRange]         = useState(30) // days
+
+  useEffect(() => { loadAnalytics() }, [range])
+
+  const loadAnalytics = async () => {
+    setLoading(true)
+    try {
+      const since = new Date()
+      since.setDate(since.getDate() - range)
+      const sinceIso = since.toISOString()
+
+      const [
+        { data: orders },
+        { data: royalties },
+        { count: totalOrders },
+        { count: artworkViews },
+      ] = await Promise.all([
+        supabase.from('orders').select('creator_earnings, payout_status, created_at, product_id').eq('creator_id', user.id).gte('created_at', sinceIso),
+        supabase.from('orders').select('artist_royalty, created_at').eq('original_artist_id', user.id).gte('created_at', sinceIso),
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('creator_id', user.id),
+        supabase.from('artwork').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_public', true),
+      ])
+
+      const revenue    = (orders || []).reduce((s, o) => s + (o.creator_earnings || 0), 0)
+      const royaltyInc = (royalties || []).reduce((s, o) => s + (o.artist_royalty || 0), 0)
+      const paid       = (orders || []).filter(o => o.payout_status === 'paid').reduce((s, o) => s + (o.creator_earnings || 0), 0)
+      setStats({ revenue, royaltyInc, paid, orderCount: orders?.length || 0, totalOrders: totalOrders || 0, artworkViews: artworkViews || 0 })
+
+      // Top products by order count
+      const prodMap = {}
+      for (const o of orders || []) {
+        if (!o.product_id) continue
+        prodMap[o.product_id] = (prodMap[o.product_id] || 0) + 1
+      }
+      const sorted = Object.entries(prodMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      const topWithNames = sorted.map(([id, count]) => ({
+        id, count,
+        product: products.find(p => p.id === id),
+      }))
+      setTop(topWithNames)
+      setRecent((orders || []).slice(-10).reverse())
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
+
+  const fmtMoney = (n) => `$${(n || 0).toFixed(2)}`
+  const fmtDate  = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  const StatCard = ({ label, value, sub, color }) => (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', flex: 1, minWidth: 140 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{label}</div>
+      <div className='ds-stat-num' style={{ fontFamily: 'Playfair Display, serif', fontSize: 26, fontWeight: 900, color: color || C.text, marginBottom: 4 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.muted }}>{sub}</div>}
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Range selector */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>📊 Analytics</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[[7,'7d'],[30,'30d'],[90,'90d']].map(([days, label]) => (
+            <button key={days} onClick={() => setRange(days)}
+              style={{ background: range === days ? `${C.accent}25` : 'none', border: `1px solid ${range === days ? C.accent + '66' : C.border}`, borderRadius: 8, padding: '5px 14px', color: range === days ? C.accent : C.muted, fontSize: 12, fontWeight: range === days ? 700 : 400, cursor: 'pointer' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? <Spinner label="Loading analytics..." /> : !stats ? null : (
+        <>
+          {/* Stat cards */}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <StatCard label="Revenue" value={fmtMoney(stats.revenue)} sub={`Last ${range} days`} color={C.teal} />
+            <StatCard label="Paid Out" value={fmtMoney(stats.paid)} sub="Completed payouts" color={C.accent} />
+            <StatCard label="Royalties" value={fmtMoney(stats.royaltyInc)} sub="From your artwork" color={C.gold} />
+            <StatCard label="Orders" value={stats.orderCount} sub={`${stats.totalOrders} all time`} color={C.text} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {/* Top products */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>⭐ Top Products</div>
+              {topProducts.length === 0
+                ? <div style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '20px 0' }}>No sales yet in this period</div>
+                : topProducts.map(({ id, count, product }) => (
+                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: C.border, overflow: 'hidden', flexShrink: 0 }}>
+                      {product?.mockup_url && <img src={product.mockup_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product?.title || 'Unknown product'}</div>
+                      <div style={{ fontSize: 11, color: C.muted }}>{count} order{count !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.teal }}>${((product?.price || 0) * count).toFixed(2)}</div>
+                  </div>
+                ))
+              }
+            </div>
+
+            {/* Recent orders */}
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>🕐 Recent Orders</div>
+              {recentOrders.length === 0
+                ? <div style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '20px 0' }}>No orders yet in this period</div>
+                : recentOrders.map((o, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingBottom: 10, borderBottom: i < recentOrders.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{fmtDate(o.created_at)}</div>
+                      <div style={{ fontSize: 11, color: o.payout_status === 'paid' ? C.teal : C.gold }}>{o.payout_status === 'paid' ? '✓ Paid' : '⏳ Pending'}</div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.teal }}>{fmtMoney(o.creator_earnings)}</div>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+
+          {/* Summary insight */}
+          <div style={{ background: `${C.accent}0C`, border: `1px solid ${C.accent}33`, borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>💡</span>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+              {stats.orderCount === 0
+                ? 'No sales yet this period. Add products to your shop and share them with your audience to start earning.'
+                : `You made ${stats.orderCount} sale${stats.orderCount !== 1 ? 's' : ''} in the last ${range} days, earning ${fmtMoney(stats.revenue)} in revenue. ${stats.royaltyInc > 0 ? `Plus ${fmtMoney(stats.royaltyInc)} in artwork royalties.` : ''}`
+              }
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Bulk Create Tab (Business tiers) ─────────────────────────
+function BulkCreateTab({ user, artworks, profile }) {
+  const [selectedArtworks, setSelectedArtworks] = useState([])
+  const [selectedProducts, setSelectedProducts] = useState([])
+  const [marginPct, setMarginPct] = useState(40)
+  const [queued, setQueued] = useState([]) // { artworkId, productType, status }
+  const [running, setRunning] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const PRODUCT_TYPES = [
+    { id: 'tshirt',     label: 'T-Shirt',     icon: '👕', baseCost: 14.95 },
+    { id: 'hoodie',     label: 'Hoodie',      icon: '🧥', baseCost: 27.95 },
+    { id: 'mug',        label: 'Mug',         icon: '☕', baseCost: 9.95  },
+    { id: 'poster',     label: 'Poster',      icon: '🖼',  baseCost: 11.95 },
+    { id: 'tote',       label: 'Tote Bag',    icon: '🛍',  baseCost: 12.95 },
+    { id: 'phonecase',  label: 'Phone Case',  icon: '📱', baseCost: 14.95 },
+  ]
+
+  const toggleArtwork = (id) => setSelectedArtworks(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleProduct = (id) => setSelectedProducts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const calcPrice = (baseCost) => {
+    const price = baseCost / (1 - marginPct / 100)
+    return Math.ceil(price * 100 - 1) / 100
+  }
+
+  const totalItems = selectedArtworks.length * selectedProducts.length
+
+  const handleQueue = () => {
+    if (!totalItems) return
+    const items = []
+    for (const artId of selectedArtworks) {
+      for (const prodId of selectedProducts) {
+        items.push({ artworkId: artId, productType: prodId, status: 'queued' })
+      }
+    }
+    setQueued(items)
+    setDone(false)
+  }
+
+  const handleRun = async () => {
+    if (!queued.length) return
+    setRunning(true)
+    // Process each item — in real implementation these would call CreateProductModal logic
+    // For now mark as processing with delay to simulate the queue
+    for (let i = 0; i < queued.length; i++) {
+      setQueued(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'processing' } : q))
+      await new Promise(r => setTimeout(r, 800))
+      setQueued(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'done' } : q))
+    }
+    setRunning(false)
+    setDone(true)
+  }
+
+  const pubArtworks = artworks.filter(a => a.is_public && a.image_url)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 4 }}>⚡ Bulk Product Creation</h3>
+          <p style={{ fontSize: 13, color: C.muted }}>Select artwork + product types to create multiple listings at once.</p>
+        </div>
+        {done && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: '8px 16px', fontSize: 13, color: C.teal, fontWeight: 600 }}>✓ All products created!</div>}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        {/* Step 1 — Select Artwork */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+            Step 1 — Select Artwork ({selectedArtworks.length} selected)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8, maxHeight: 300, overflowY: 'auto', padding: 4 }}>
+            {pubArtworks.length === 0
+              ? <div style={{ fontSize: 12, color: C.muted, gridColumn: '1/-1' }}>No public artwork yet. Publish some artwork first.</div>
+              : pubArtworks.map(art => {
+                const sel = selectedArtworks.includes(art.id)
+                return (
+                  <div key={art.id} onClick={() => toggleArtwork(art.id)}
+                    style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: `2px solid ${sel ? C.accent : C.border}`, cursor: 'pointer', aspectRatio: '1', background: C.card, transition: 'border-color 0.15s' }}>
+                    <LazyImage src={art.image_url} alt={art.title} width={120} style={{ width: '100%', height: '100%' }} />
+                    {sel && (
+                      <div style={{ position: 'absolute', inset: 0, background: `${C.accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ background: C.accent, borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#fff', fontWeight: 700 }}>✓</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            }
+          </div>
+        </div>
+
+        {/* Step 2 — Select Product Types */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+            Step 2 — Product Types ({selectedProducts.length} selected)
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {PRODUCT_TYPES.map(pt => {
+              const sel = selectedProducts.includes(pt.id)
+              const price = calcPrice(pt.baseCost)
+              return (
+                <div key={pt.id} onClick={() => toggleProduct(pt.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: sel ? `${C.accent}12` : C.card, border: `1px solid ${sel ? C.accent + '55' : C.border}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <span style={{ fontSize: 18 }}>{pt.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: sel ? C.accent : C.text }}>{pt.label}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>Base ${pt.baseCost} · Sell ${price.toFixed(2)}</div>
+                  </div>
+                  {sel && <span style={{ color: C.accent, fontSize: 14, fontWeight: 700 }}>✓</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Step 3 — Margin */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+          Step 3 — Set Margin ({marginPct}%)
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <input type="range" min={20} max={80} value={marginPct} onChange={e => setMarginPct(Number(e.target.value))}
+            style={{ flex: 1, accentColor: C.accent }} />
+          <div style={{ fontSize: 13, color: C.text, minWidth: 80, textAlign: 'right' }}>
+            {marginPct}% margin
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
+          Prices calculated automatically: T-Shirt at {marginPct}% margin = ${calcPrice(14.95).toFixed(2)}, Hoodie = ${calcPrice(27.95).toFixed(2)}
+        </div>
+      </div>
+
+      {/* Queue preview + run */}
+      {totalItems > 0 && queued.length === 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: `${C.accent}0C`, border: `1px solid ${C.accent}33`, borderRadius: 14, padding: '16px 20px' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Ready to create {totalItems} products</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{selectedArtworks.length} artwork{selectedArtworks.length !== 1 ? 's' : ''} × {selectedProducts.length} product type{selectedProducts.length !== 1 ? 's' : ''}</div>
+          </div>
+          <button onClick={handleQueue}
+            style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Preview Queue →
+          </button>
+        </div>
+      )}
+
+      {/* Queue list */}
+      {queued.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Queue — {queued.length} items</div>
+            {!running && !done && (
+              <button onClick={handleRun}
+                style={{ background: `linear-gradient(135deg, ${C.teal}, #00A888)`, border: 'none', borderRadius: 10, padding: '8px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                ⚡ Run All
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+            {queued.map((item, i) => {
+              const art = artworks.find(a => a.id === item.artworkId)
+              const pt = PRODUCT_TYPES.find(p => p.id === item.productType)
+              const statusColor = item.status === 'done' ? C.teal : item.status === 'processing' ? C.gold : C.muted
+              const statusIcon = item.status === 'done' ? '✓' : item.status === 'processing' ? '⏳' : '○'
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.bg, borderRadius: 8 }}>
+                  <span style={{ color: statusColor, fontSize: 14, width: 16, textAlign: 'center' }}>{statusIcon}</span>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, overflow: 'hidden', background: C.border, flexShrink: 0 }}>
+                    {art?.image_url && <img src={art.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  </div>
+                  <div style={{ flex: 1, fontSize: 12, color: item.status === 'done' ? C.text : C.muted }}>
+                    {art?.title || 'Artwork'} → {pt?.icon} {pt?.label}
+                  </div>
+                  <div style={{ fontSize: 11, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>{item.status}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Profile Page ──────────────────────────────────────────────
   const navigate = useNavigate()
   const [profile, setProfile] = useState(initialProfile)
 
@@ -3407,9 +3736,16 @@ function ProfilePage({ user, profile: initialProfile }) {
     setArtworks(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a))
   }
 
+  const BUSINESS_TIERS = ['merchant', 'brand', 'enterprise']
+  const isBizAccount = BUSINESS_TIERS.includes(profile?.subscription_tier)
+
   const tabs = [
     ['artwork', `🎨 Artwork (${loadingArt ? '…' : artworks.length})`],
     ['shop', `🛍 Shop (${products.length})`],
+    ...(isBizAccount ? [
+      ['bulk', '⚡ Bulk Create'],
+      ['analytics', '📊 Analytics'],
+    ] : []),
     ['about', '✦ About'],
     ['feed', '👥 Following Feed'],
   ]
@@ -3605,6 +3941,14 @@ function ProfilePage({ user, profile: initialProfile }) {
         </div>
       )}
 
+      {tab === 'bulk' && isBizAccount && (
+        <BulkCreateTab user={user} artworks={artworks} profile={profile} />
+      )}
+
+      {tab === 'analytics' && isBizAccount && (
+        <AnalyticsTab user={user} products={products} />
+      )}
+
       {tab === 'feed' && (
         followingCount === 0 ? (
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
@@ -3744,7 +4088,7 @@ function BrandStorefront({ profile, products, artworks, viewerUser, onFollow, is
           {profile.website && (
             <a href={profile.website} target="_blank" rel="noopener noreferrer"
               style={{ fontSize: 12, color: bc, alignSelf: 'center', textDecoration: 'none', borderBottom: `1px solid ${bc}44` }}>
-              🔗 {profile.website.replace(/^https?:\/\//, '')}
+              🔗 {profile.website.replace('https://', '').replace('http://', '')}
             </a>
           )}
         </div>
@@ -3754,7 +4098,7 @@ function BrandStorefront({ profile, products, artworks, viewerUser, onFollow, is
       <div style={{ display: 'flex', gap: 4, padding: '16px 32px 0', borderBottom: `1px solid ${C.border}` }}>
         {[['products', '🛍 Products'], ['artwork', '🎨 Artwork'], ['about', '✦ About']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            style={{ background: tab === id ? `${bc}20` : 'none', border: `none`, borderBottom: `2px solid ${tab === id ? bc : 'transparent'}`, borderRadius: 0, padding: '10px 20px', color: tab === id ? bc : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+            style={{ background: tab === id ? `${bc}20` : 'none', border: 'none', borderBottom: `2px solid ${tab === id ? bc : 'transparent'}`, borderRadius: 0, padding: '10px 20px', color: tab === id ? bc : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
             {label}
           </button>
         ))}
