@@ -298,8 +298,43 @@ function ContentTab() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{item.title}</div>
                 <div style={{ fontSize: 11, color: C.muted }}>@{item.profiles?.username} · {new Date(item.created_at).toLocaleDateString()}</div>
               </div>
-              {tab === 'products' && <div style={{ fontSize: 14, fontWeight: 700, color: C.gold }}>${parseFloat(item.price || 0).toFixed(2)}</div>}
+              {tab === 'products' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: C.gold }}>${parseFloat(item.price || 0).toFixed(2)}</div>
+                  {item.is_hidden && <div style={{ fontSize: 11, background: `${C.red}20`, border: `1px solid ${C.red}44`, borderRadius: 20, padding: '2px 8px', color: C.red, fontWeight: 600 }}>Hidden</div>}
+                </div>
+              )}
               {tab === 'artworks' && <div style={{ fontSize: 11, background: item.is_public ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${item.is_public ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: item.is_public ? C.teal : C.muted, fontWeight: 600 }}>{item.is_public ? '🌐 Public' : '🔒 Private'}</div>}
+              {/* Unpublish — artwork only */}
+              {tab === 'artworks' && item.is_public && (
+                <button onClick={async () => {
+                  await supabase.from('artwork').update({ is_public: false }).eq('id', item.id)
+                  setArtworks(prev => prev.map(a => a.id === item.id ? { ...a, is_public: false } : a))
+                }}
+                  style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  🔒 Unpublish
+                </button>
+              )}
+              {tab === 'artworks' && !item.is_public && (
+                <button onClick={async () => {
+                  await supabase.from('artwork').update({ is_public: true }).eq('id', item.id)
+                  setArtworks(prev => prev.map(a => a.id === item.id ? { ...a, is_public: true } : a))
+                }}
+                  style={{ background: `${C.teal}15`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '6px 14px', color: C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  🌐 Publish
+                </button>
+              )}
+              {/* Hide/show products */}
+              {tab === 'products' && (
+                <button onClick={async () => {
+                  const newVal = !item.is_hidden
+                  await supabase.from('products').update({ is_hidden: newVal }).eq('id', item.id)
+                  setProducts(prev => prev.map(p => p.id === item.id ? { ...p, is_hidden: newVal } : p))
+                }}
+                  style={{ background: item.is_hidden ? `${C.teal}15` : `${C.gold}15`, border: `1px solid ${item.is_hidden ? C.teal + '44' : C.gold + '44'}`, borderRadius: 8, padding: '6px 14px', color: item.is_hidden ? C.teal : C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {item.is_hidden ? '👁 Show' : '🔒 Hide'}
+                </button>
+              )}
               <button onClick={() => setConfirm({ type: tab, id: item.id, title: item.title })}
                 style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '6px 14px', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Remove

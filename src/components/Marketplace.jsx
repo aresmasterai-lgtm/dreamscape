@@ -341,7 +341,7 @@ function ShopView({ user, onSignIn }) {
       const { data } = await supabase
         .from('products')
         .select('*, profiles!user_id(id, username)')
-        .or('broken_image.is.null,broken_image.eq.false').order('created_at', { ascending: false })
+        .or('broken_image.is.null,broken_image.eq.false').or('is_hidden.is.null,is_hidden.eq.false').order('created_at', { ascending: false })
         .limit(100)
       setProducts(data || [])
     } catch {}
