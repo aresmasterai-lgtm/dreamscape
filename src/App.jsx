@@ -3624,6 +3624,7 @@ function BulkCreateTab({ user, artworks, profile }) {
 }
 
 // ── Profile Page ──────────────────────────────────────────────
+function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(initialProfile)
 
