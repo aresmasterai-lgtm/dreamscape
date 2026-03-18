@@ -106,79 +106,72 @@ function ImageLightbox({ image, onClose, onSell, onDownload }) {
 
 // ── Art Card ──────────────────────────────────────────────────
 function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete }) {
-  const [hover, setHover] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
   const navigate = useNavigate()
 
-  return (
-    <div
-      className='ds-card' style={{ breakInside: 'avoid', marginBottom: 14, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}>
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
 
-      {/* Image — always opens lightbox */}
+  const menuItems = isOwn
+    ? [
+        { icon: '🔍', label: 'View Full', action: () => onLightbox(art), color: C.text },
+        { icon: '🛍', label: 'Sell This', action: () => onSell(art), color: C.accent },
+        { icon: '↻',  label: 'Use Again', action: () => onUseAgain(art), color: C.teal },
+        { icon: '🗑', label: 'Delete', action: () => onDelete(art), color: C.red },
+      ]
+    : [
+        { icon: '🔍', label: 'View Full', action: () => onLightbox(art), color: C.text },
+        ...(art.license === 'royalty' || art.license === 'free'
+          ? [{ icon: '🛍', label: 'Use This Art', action: () => onUseAgain(art), color: C.accent }]
+          : []),
+      ]
+
+  return (
+    <div className='ds-card' style={{ breakInside: 'avoid', marginBottom: 14, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}>
+      {/* Image */}
       <div style={{ position: 'relative' }} onClick={() => art.image_url && onLightbox(art)}>
         {art.image_url
-          ? <>
-              <LazyImage
-                src={art.image_url}
-                alt={artAltTag(art)}
-                width={400}
-                style={{ width: '100%' }}
-              />
-              {/* Zoom hint on hover */}
-              {hover && (
-                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: C.muted, pointerEvents: 'none' }}>
-                  🔍 View
-                </div>
-              )}
-            </>
+          ? <LazyImage src={art.image_url} alt={artAltTag(art)} width={400} style={{ width: '100%' }} />
           : <div style={{ height: 160, background: `linear-gradient(135deg, ${C.accent}20, ${C.teal}15)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🎨</div>
         }
 
-        {/* Owner action overlay on hover */}
-        {isOwn && hover && (
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, backdropFilter: 'blur(2px)' }}
-            onClick={e => e.stopPropagation()}>
-            <button onClick={() => onSell(art)}
-              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: 160 }}>
-              🛍 Sell This
-            </button>
-            <button onClick={() => onUseAgain(art)}
-              style={{ background: `${C.teal}22`, border: `1px solid ${C.teal}55`, borderRadius: 10, padding: '10px 22px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer', width: 160 }}>
-              ↻ Use Again
-            </button>
-            <button onClick={() => onLightbox(art)}
-              style={{ background: 'rgba(8,11,20,0.6)', border: `1px solid ${C.border}`, borderRadius: 10, padding: '7px 22px', color: C.muted, fontSize: 12, cursor: 'pointer', width: 160 }}>
-              🔍 View Full
-            </button>
-            <button onClick={() => onDelete(art)}
-              style={{ background: 'none', border: `1px solid ${C.red}44`, borderRadius: 10, padding: '7px 22px', color: C.red, fontSize: 12, cursor: 'pointer', width: 160 }}>
-              🗑 Delete
-            </button>
+        {/* License badge — top left */}
+        {art.is_public && art.license && art.license !== 'private' && (
+          <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(8,11,20,0.82)', borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: art.license === 'royalty' ? C.gold : C.teal, pointerEvents: 'none' }}>
+            {art.license === 'royalty' ? `✦ ${art.royalty_pct || 15}%` : '🎁'}
           </div>
         )}
+
+        {/* ⋯ Kebab button — top right */}
+        <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuRef} onClick={e => e.stopPropagation()}>
+          <button onClick={() => setMenuOpen(o => !o)}
+            style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+            ⋯
+          </button>
+          {menuOpen && (
+            <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.7), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
+              {menuItems.map(item => (
+                <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
+                  style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: item.color, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>{item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
       <div style={{ padding: '10px 12px' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.title}</div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 11, color: C.muted, cursor: 'pointer' }}
-            onClick={e => { e.stopPropagation(); if (art.profiles?.username) { if (e.ctrlKey || e.metaKey) { window.open(`/u/${art.profiles.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${art.profiles.username}`) } } }}>
-            @{art.profiles?.username || 'artist'}
-          </div>
-          {isOwn && (
-            <div style={{ display: 'flex', gap: 5 }}>
-              <button onClick={e => { e.stopPropagation(); onSell(art) }}
-                style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}33`, borderRadius: 6, padding: '3px 8px', color: C.accent, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-                🛍
-              </button>
-              <button onClick={e => { e.stopPropagation(); onUseAgain(art) }}
-                style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}33`, borderRadius: 6, padding: '3px 8px', color: C.teal, fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>
-                ↻
-              </button>
-            </div>
-          )}
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{art.title}</div>
+        <div style={{ fontSize: 11, color: C.muted, cursor: 'pointer' }}
+          onClick={e => { e.stopPropagation(); if (art.profiles?.username) { if (e.ctrlKey || e.metaKey) { window.open(`/u/${art.profiles.username}`, '_blank', 'noopener,noreferrer') } else { navigate(`/u/${art.profiles.username}`) } } }}>
+          @{art.profiles?.username || 'artist'}
         </div>
       </div>
     </div>

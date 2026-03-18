@@ -2,6 +2,21 @@ import { useState, useEffect, useRef, useCallback, Component } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
+
+// ── Auth header helper ────────────────────────────────────────
+// Attaches the user's JWT to every API call so Netlify functions
+// can verify the request is from a real authenticated user.
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      return { 'Authorization': `Bearer ${session.access_token}` }
+    }
+  } catch {}
+  return {}
+}
+
+
 import AuthModal from './components/AuthModal'
 import ProfileSetup from './components/ProfileSetup'
 import Marketplace from './components/Marketplace'
@@ -534,10 +549,52 @@ function usePageTracking() {
 }
 
 
-function Spinner() {
+// ── Loading Spinner + Art Skeleton ───────────────────────────
+const LOADING_QUOTES = [
+  'Art is loading into existence...',
+  'Gathering creative energy...',
+  'Something beautiful is coming...',
+  'Every masterpiece takes a moment...',
+  'Painting the digital canvas...',
+  'The muse is working...',
+]
+
+function Spinner({ label, cards = 0 }) {
+  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * LOADING_QUOTES.length))
+
+  useEffect(() => {
+    if (!cards) return
+    const t = setInterval(() => setQuoteIdx(i => (i + 1) % LOADING_QUOTES.length), 2200)
+    return () => clearInterval(t)
+  }, [cards])
+
+  if (cards > 0) return (
+    <div>
+      <div style={{ textAlign: 'center', marginBottom: 20, minHeight: 28 }}>
+        <span style={{ fontSize: 13, color: C.accent, fontStyle: 'italic' }}>
+          ✦ {LOADING_QUOTES[quoteIdx]}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+        {Array.from({ length: cards }).map((_, i) => (
+          <div key={i} style={{ borderRadius: 16, overflow: 'hidden', background: C.card, border: `1px solid ${C.border}` }}>
+            <div style={{ height: 160, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
+            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ height: 14, borderRadius: 6, width: '65%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.2}s` }} />
+              <div style={{ height: 10, borderRadius: 6, width: '40%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.3}s` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '40px 0' }}>
-      {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '40px 0' }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+      </div>
+      {label && <p style={{ fontSize: 12, color: C.muted, margin: 0, fontStyle: 'italic' }}>{label}</p>}
     </div>
   )
 }
@@ -903,7 +960,8 @@ function DreamChat({ user, onSignIn }) {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/dream', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history }) })
+      const authHdr = await getAuthHeader()
+      const res = await fetch('/api/dream', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHdr }, body: JSON.stringify({ messages: history }) })
       const data = await res.json()
 
       if (!mountedRef.current) return
@@ -968,8 +1026,9 @@ function DreamChat({ user, onSignIn }) {
     setGeneratingIndex(index)
     try {
       const lastUserWithImage = refImage || [...messages].reverse().find(m => m._refImage)?._refImage || null
+      const genAuthHdr = await getAuthHeader()
       const res = await fetch('/api/generate-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...genAuthHdr },
         body: JSON.stringify({ prompt, referenceImage: lastUserWithImage })
       })
       if (!mountedRef.current) return
@@ -1637,7 +1696,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
-  if (loading) return <Spinner />
+  if (loading) return <Spinner cards={6} />
   if (!artworks.length) return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
@@ -2691,14 +2750,14 @@ function EditProductModal({ product, user, onClose, onSave, onDelete }) {
 
       // Update Printful retail price so their records stay in sync
       if (product.printful_variant_ids?.length) {
-        fetch('/api/printful?action=updateVariantPrice', {
+        getAuthHeader().then(h => fetch('/api/printful?action=updateVariantPrice', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...h },
           body: JSON.stringify({
             variantIds: product.printful_variant_ids,
             retailPrice: parseFloat(price).toFixed(2),
           }),
-        }).catch(() => {}) // fire and forget — don't block the save
+        }).catch(() => {}))
       }
 
       onSave({ ...product, ...updates })
@@ -3749,10 +3808,48 @@ function ResetPasswordPage() {
 function DiscoverPage({ user, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
   const navigate = useNavigate()
+  const [stats, setStats] = useState({ artists: null, artworks: null, products: null, countries: '150+' })
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [
+          { count: artists },
+          { count: artworks },
+          { count: products },
+        ] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }),
+          supabase.from('artwork').select('id', { count: 'exact', head: true }).eq('is_public', true),
+          supabase.from('products').select('id', { count: 'exact', head: true }),
+        ])
+        setStats({
+          artists:  artists  || 0,
+          artworks: artworks || 0,
+          products: products || 0,
+          countries: '150+',
+        })
+      } catch {}
+    }
+    load()
+  }, [])
+
+  const fmt = (n) => {
+    if (n === null) return '—'
+    if (n >= 1000) return (n / 1000).toFixed(1).replace('.0', '') + 'K+'
+    return n > 0 ? `${n}+` : '0'
+  }
+
   return (
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
+
+      {/* Beta banner */}
+      <div style={{ background: `linear-gradient(135deg, ${C.gold}22, ${C.accent}18)`, border: `1px solid ${C.gold}44`, borderRadius: 20, padding: '6px 18px', marginBottom: 20, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 14 }}>🎉</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>BETA — Founding member pricing: 50% off all plans forever</span>
+        <button onClick={() => navigate('/pricing')} style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '3px 10px', color: '#000', fontSize: 11, fontWeight: 800, cursor: 'pointer', marginLeft: 4 }}>See Plans →</button>
+      </div>
 
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
@@ -3766,10 +3863,17 @@ function DiscoverPage({ user, onSignIn }) {
         <button onClick={() => user ? navigate('/create') : onSignIn()} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Start Creating Free ✦</button>
         <button onClick={() => navigate('/marketplace')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.text, fontSize: 14, cursor: 'pointer' }}>Explore Marketplace</button>
       </div>
+
+      {/* Live stats */}
       <div style={{ display: 'flex', gap: 40, marginTop: 56, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {[['10K+', 'Artists'], ['50K+', 'Artworks'], ['500+', 'Products'], ['150+', 'Countries']].map(([num, label]) => (
+        {[
+          [fmt(stats.artists),  'Artists'],
+          [fmt(stats.artworks), 'Artworks'],
+          [fmt(stats.products), 'Products'],
+          [stats.countries,     'Countries'],
+        ].map(([num, label]) => (
           <div key={label} style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif' }}>{num}</div>
+            <div className='ds-stat-num' style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif', minWidth: 60 }}>{num}</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{label}</div>
           </div>
         ))}

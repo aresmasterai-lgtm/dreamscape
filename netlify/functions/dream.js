@@ -1,8 +1,16 @@
+import { requireAuth, checkRateLimit, corsResponse, optionsResponse } from './auth-middleware.js'
+
 export default async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
-  }
+  if (req.method === 'OPTIONS') return optionsResponse()
+  if (req.method !== 'POST') return corsResponse({ error: 'Method not allowed' }, 405)
+
   try {
+    const { user } = await requireAuth(req)
+
+    if (!checkRateLimit(`dream:${user.id}`, 30)) {
+      return corsResponse({ error: 'Too many requests — slow down.' }, 429)
+    }
+
     const { messages } = await req.json()
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -88,8 +96,19 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     const displayText = replyText.replace(/<prompt>[\s\S]*?<\/prompt>/g, '').trim()
 
     // Only append generate nudge when a prompt is ready — backend controls this wording
+    // Rotate confirmation phrases so it never feels stale
+    const CONFIRM_PHRASES = [
+      `${displayText}\n\nReady to make this real? Hit ✦ Generate Image or just say "yes" ✦`,
+      `${displayText}\n\nLove it? Say the word or hit ✦ Generate Image and I'll make it happen 🔥`,
+      `${displayText}\n\nThis is going to be something. Hit ✦ Generate Image whenever you're ready ⚡`,
+      `${displayText}\n\nYour vision is locked in — hit ✦ Generate Image or just say "go" 🎨`,
+      `${displayText}\n\nPrompt is ready. One tap and it's yours — hit ✦ Generate Image ✦`,
+      `${displayText}\n\nLet's bring this to life — hit ✦ Generate Image or just say "do it" 🌌`,
+      `${displayText}\n\nI can see it already. Hit ✦ Generate Image when you're ready 💫`,
+      `${displayText}\n\nThis one's going to be 🔥 — hit ✦ Generate Image or just say "yes"`,
+    ]
     const finalReply = extractedPrompt
-      ? `${displayText}\n\nWant me to generate this right now? Hit the ✦ Generate Image button or just say "yes" and I'll bring it to life! 🎨`
+      ? CONFIRM_PHRASES[Math.floor(Math.random() * CONFIRM_PHRASES.length)]
       : displayText || replyText
 
     return new Response(

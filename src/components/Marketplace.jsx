@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -337,36 +337,14 @@ function ShopView({ user, onSignIn }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
           {filtered.map(product => (
-            <div key={product.id}
-              className='ds-card' style={{ overflow: 'hidden', cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent + '55'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.transform = 'translateY(0)' }}>
-              {/* Image — click to lightbox, rest of card opens product modal */}
-              <div
-                style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative', cursor: 'zoom-in' }}
-                onClick={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}>
-                {product.mockup_url
-                  ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} style={{ width: '100%', height: '100%' }} />
-                  : <span style={{ fontSize: 52 }}>🎨</span>}
-                {/* Zoom hint */}
-                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(8,11,20,0.75)', borderRadius: 6, padding: '3px 8px', fontSize: 10, color: C.muted }}>🔍 View</div>
-              </div>
-              {/* Card info — click to product modal */}
-              <div style={{ padding: '14px 16px' }} onClick={() => setSelectedProduct(product)}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>{product.title}</div>
-                {product.tags?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
-                    {product.tags.slice(0, 2).map(tag => (
-                      <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '2px 8px', fontSize: 10, color: C.accent }}>{tag}</span>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 15, color: C.teal, fontWeight: 700 }}>${parseFloat(product.price || 29.99).toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>@{product.profiles?.username || 'artist'}</div>
-                </div>
-              </div>
-            </div>
+            <ProductCard
+              key={product.id}
+              product={product}
+              onView={() => setSelectedProduct(product)}
+              onLightbox={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}
+              onBuy={() => handleBuy(product)}
+              buyingId={buyingId}
+            />
           ))}
         </div>
       )}
@@ -416,6 +394,71 @@ function ShopView({ user, onSignIn }) {
 }
 
 // ── Main Export ───────────────────────────────────────────────
+
+// ── Product Card with kebab menu ─────────────────────────────
+function ProductCard({ product, onView, onLightbox, onBuy, buyingId }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  return (
+    <div className='ds-card' style={{ overflow: 'hidden', cursor: 'pointer' }}>
+      {/* Image area */}
+      <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        onClick={onLightbox}>
+        {product.mockup_url
+          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} style={{ width: '100%', height: '100%' }} />
+          : <span style={{ fontSize: 52 }}>🎨</span>}
+
+        {/* ⋯ Kebab button */}
+        <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuRef} onClick={e => e.stopPropagation()}>
+          <button onClick={() => setMenuOpen(o => !o)}
+            style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+            ⋯
+          </button>
+          {menuOpen && (
+            <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 50, boxShadow: `0 8px 32px rgba(8,11,20,0.7), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}>
+              {[
+                { icon: '🔍', label: 'View Details', action: onView, color: C.text },
+                { icon: '🖼', label: 'Full Image', action: onLightbox, color: C.muted },
+                { icon: '🛍', label: `Buy — $${parseFloat(product.price || 29.99).toFixed(2)}`, action: onBuy, color: C.teal },
+              ].map(item => (
+                <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
+                  style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: item.color, fontSize: 13, fontWeight: 600, cursor: buyingId === product.id ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>{item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Card footer — click to product detail modal */}
+      <div style={{ padding: '12px 14px' }} onClick={onView}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
+        {product.tags?.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+            {product.tags.slice(0, 2).map(tag => (
+              <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '2px 8px', fontSize: 10, color: C.accent }}>{tag}</span>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 15, color: C.teal, fontWeight: 700 }}>${parseFloat(product.price || 29.99).toFixed(2)}</div>
+          <div style={{ fontSize: 11, color: C.muted }}>@{product.profiles?.username || 'artist'}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Marketplace({ user, onSignIn }) {
   const [tab, setTab] = useState('shop')
 

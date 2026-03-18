@@ -1,6 +1,22 @@
+import { requireAuthLight, checkRateLimit, corsResponse, optionsResponse } from './auth-middleware.js'
+
 export default async (req) => {
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
+
+  if (req.method === 'OPTIONS') return optionsResponse()
+
+  // Verify auth on every request
+  let authUser
+  try {
+    const result = await requireAuthLight(req)
+    authUser = result.user
+  } catch (authErr) { return authErr }
+
+  // Rate limit: 60 calls/min per user
+  if (!checkRateLimit(`printful:${authUser.id}`, 60)) {
+    return corsResponse({ error: 'Too many requests' }, 429)
+  }
 
   const apiKey = process.env.PRINTFUL_API_KEY
 
@@ -133,6 +149,8 @@ export default async (req) => {
       const body = await req.json()
       const { title, description, variantIds, imageUrl, retailPrice,
               originalArtworkId, originalArtistId, artistRoyaltyPct } = body
+      // SECURITY: always use verified user id, never trust client-provided userId
+      const verifiedUserId = authUser.id
 
       // retailPrice should always be provided from the frontend pricing calculator
       // Fall back to 35.00 only as a last resort — frontend enforces minimum profit

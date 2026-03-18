@@ -2,6 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+import { supabase } from '../lib/supabase'
+
+async function getAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return { 'Authorization': `Bearer ${session.access_token}` }
+  } catch {}
+  return {}
+}
+
+
 const TIER_LIMITS = {
   free:     { products: 3        },
   starter:  { products: 15       },
@@ -227,7 +238,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const loadCatalog = async () => {
     setCatalogLoading(true)
     try {
-      const res = await fetch('/api/printful?action=catalog&offset=0')
+      const h = await getAuthHeader()
+      const res = await fetch('/api/printful?action=catalog&offset=0', { headers: h })
       const data = await res.json()
       const SKIP = ['embroidered', 'embroidery', 'structured cap', 'dad hat', 'trucker hat', 'beanie', 'snapback', 'baseball cap', 'bucket hat']
       const filtered = (data.products || []).filter(p => !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw)))
@@ -245,7 +257,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     setMockupStatus('idle')
     setVariantLoading(true)
     try {
-      const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`)
+      const h = await getAuthHeader()
+      const res = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`, { headers: h })
       const data = await res.json()
       const variants = data.variants || []
       const colorMap = {}
@@ -275,8 +288,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     setMockupStatus('generating')
     try {
       const variantIds = previewColor.variantIds.slice(0, 3)
+      const h1 = await getAuthHeader()
       const res = await fetch('/api/printful?action=mockupCreate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...h1 },
         body: JSON.stringify({ catalogProductId: selected.id, variantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
@@ -323,8 +337,9 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       }
       const selectedColorObjs = availableColors.filter(c => selectedColors.includes(c.name))
       const allVariantIds = selectedColorObjs.flatMap(c => c.variantIds)
+      const hCreate = await getAuthHeader()
       const res = await fetch('/api/printful?action=create', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...hCreate },
         body: JSON.stringify({ title, description, variantIds: allVariantIds, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
