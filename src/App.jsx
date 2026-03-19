@@ -3687,6 +3687,169 @@ function BulkCreateTab({ user, artworks, profile }) {
   )
 }
 
+// ── Team Tab (Business tiers) ─────────────────────────────────
+const SEAT_LIMITS = { merchant: 3, brand: 10, enterprise: Infinity }
+const ROLE_LABELS = { designer: '🎨 Designer', viewer: '👁 Viewer' }
+
+function TeamTab({ user, profile }) {
+  const [members, setMembers]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [inviteEmail, setEmail] = useState('')
+  const [inviteRole, setRole]   = useState('designer')
+  const [inviting, setInviting] = useState(false)
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState('')
+
+  const seatLimit = SEAT_LIMITS[profile?.subscription_tier] || 3
+  const seatsFilled = members.filter(m => m.status !== 'removed').length
+
+  useEffect(() => { loadTeam() }, [])
+
+  const loadTeam = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('team_members')
+      .select('*')
+      .eq('account_id', user.id)
+      .order('invited_at', { ascending: false })
+    setMembers(data || [])
+    setLoading(false)
+  }
+
+  const handleInvite = async () => {
+    setError(''); setSuccess('')
+    if (!inviteEmail.trim()) { setError('Enter an email address.'); return }
+    if (seatsFilled >= seatLimit) { setError(`You've reached your ${seatLimit} seat limit. Upgrade to Brand or Enterprise for more.`); return }
+    if (members.some(m => m.email === inviteEmail.trim() && m.status !== 'removed')) { setError('That person is already on your team.'); return }
+    setInviting(true)
+    const { error: dbErr } = await supabase.from('team_members').insert({
+      account_id: user.id,
+      email: inviteEmail.trim().toLowerCase(),
+      role: inviteRole,
+      status: 'pending',
+    })
+    if (dbErr) { setError('Failed to invite. Please try again.'); setInviting(false); return }
+    setSuccess(`Invite sent to ${inviteEmail.trim()}`)
+    setEmail('')
+    await loadTeam()
+    setInviting(false)
+  }
+
+  const handleRemove = async (memberId) => {
+    if (!window.confirm('Remove this team member?')) return
+    await supabase.from('team_members').update({ status: 'removed' }).eq('id', memberId)
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, status: 'removed' } : m))
+  }
+
+  const handleRoleChange = async (memberId, newRole) => {
+    await supabase.from('team_members').update({ role: newRole }).eq('id', memberId)
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
+  }
+
+  const activeMembers = members.filter(m => m.status !== 'removed')
+  const inp = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 4 }}>👥 Team</h3>
+          <p style={{ fontSize: 13, color: C.muted }}>
+            {seatsFilled} of {seatLimit === Infinity ? 'unlimited' : seatLimit} seats used
+          </p>
+        </div>
+        {/* Seat usage bar */}
+        {seatLimit !== Infinity && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 120, height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ width: `${Math.min(100, (seatsFilled / seatLimit) * 100)}%`, height: '100%', background: seatsFilled >= seatLimit ? C.red : C.accent, borderRadius: 3, transition: 'width 0.3s' }} />
+            </div>
+            <span style={{ fontSize: 12, color: C.muted }}>{seatsFilled}/{seatLimit}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Invite form */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Invite a Team Member</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <input value={inviteEmail} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleInvite()}
+            placeholder="teammate@company.com" type="email"
+            style={{ ...inp, flex: 2, minWidth: 200 }} />
+          <select value={inviteRole} onChange={e => setRole(e.target.value)}
+            style={{ ...inp, flex: 1, minWidth: 130, cursor: 'pointer' }}>
+            <option value="designer">🎨 Designer</option>
+            <option value="viewer">👁 Viewer</option>
+          </select>
+          <button onClick={handleInvite} disabled={inviting || seatsFilled >= seatLimit}
+            style={{ background: inviting ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: inviting ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}>
+            {inviting ? 'Inviting...' : '+ Invite'}
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>
+          Designers can create and manage products. Viewers can see analytics only.
+        </div>
+        {error && <div style={{ marginTop: 10, background: `${C.red}12`, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.red }}>{error}</div>}
+        {success && <div style={{ marginTop: 10, background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.teal }}>{success}</div>}
+      </div>
+
+      {/* Team member list */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 24px', borderBottom: `1px solid ${C.border}`, fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+          Team Members ({activeMembers.length})
+        </div>
+        {loading ? <Spinner label="Loading team..." /> : activeMembers.length === 0 ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: C.muted, fontSize: 13 }}>
+            No team members yet. Invite someone above to get started.
+          </div>
+        ) : activeMembers.map((m, idx) => (
+          <div key={m.id} style={{ padding: '14px 24px', borderBottom: idx < activeMembers.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            {/* Avatar placeholder */}
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}80, #4B2FD080)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+              {m.email[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                {m.status === 'pending' ? '⏳ Invite pending' : `✓ Active · joined ${new Date(m.joined_at || m.invited_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+              </div>
+            </div>
+            {/* Role selector */}
+            <select value={m.role} onChange={e => handleRoleChange(m.id, e.target.value)}
+              style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.text, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
+              <option value="designer">🎨 Designer</option>
+              <option value="viewer">👁 Viewer</option>
+            </select>
+            {/* Status badge */}
+            <div style={{ background: m.status === 'active' ? `${C.teal}18` : `${C.gold}18`, border: `1px solid ${m.status === 'active' ? C.teal + '44' : C.gold + '44'}`, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600, color: m.status === 'active' ? C.teal : C.gold }}>
+              {m.status === 'active' ? 'Active' : 'Pending'}
+            </div>
+            {/* Remove */}
+            <button onClick={() => handleRemove(m.id)}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 10px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Role explanation */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {[
+          ['🎨 Designer', 'Can create and manage products, view analytics, use bulk tools. Cannot manage team or billing.'],
+          ['👁 Viewer', 'Can view analytics and products only. Read-only access to your storefront data.'],
+        ].map(([role, desc]) => (
+          <div key={role} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 6 }}>{role}</div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Profile Page ──────────────────────────────────────────────
 function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
@@ -3705,6 +3868,9 @@ function ProfilePage({ user, profile: initialProfile }) {
   const [salesCount, setSalesCount] = useState(0)
   const [tab, setTab] = useState('artwork')
   const [artworkFilter, setArtworkFilter] = useState('all') // 'all' | 'public' | 'private'
+  const [selectedArtworks, setSelectedArtworks] = useState(new Set())
+  const [selectedProducts, setSelectedProducts] = useState(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [sellTarget, setSellTarget] = useState(null)
   const [reuseTarget, setReuseTarget] = useState(null)
@@ -3804,12 +3970,62 @@ function ProfilePage({ user, profile: initialProfile }) {
   const BUSINESS_TIERS = ['merchant', 'brand', 'enterprise']
   const isBizAccount = BUSINESS_TIERS.includes(profile?.subscription_tier)
 
+  // ── Bulk artwork actions ────────────────────────────────────
+  const toggleSelectArtwork = (id) => setSelectedArtworks(prev => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s
+  })
+  const selectAllArtworks = () => {
+    const visible = artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public)
+    setSelectedArtworks(new Set(visible.map(a => a.id)))
+  }
+  const clearArtworkSelection = () => setSelectedArtworks(new Set())
+
+  const bulkPublishArtwork = async (isPublic) => {
+    if (!selectedArtworks.size) return
+    setBulkLoading(true)
+    const ids = [...selectedArtworks]
+    const { error } = await supabase.from('artwork').update({ is_public: isPublic }).in('id', ids).eq('user_id', user.id)
+    if (!error) setArtworks(prev => prev.map(a => ids.includes(a.id) ? { ...a, is_public: isPublic } : a))
+    clearArtworkSelection()
+    setBulkLoading(false)
+  }
+
+  const bulkDeleteArtwork = async () => {
+    if (!selectedArtworks.size) return
+    if (!window.confirm(`Delete ${selectedArtworks.size} artworks? This cannot be undone.`)) return
+    setBulkLoading(true)
+    const ids = [...selectedArtworks]
+    const { error } = await supabase.from('artwork').delete().in('id', ids).eq('user_id', user.id)
+    if (!error) setArtworks(prev => prev.filter(a => !ids.includes(a.id)))
+    clearArtworkSelection()
+    setBulkLoading(false)
+  }
+
+  // ── Bulk product actions ────────────────────────────────────
+  const toggleSelectProduct = (id) => setSelectedProducts(prev => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s
+  })
+  const selectAllProducts = () => setSelectedProducts(new Set(products.map(p => p.id)))
+  const clearProductSelection = () => setSelectedProducts(new Set())
+
+  const bulkDeleteProducts = async () => {
+    if (!selectedProducts.size) return
+    if (!window.confirm(`Delete ${selectedProducts.size} products? This cannot be undone.`)) return
+    setBulkLoading(true)
+    const ids = [...selectedProducts]
+    const { error } = await supabase.from('products').delete().in('id', ids).eq('user_id', user.id)
+    if (!error) setProducts(prev => prev.filter(p => !ids.includes(p.id)))
+    clearProductSelection()
+    setBulkLoading(false)
+  }
+
   const tabs = [
     ['artwork', `🎨 Artwork (${loadingArt ? '…' : artworks.length})`],
     ['shop', `🛍 Shop (${products.length})`],
     ...(isBizAccount ? [
       ['bulk', '⚡ Bulk Create'],
       ['analytics', '📊 Analytics'],
+      ['team', '👥 Team'],
     ] : []),
     ['about', '✦ About'],
     ['feed', '👥 Following Feed'],
@@ -3851,20 +4067,48 @@ function ProfilePage({ user, profile: initialProfile }) {
 
       {tab === 'artwork' && (
         <>
-          {/* Filter bar */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+          {/* Filter + bulk action bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {[['all', 'All'], ['public', '🌐 Published'], ['private', '🔒 Private']].map(([val, label]) => (
-                <button key={val} onClick={() => setArtworkFilter(val)}
+                <button key={val} onClick={() => { setArtworkFilter(val); clearArtworkSelection() }}
                   style={{ background: artworkFilter === val ? `${C.accent}25` : 'none', border: `1px solid ${artworkFilter === val ? C.accent + '66' : C.border}`, borderRadius: 8, padding: '6px 14px', color: artworkFilter === val ? C.accent : C.muted, fontSize: 12, fontWeight: artworkFilter === val ? 700 : 400, cursor: 'pointer' }}>
                   {label}
                 </button>
               ))}
+              {/* Select all / clear */}
+              <button onClick={selectedArtworks.size ? clearArtworkSelection : selectAllArtworks}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+                {selectedArtworks.size ? `✕ Clear (${selectedArtworks.size})` : '☐ Select All'}
+              </button>
             </div>
             <div style={{ fontSize: 12, color: C.muted }}>
               {artworks.filter(a => a.is_public).length} published · {artworks.filter(a => !a.is_public).length} private
             </div>
           </div>
+
+          {/* Bulk action bar — appears when items selected */}
+          {selectedArtworks.size > 0 && (
+            <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>{selectedArtworks.size} selected</span>
+              <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+                <button onClick={() => bulkPublishArtwork(true)} disabled={bulkLoading}
+                  style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '6px 14px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🌐 Publish All
+                </button>
+                <button onClick={() => bulkPublishArtwork(false)} disabled={bulkLoading}
+                  style={{ background: `${C.muted}12`, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🔒 Make Private
+                </button>
+                <button onClick={bulkDeleteArtwork} disabled={bulkLoading}
+                  style={{ background: `${C.red}12`, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 14px', color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🗑 Delete Selected
+                </button>
+                {bulkLoading && <span style={{ fontSize: 12, color: C.muted, alignSelf: 'center' }}>Working...</span>}
+              </div>
+            </div>
+          )}
+
           {featuredArtworks.length > 0 && (
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.gold, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>⭐ Featured</div>
@@ -3883,32 +4127,73 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
             </div>
           )}
-          <ArtworkGrid
-            artworks={artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public)}
-            loading={loadingArt}
-            isOwner={true}
-            onSell={setSellTarget}
-            onReuse={setReuseTarget}
-            onPublishToggle={handlePublishToggle}
-            onRefine={handleRefine}
-            onDelete={handleDelete}
-            onEdit={handleEditArtwork}
-          />
+
+          {/* Artwork grid with selectable overlay */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
+            {artworks.filter(a => artworkFilter === 'all' ? true : artworkFilter === 'public' ? a.is_public : !a.is_public).map(art => (
+              <div key={art.id} style={{ position: 'relative' }}>
+                {/* Checkbox overlay */}
+                <div onClick={() => toggleSelectArtwork(art.id)}
+                  style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, width: 22, height: 22, borderRadius: 6,
+                    background: selectedArtworks.has(art.id) ? C.accent : 'rgba(8,11,20,0.75)',
+                    border: `2px solid ${selectedArtworks.has(art.id) ? C.accent : 'rgba(255,255,255,0.3)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {selectedArtworks.has(art.id) && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>✓</span>}
+                </div>
+                {/* Dim selected cards */}
+                <div style={{ opacity: selectedArtworks.has(art.id) ? 0.85 : 1, outline: selectedArtworks.has(art.id) ? `2px solid ${C.accent}` : 'none', borderRadius: 16, transition: 'all 0.15s' }}>
+                  <ArtworkGrid
+                    artworks={[art]}
+                    loading={false}
+                    isOwner={true}
+                    onSell={setSellTarget}
+                    onReuse={setReuseTarget}
+                    onPublishToggle={handlePublishToggle}
+                    onRefine={handleRefine}
+                    onDelete={handleDelete}
+                    onEdit={handleEditArtwork}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          {loadingArt && <Spinner cards={6} />}
         </>
       )}
 
       {tab === 'shop' && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{products.length} product{products.length !== 1 ? 's' : ''} listed</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Click ✏️ Edit on any product to update details or remove it</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{products.length} product{products.length !== 1 ? 's' : ''} listed</div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Click ✏️ Edit on any product to update details</div>
+              </div>
+              {products.length > 0 && (
+                <button onClick={selectedProducts.size ? clearProductSelection : selectAllProducts}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+                  {selectedProducts.size ? `✕ Clear (${selectedProducts.size})` : '☐ Select All'}
+                </button>
+              )}
             </div>
             <button onClick={() => navigate('/create')}
               style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               + Create Product
             </button>
           </div>
+
+          {/* Bulk action bar for products */}
+          {selectedProducts.size > 0 && (
+            <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.accent }}>{selectedProducts.size} selected</span>
+              <button onClick={bulkDeleteProducts} disabled={bulkLoading}
+                style={{ background: `${C.red}12`, border: `1px solid ${C.red}33`, borderRadius: 8, padding: '6px 14px', color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                🗑 Delete Selected
+              </button>
+              {bulkLoading && <span style={{ fontSize: 12, color: C.muted }}>Working...</span>}
+            </div>
+          )}
+
           {products.length === 0 ? (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>🛍</div>
@@ -3918,13 +4203,25 @@ function ProfilePage({ user, profile: initialProfile }) {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
               {products.map(p => (
-                <OwnerShopCard
-                  key={p.id}
-                  product={p}
-                  user={user}
-                  onEdit={(updated) => setProducts(prev => prev.map(x => x.id === updated.id ? updated : x))}
-                  onDelete={(id) => setProducts(prev => prev.filter(x => x.id !== id))}
-                />
+                <div key={p.id} style={{ position: 'relative' }}>
+                  {/* Product checkbox */}
+                  <div onClick={() => toggleSelectProduct(p.id)}
+                    style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, width: 22, height: 22, borderRadius: 6,
+                      background: selectedProducts.has(p.id) ? C.accent : 'rgba(8,11,20,0.75)',
+                      border: `2px solid ${selectedProducts.has(p.id) ? C.accent : 'rgba(255,255,255,0.3)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {selectedProducts.has(p.id) && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <div style={{ outline: selectedProducts.has(p.id) ? `2px solid ${C.accent}` : 'none', borderRadius: 14, opacity: selectedProducts.has(p.id) ? 0.85 : 1, transition: 'all 0.15s' }}>
+                    <OwnerShopCard
+                      key={p.id}
+                      product={p}
+                      user={user}
+                      onEdit={(updated) => setProducts(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                      onDelete={(id) => setProducts(prev => prev.filter(x => x.id !== id))}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -4012,6 +4309,10 @@ function ProfilePage({ user, profile: initialProfile }) {
 
       {tab === 'analytics' && isBizAccount && (
         <AnalyticsTab user={user} products={products} />
+      )}
+
+      {tab === 'team' && isBizAccount && (
+        <TeamTab user={user} profile={profile} />
       )}
 
       {tab === 'feed' && (
