@@ -5751,8 +5751,10 @@ export default function App() {
             </Suspense>
           </RoutedErrorBoundary>
         </div>
-        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
-        {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
+        <Suspense fallback={null}>
+          {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+          {needsProfileSetup && <ProfileSetup user={user} onComplete={(p) => setProfile(prev => ({ ...prev, ...p }))} />}
+        </Suspense>
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${C.border}`, padding: '20px', textAlign: 'center', marginTop: 40 }}>
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12, color: C.muted }}>
