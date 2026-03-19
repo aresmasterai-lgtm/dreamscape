@@ -1022,7 +1022,8 @@ function DreamChat({ user, onSignIn }) {
 
       if (!mountedRef.current) return
       if (data.error) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }])
+        const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
+        setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, something went wrong. Please try again. (${errorCode})`, isError: true }])
         setLoading(false)
         return
       }
@@ -1112,11 +1113,22 @@ function DreamChat({ user, onSignIn }) {
           }
         }
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error || 'Image generation failed.'} Try rephrasing or click Generate again.` }])
+        const code = data.errorCode || ''
+        const type = data.errorType || ''
+        let msg
+        if (type === 'content_policy') {
+          msg = `⚠️ That image was blocked by the AI model's content policy — usually triggered by real people, trademarked characters, or sensitive content. Try rephrasing your idea without specific names.`
+        } else if (type === 'unavailable') {
+          msg = `⚠️ Image generation is temporarily unavailable. Please try again in a moment.${code ? ` (${code})` : ''}`
+        } else {
+          msg = `⚠️ Image generation failed. Try rephrasing or click Generate again.${code ? ` (${code})` : ''}`
+        }
+        setMessages(prev => [...prev, { role: 'assistant', content: msg, isError: true }])
       }
     } catch {
       if (mountedRef.current) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Connection error during generation. Please try again.' }])
+        const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Connection error during generation. Please try again. (${errorCode})`, isError: true }])
       }
     } finally {
       if (mountedRef.current) setGeneratingIndex(null)

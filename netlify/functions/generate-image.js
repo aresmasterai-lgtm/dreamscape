@@ -94,7 +94,13 @@ async function tryImagen(model, prompt, apiKey) {
   )
   const data = await res.json()
   if (data.error?.code === 404) { cachedImagenModel = null; cacheTime = 0; return null }
-  if (data.error) throw new Error(data.error.message)
+  if (data.error) {
+    const msg = data.error.message || ''
+    if (msg.toLowerCase().includes('safety') || msg.toLowerCase().includes('policy') || msg.toLowerCase().includes('person') || msg.toLowerCase().includes('public figure') || data.error.code === 400) {
+      throw Object.assign(new Error(msg), { errorType: 'content_policy' })
+    }
+    throw new Error(msg)
+  }
   const p = data.predictions?.[0]
   return p?.bytesBase64Encoded ? { imageData: p.bytesBase64Encoded, mimeType: p.mimeType || 'image/png' } : null
 }
@@ -166,12 +172,25 @@ export default async (req) => {
       if (result) return corsResponse({ success: true, imageData: result.imageData, mimeType: result.mimeType })
     }
 
-    return corsResponse({ success: false, error: 'Image generation is temporarily unavailable.' })
+    const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
+    console.error(`generate-image unavailable [${errorCode}]`)
+    return corsResponse({ success: false, error: 'unavailable', errorType: 'unavailable', errorCode })
 
   } catch (err) {
     if (err instanceof Response) return err
-    console.error('generate-image error:', err.message)
-    return corsResponse({ error: err.message }, 500)
+    const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
+    const isPolicy = err.errorType === 'content_policy' ||
+      (err.message || '').toLowerCase().includes('safety') ||
+      (err.message || '').toLowerCase().includes('policy') ||
+      (err.message || '').toLowerCase().includes('person') ||
+      (err.message || '').toLowerCase().includes('public figure')
+    console.error(`generate-image error [${errorCode}]:`, err.message)
+    return corsResponse({
+      success: false,
+      error: isPolicy ? 'content_policy' : err.message,
+      errorType: isPolicy ? 'content_policy' : 'server_error',
+      errorCode,
+    }, isPolicy ? 200 : 500)
   }
 }
 

@@ -68,6 +68,24 @@ export default async (req) => {
     }
 
     const { messages } = await req.json()
+
+    // Check last user message for real public figures — return friendly decline before hitting API
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    const lastText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.toLowerCase() : ''
+    // Well-known figures that image models consistently refuse
+    const BLOCKED_FIGURES = [
+      'biden','trump','obama','clinton','bush','reagan','putin','xi jinping','kim jong',
+      'pope','queen elizabeth','king charles','zelensky','modi','macron','boris johnson',
+      'elon musk','jeff bezos','bill gates','mark zuckerberg','tim cook','oprah',
+      'taylor swift','beyonce','drake','kanye','eminem','lady gaga','rihanna',
+    ]
+    if (BLOCKED_FIGURES.some(name => lastText.includes(name))) {
+      return new Response(JSON.stringify({
+        reply: "I can't generate images of real people — most AI image models block this to avoid misuse. Try describing the vibe instead — 'a confident world leader on a magic carpet through space' gets you something just as cool without the restrictions! 🎨",
+        generationPrompt: null,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+
     const apiKey = process.env.ANTHROPIC_API_KEY
     const model  = await resolveModel(apiKey)
 
