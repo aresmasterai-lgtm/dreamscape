@@ -1024,6 +1024,11 @@ function DreamChat({ user, onSignIn }) {
       if (data.error) {
         const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
         setMessages(prev => [...prev, { role: 'assistant', content: `Sorry, something went wrong. Please try again. (${errorCode})`, isError: true }])
+        window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
+          category: 'generation',
+          message: `Dream AI error (${errorCode})\n\nError: ${JSON.stringify(data.error).slice(0, 200)}\nPage: ${window.location.pathname}`,
+          page: window.location.pathname,
+        }}))
         setLoading(false)
         return
       }
@@ -1120,8 +1125,18 @@ function DreamChat({ user, onSignIn }) {
           msg = `⚠️ That image was blocked by the AI model's content policy — usually triggered by real people, trademarked characters, or sensitive content. Try rephrasing your idea without specific names.`
         } else if (type === 'unavailable') {
           msg = `⚠️ Image generation is temporarily unavailable. Please try again in a moment.${code ? ` (${code})` : ''}`
+          window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
+            category: 'generation',
+            message: `Generation unavailable${code ? ` (${code})` : ''}\n\nPrompt: ${typeof prompt === 'string' ? prompt.slice(0, 300) : ''}`,
+            page: window.location.pathname,
+          }}))
         } else {
           msg = `⚠️ Image generation failed. Try rephrasing or click Generate again.${code ? ` (${code})` : ''}`
+          window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
+            category: 'generation',
+            message: `Generation failed${code ? ` (${code})` : ''}\n\nError: ${data.error || 'unknown'}\nPrompt: ${typeof prompt === 'string' ? prompt.slice(0, 300) : ''}`,
+            page: window.location.pathname,
+          }}))
         }
         setMessages(prev => [...prev, { role: 'assistant', content: msg, isError: true }])
       }
@@ -1129,6 +1144,11 @@ function DreamChat({ user, onSignIn }) {
       if (mountedRef.current) {
         const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`
         setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Connection error during generation. Please try again. (${errorCode})`, isError: true }])
+        window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
+          category: 'generation',
+          message: `Connection error during generation (${errorCode})\n\nPrompt: ${typeof prompt === 'string' ? prompt.slice(0, 300) : ''}`,
+          page: window.location.pathname,
+        }}))
       }
     } finally {
       if (mountedRef.current) setGeneratingIndex(null)
@@ -3512,22 +3532,73 @@ function AnalyticsTab({ user, products }) {
 }
 
 // ── Bulk Create Tab (Business tiers) ─────────────────────────
+async function bulkGetAuthHeader() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return { 'Authorization': `Bearer ${session.access_token}` }
+  } catch {}
+  return {}
+}
+
+// Printful catalog keyword matchers — used to find the right product from live catalog
+const BULK_PRODUCT_MATCHERS = {
+  tshirt:    { kw: ['bella+canvas 3001','unisex jersey short sleeve','unisex staple t-shirt','heavy cotton tee','classic unisex crewneck t'], fallback: ['tee','t-shirt','unisex t'] },
+  hoodie:    { kw: ['unisex heavy blend hooded sweatshirt','pullover hoodie','unisex fleece hoodie'], fallback: ['hoodie','pullover'] },
+  mug:       { kw: ['white glossy mug','white ceramic mug'], fallback: ['mug','ceramic cup'] },
+  poster:    { kw: ['enhanced matte paper poster','poster (in)'], fallback: ['poster','art print'] },
+  tote:      { kw: ['tote bag','heavy tote'], fallback: ['tote','canvas bag'] },
+  phonecase: { kw: ['tough case for iphone','snap case for iphone'], fallback: ['phone case','iphone case'] },
+}
+
+function findBestCatalogMatch(catalog, productTypeId) {
+  const matchers = BULK_PRODUCT_MATCHERS[productTypeId]
+  if (!matchers) return null
+  const norm = (s) => (s || '').toLowerCase().trim()
+  // Try primary keywords first
+  for (const kw of matchers.kw) {
+    const match = catalog.find(p => norm(p.model).includes(kw))
+    if (match) return match
+  }
+  // Try fallback keywords
+  for (const kw of matchers.fallback) {
+    const match = catalog.find(p => norm(p.model).includes(kw) || norm(p.type).includes(kw))
+    if (match) return match
+  }
+  return null
+}
+
 function BulkCreateTab({ user, artworks, profile }) {
   const [selectedArtworks, setSelectedArtworks] = useState([])
   const [selectedProducts, setSelectedProducts] = useState([])
   const [marginPct, setMarginPct] = useState(40)
-  const [queued, setQueued] = useState([]) // { artworkId, productType, status }
+  const [queued, setQueued] = useState([])
   const [running, setRunning] = useState(false)
   const [done, setDone] = useState(false)
+  const [catalog, setCatalog] = useState([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [errorLog, setErrorLog] = useState([])
 
   const PRODUCT_TYPES = [
-    { id: 'tshirt',     label: 'T-Shirt',     icon: '👕', baseCost: 14.95 },
-    { id: 'hoodie',     label: 'Hoodie',      icon: '🧥', baseCost: 27.95 },
-    { id: 'mug',        label: 'Mug',         icon: '☕', baseCost: 9.95  },
-    { id: 'poster',     label: 'Poster',      icon: '🖼',  baseCost: 11.95 },
-    { id: 'tote',       label: 'Tote Bag',    icon: '🛍',  baseCost: 12.95 },
-    { id: 'phonecase',  label: 'Phone Case',  icon: '📱', baseCost: 14.95 },
+    { id: 'tshirt',    label: 'T-Shirt',    icon: '👕', baseCost: 14.95 },
+    { id: 'hoodie',    label: 'Hoodie',     icon: '🧥', baseCost: 27.95 },
+    { id: 'mug',       label: 'Mug',        icon: '☕', baseCost: 9.95  },
+    { id: 'poster',    label: 'Poster',     icon: '🖼',  baseCost: 11.95 },
+    { id: 'tote',      label: 'Tote Bag',   icon: '🛍',  baseCost: 12.95 },
+    { id: 'phonecase', label: 'Phone Case', icon: '📱', baseCost: 14.95 },
   ]
+
+  useEffect(() => { loadCatalog() }, [])
+
+  const loadCatalog = async () => {
+    setCatalogLoading(true)
+    try {
+      const h = await bulkGetAuthHeader()
+      const res = await fetch('/api/printful?action=catalog&offset=0', { headers: h })
+      const data = await res.json()
+      setCatalog(data.products || [])
+    } catch {}
+    setCatalogLoading(false)
+  }
 
   const toggleArtwork = (id) => setSelectedArtworks(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   const toggleProduct = (id) => setSelectedProducts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -3544,28 +3615,120 @@ function BulkCreateTab({ user, artworks, profile }) {
     const items = []
     for (const artId of selectedArtworks) {
       for (const prodId of selectedProducts) {
-        items.push({ artworkId: artId, productType: prodId, status: 'queued' })
+        items.push({ artworkId: artId, productType: prodId, status: 'queued', error: null })
       }
     }
     setQueued(items)
     setDone(false)
+    setErrorLog([])
   }
 
+  const updateItem = (i, patch) => setQueued(prev => prev.map((q, idx) => idx === i ? { ...q, ...patch } : q))
+
   const handleRun = async () => {
-    if (!queued.length) return
+    if (!queued.length || running) return
     setRunning(true)
-    // Process each item — in real implementation these would call CreateProductModal logic
-    // For now mark as processing with delay to simulate the queue
+    setErrorLog([])
+    const h = await bulkGetAuthHeader()
+    const errors = []
+
     for (let i = 0; i < queued.length; i++) {
-      setQueued(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'processing' } : q))
-      await new Promise(r => setTimeout(r, 800))
-      setQueued(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'done' } : q))
+      const item = queued[i]
+      if (item.status === 'done') continue
+      updateItem(i, { status: 'processing', error: null })
+
+      try {
+        const art = artworks.find(a => a.id === item.artworkId)
+        if (!art?.image_url) throw new Error('Artwork has no image')
+
+        const pt = PRODUCT_TYPES.find(p => p.id === item.productType)
+        if (!pt) throw new Error('Unknown product type')
+
+        // 1. Find the catalog product
+        const catalogProduct = findBestCatalogMatch(catalog, item.productType)
+        if (!catalogProduct) throw new Error(`No Printful product found for ${pt.label}`)
+
+        // 2. Load variants to get White + Black IDs
+        const varRes  = await fetch(`/api/printful?action=catalogProduct&id=${catalogProduct.id}`, { headers: h })
+        const varData = await varRes.json()
+        const variants = varData.variants || []
+
+        // Build color map
+        const colorMap = {}
+        for (const v of variants) {
+          const name = (v.color || 'Default').toLowerCase()
+          if (!colorMap[name]) colorMap[name] = { variantIds: [] }
+          colorMap[name].variantIds.push(v.id)
+        }
+
+        // Pick White + Black by default, fall back to first two colors
+        const white = colorMap['white']
+        const black = colorMap['black']
+        const defaults = [white, black].filter(Boolean)
+        if (!defaults.length) {
+          const firstTwo = Object.values(colorMap).slice(0, 2)
+          defaults.push(...firstTwo)
+        }
+        const allVariantIds = defaults.flatMap(c => c.variantIds)
+        if (!allVariantIds.length) throw new Error('No variants available')
+
+        // 3. Create the Printful product
+        const price = calcPrice(pt.baseCost)
+        const title = `${art.title || 'My Design'} — ${pt.label}`
+        const createRes  = await fetch('/api/printful?action=create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({ title, description: '', variantIds: allVariantIds, imageUrl: art.image_url }),
+        })
+        const createData = await createRes.json()
+        if (!createRes.ok) throw new Error(createData.error?.message || 'Printful create failed')
+
+        const printfulId = createData.id || createData.sync_product?.id || ''
+
+        // 4. Save to Supabase
+        await supabase.from('products').insert({
+          user_id:               user.id,
+          artwork_id:            art.id,
+          title,
+          description:           '',
+          product_type:          catalogProduct.type,
+          price:                 price,
+          printful_product_id:   String(printfulId),
+          printful_variant_ids:  allVariantIds.map(String),
+          mockup_url:            art.image_url, // real mockup generated async below
+          tags:                  art.style_tags || [],
+        })
+
+        // 5. Kick off mockup generation in background (don't wait)
+        const firstColorVariants = defaults[0]?.variantIds.slice(0, 3) || []
+        if (firstColorVariants.length) {
+          fetch('/api/printful?action=mockupCreate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...h },
+            body: JSON.stringify({ catalogProductId: catalogProduct.id, variantIds: firstColorVariants, imageUrl: art.image_url }),
+          }).catch(() => {})
+        }
+
+        updateItem(i, { status: 'done' })
+
+      } catch (err) {
+        const msg = err.message || 'Unknown error'
+        updateItem(i, { status: 'error', error: msg })
+        errors.push({ index: i, message: msg })
+      }
+
+      // Rate limit — 1 item per 2.5s to stay within Printful API limits
+      if (i < queued.length - 1) await new Promise(r => setTimeout(r, 2500))
     }
+
+    setErrorLog(errors)
     setRunning(false)
     setDone(true)
   }
 
   const pubArtworks = artworks.filter(a => a.is_public && a.image_url)
+  const doneCount  = queued.filter(q => q.status === 'done').length
+  const errorCount = queued.filter(q => q.status === 'error').length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -3574,9 +3737,16 @@ function BulkCreateTab({ user, artworks, profile }) {
           <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 4 }}>⚡ Bulk Product Creation</h3>
           <p style={{ fontSize: 13, color: C.muted }}>Select artwork + product types to create multiple listings at once.</p>
         </div>
-        {done && <div style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 10, padding: '8px 16px', fontSize: 13, color: C.teal, fontWeight: 600 }}>✓ All products created!</div>}
+        {done && (
+          <div style={{ background: errorCount > 0 ? `${C.gold}18` : `${C.teal}18`, border: `1px solid ${errorCount > 0 ? C.gold+'44' : C.teal+'44'}`, borderRadius: 10, padding: '8px 16px', fontSize: 13, color: errorCount > 0 ? C.gold : C.teal, fontWeight: 600 }}>
+            {errorCount > 0 ? `⚠️ ${doneCount} created, ${errorCount} failed` : `✓ All ${doneCount} products created!`}
+          </div>
+        )}
       </div>
 
+      {catalogLoading ? (
+        <Spinner label="Loading Printful catalog..." />
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         {/* Step 1 — Select Artwork */}
         <div>
@@ -3611,15 +3781,18 @@ function BulkCreateTab({ user, artworks, profile }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {PRODUCT_TYPES.map(pt => {
-              const sel = selectedProducts.includes(pt.id)
+              const sel   = selectedProducts.includes(pt.id)
               const price = calcPrice(pt.baseCost)
+              const match = findBestCatalogMatch(catalog, pt.id)
               return (
-                <div key={pt.id} onClick={() => toggleProduct(pt.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: sel ? `${C.accent}12` : C.card, border: `1px solid ${sel ? C.accent + '55' : C.border}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all 0.15s' }}>
+                <div key={pt.id} onClick={() => match && toggleProduct(pt.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: sel ? `${C.accent}12` : C.card, border: `1px solid ${sel ? C.accent+'55' : C.border}`, borderRadius: 10, padding: '10px 14px', cursor: match ? 'pointer' : 'not-allowed', opacity: match ? 1 : 0.4, transition: 'all 0.15s' }}>
                   <span style={{ fontSize: 18 }}>{pt.icon}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: sel ? C.accent : C.text }}>{pt.label}</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>Base ${pt.baseCost} · Sell ${price.toFixed(2)}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>
+                      {match ? `${match.model} · Base $${pt.baseCost} · Sell $${price.toFixed(2)}` : 'Not available in catalog'}
+                    </div>
                   </div>
                   {sel && <span style={{ color: C.accent, fontSize: 14, fontWeight: 700 }}>✓</span>}
                 </div>
@@ -3628,6 +3801,7 @@ function BulkCreateTab({ user, artworks, profile }) {
           </div>
         </div>
       </div>
+      )}
 
       {/* Step 3 — Margin */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
@@ -3637,21 +3811,19 @@ function BulkCreateTab({ user, artworks, profile }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <input type="range" min={20} max={80} value={marginPct} onChange={e => setMarginPct(Number(e.target.value))}
             style={{ flex: 1, accentColor: C.accent }} />
-          <div style={{ fontSize: 13, color: C.text, minWidth: 80, textAlign: 'right' }}>
-            {marginPct}% margin
-          </div>
+          <div style={{ fontSize: 13, color: C.text, minWidth: 80, textAlign: 'right' }}>{marginPct}% margin</div>
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>
-          Prices calculated automatically: T-Shirt at {marginPct}% margin = ${calcPrice(14.95).toFixed(2)}, Hoodie = ${calcPrice(27.95).toFixed(2)}
+          T-Shirt → ${calcPrice(14.95).toFixed(2)} · Hoodie → ${calcPrice(27.95).toFixed(2)} · Mug → ${calcPrice(9.95).toFixed(2)}
         </div>
       </div>
 
-      {/* Queue preview + run */}
+      {/* Queue preview */}
       {totalItems > 0 && queued.length === 0 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: `${C.accent}0C`, border: `1px solid ${C.accent}33`, borderRadius: 14, padding: '16px 20px' }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Ready to create {totalItems} products</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{selectedArtworks.length} artwork{selectedArtworks.length !== 1 ? 's' : ''} × {selectedProducts.length} product type{selectedProducts.length !== 1 ? 's' : ''}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Ready to create {totalItems} product{totalItems !== 1 ? 's' : ''}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{selectedArtworks.length} artwork{selectedArtworks.length !== 1 ? 's' : ''} × {selectedProducts.length} product type{selectedProducts.length !== 1 ? 's' : ''} · ~{Math.ceil(totalItems * 2.5 / 60)} min to complete</div>
           </div>
           <button onClick={handleQueue}
             style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -3663,31 +3835,57 @@ function BulkCreateTab({ user, artworks, profile }) {
       {/* Queue list */}
       {queued.length > 0 && (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Queue — {queued.length} items</div>
-            {!running && !done && (
-              <button onClick={handleRun}
-                style={{ background: `linear-gradient(135deg, ${C.teal}, #00A888)`, border: 'none', borderRadius: 10, padding: '8px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                ⚡ Run All
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Queue — {queued.length} items</div>
+              {running && <div style={{ fontSize: 11, color: C.gold, marginTop: 3 }}>⏳ Processing {doneCount + errorCount + 1} of {queued.length}… please keep this tab open</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {!running && !done && (
+                <button onClick={handleRun}
+                  style={{ background: `linear-gradient(135deg, ${C.teal}, #00A888)`, border: 'none', borderRadius: 10, padding: '8px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ⚡ Run All
+                </button>
+              )}
+              {!running && (
+                <button onClick={() => { setQueued([]); setDone(false); setErrorLog([]) }}
+                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+                  Clear
+                </button>
+              )}
+              {done && errorCount > 0 && (
+                <button onClick={async () => {
+                  setQueued(prev => prev.map(q => q.status === 'error' ? { ...q, status: 'queued', error: null } : q))
+                  setDone(false)
+                  await new Promise(r => setTimeout(r, 100))
+                  handleRun()
+                }} style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 10, padding: '8px 14px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  ↻ Retry Failed
+                </button>
+              )}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
             {queued.map((item, i) => {
               const art = artworks.find(a => a.id === item.artworkId)
-              const pt = PRODUCT_TYPES.find(p => p.id === item.productType)
-              const statusColor = item.status === 'done' ? C.teal : item.status === 'processing' ? C.gold : C.muted
-              const statusIcon = item.status === 'done' ? '✓' : item.status === 'processing' ? '⏳' : '○'
+              const pt  = PRODUCT_TYPES.find(p => p.id === item.productType)
+              const statusColor = item.status === 'done' ? C.teal : item.status === 'error' ? C.red : item.status === 'processing' ? C.gold : C.muted
+              const statusIcon  = item.status === 'done' ? '✓' : item.status === 'error' ? '✕' : item.status === 'processing' ? '⏳' : '○'
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.bg, borderRadius: 8 }}>
-                  <span style={{ color: statusColor, fontSize: 14, width: 16, textAlign: 'center' }}>{statusIcon}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.bg, borderRadius: 8, border: item.status === 'error' ? `1px solid ${C.red}33` : '1px solid transparent' }}>
+                  <span style={{ color: statusColor, fontSize: 13, width: 16, textAlign: 'center', flexShrink: 0 }}>{statusIcon}</span>
                   <div style={{ width: 28, height: 28, borderRadius: 6, overflow: 'hidden', background: C.border, flexShrink: 0 }}>
                     {art?.image_url && <img src={art.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                   </div>
-                  <div style={{ flex: 1, fontSize: 12, color: item.status === 'done' ? C.text : C.muted }}>
-                    {art?.title || 'Artwork'} → {pt?.icon} {pt?.label}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: item.status === 'done' ? C.text : C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {art?.title || 'Artwork'} → {pt?.icon} {pt?.label}
+                    </div>
+                    {item.error && <div style={{ fontSize: 10, color: C.red, marginTop: 2 }}>{item.error}</div>}
                   </div>
-                  <div style={{ fontSize: 11, color: statusColor, fontWeight: 600, textTransform: 'capitalize' }}>{item.status}</div>
+                  <div style={{ fontSize: 11, color: statusColor, fontWeight: 600, flexShrink: 0, textTransform: 'capitalize' }}>
+                    {item.status === 'processing' ? 'Creating...' : item.status}
+                  </div>
                 </div>
               )
             })}
@@ -4866,17 +5064,22 @@ function FloatingFeedback({ user }) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [pulse, setPulse] = useState(false)
+  const [errorBanner, setErrorBanner] = useState(null) // { message, code }
 
   useEffect(() => {
-    const onCrash = (e) => {
-      setCategory('bug')
-      setDescription('Page crashed: ' + (e.detail?.message || 'Unknown error'))
+    const onError = (e) => {
+      const cat = e.detail?.category || 'bug'
+      const msg = e.detail?.message || 'Unknown error'
+      setCategory(cat)
+      setDescription(msg)
       setPageUrl(e.detail?.page || window.location.pathname)
       setPulse(true)
-      setOpen(true)
+      setErrorBanner(msg)
+      // Auto-dismiss banner after 8s if user doesn't click
+      setTimeout(() => setErrorBanner(null), 8000)
     }
-    window.addEventListener('dreamscape:error', onCrash)
-    return () => window.removeEventListener('dreamscape:error', onCrash)
+    window.addEventListener('dreamscape:error', onError)
+    return () => window.removeEventListener('dreamscape:error', onError)
   }, [])
 
   const openModal = () => {
@@ -4884,6 +5087,14 @@ function FloatingFeedback({ user }) {
     setOpen(true)
     setSubmitted(false)
     setPulse(false)
+    setErrorBanner(null)
+  }
+
+  const openFromBanner = () => {
+    setOpen(true)
+    setSubmitted(false)
+    setPulse(false)
+    setErrorBanner(null)
   }
 
   const submit = async () => {
@@ -4913,7 +5124,28 @@ function FloatingFeedback({ user }) {
 
   return (
     <>
-      <style>{`@keyframes feedbackPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,200,66,0.6)}50%{box-shadow:0 0 0 10px rgba(245,200,66,0)}}`}</style>
+      <style>{`@keyframes feedbackPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,200,66,0.6)}50%{box-shadow:0 0 0 10px rgba(245,200,66,0)}}@keyframes bannerSlide{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+
+      {/* Error banner — slides up above feedback button on error */}
+      {errorBanner && !open && (
+        <div style={{ position: 'fixed', bottom: 64, left: 20, zIndex: 9000, maxWidth: 300, background: `${C.red}EE`, backdropFilter: 'blur(12px)', border: `1px solid ${C.red}`, borderRadius: 14, padding: '10px 14px', animation: 'bannerSlide 0.25s ease', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4 }}>⚠️ Something went wrong</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 1.4, marginBottom: 8 }}>
+            A report has been pre-filled — add any extra detail and submit.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={openFromBanner}
+              style={{ flex: 1, background: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', color: C.red, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+              Send Report
+            </button>
+            <button onClick={() => setErrorBanner(null)}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       <button onClick={openModal} title="Send feedback or report a bug"
         style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 9000, background: 'rgba(14,18,32,0.92)', backdropFilter: 'blur(16px)', border: `1px solid ${pulse ? C.gold : C.gold + '55'}`, borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 7, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.4)', animation: pulse ? 'feedbackPulse 1.5s ease-in-out infinite' : 'none', transition: 'border-color 0.2s' }}>
         🐛 <span>Feedback</span>
