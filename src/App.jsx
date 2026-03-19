@@ -1,7 +1,24 @@
-import { useState, useEffect, useRef, useCallback, Component } from 'react'
+import { useState, useEffect, useRef, useCallback, Component, lazy, Suspense } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth'
 import { supabase } from './lib/supabase'
+
+// ── Code-split routes — only loaded when visited ──────────────
+const AuthModal         = lazy(() => import('./components/AuthModal'))
+const ProfileSetup      = lazy(() => import('./components/ProfileSetup'))
+const Marketplace       = lazy(() => import('./components/Marketplace'))
+const Gallery           = lazy(() => import('./components/Gallery'))
+const CreateProductModal = lazy(() => import('./components/CreateProductModal'))
+const OrderHistory      = lazy(() => import('./components/OrderHistory'))
+const Pricing           = lazy(() => import('./components/Pricing'))
+const Admin             = lazy(() => import('./components/Admin'))
+const Privacy           = lazy(() => import('./components/Privacy'))
+const Sitemap           = lazy(() => import('./components/Sitemap'))
+const Blog              = lazy(() => import('./components/Blog'))
+const Terms             = lazy(() => import('./components/Terms'))
+const Contact           = lazy(() => import('./components/Contact'))
+const BlogPost          = lazy(() => import('./components/BlogPost'))
+const Channels          = lazy(() => import('./components/Channels'))
 
 // ── Auth header helper ────────────────────────────────────────
 // Attaches the user's JWT to every API call so Netlify functions
@@ -17,21 +34,6 @@ async function getAuthHeader() {
 }
 
 
-import AuthModal from './components/AuthModal'
-import ProfileSetup from './components/ProfileSetup'
-import Marketplace from './components/Marketplace'
-import Channels from './components/Channels'
-import Gallery from './components/Gallery'
-import CreateProductModal from './components/CreateProductModal'
-import OrderHistory from './components/OrderHistory'
-import Pricing from './components/Pricing'
-import Admin from './components/Admin'
-import Privacy from './components/Privacy'
-import Sitemap from './components/Sitemap'
-import Blog from './components/Blog'
-import Terms from './components/Terms'
-import Contact from './components/Contact'
-import BlogPost from './components/BlogPost'
 
 
 // ── Error Boundary ────────────────────────────────────────────
@@ -296,6 +298,7 @@ async function checkProductLimit(userId, tier) {
 
 // ── Starfield Background ──────────────────────────────────────
 // All random data computed once at module level — never inside render
+// ── Pre-computed star data (stable across renders) ────────────
 const STARS = Array.from({ length: 120 }, (_, i) => ({
   id: i,
   top:      Math.random() * 100,
@@ -306,6 +309,9 @@ const STARS = Array.from({ length: 120 }, (_, i) => ({
   opacity:  Math.random() * 0.8 + 0.15,
   color:    ['#ffffff','#e0d7ff','#c4b5fd','#67e8f9','#f0abfc','#fde68a','#a5f3fc'][Math.floor(Math.random() * 7)],
 }))
+
+// Fewer stars for mobile — pre-computed so they're stable
+const STARS_MOBILE = STARS.slice(0, 30)
 
 const SPARKLES = Array.from({ length: 25 }, (_, i) => ({
   id: i,
@@ -319,6 +325,68 @@ const SPARKLES = Array.from({ length: 25 }, (_, i) => ({
 }))
 
 function StarField() {
+  // Detect mobile once on mount — avoids re-renders
+  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+
+  if (isMobile) return <StarFieldMobile />
+  return <StarFieldDesktop />
+}
+
+// ── Mobile StarField — GPU-safe, no blur filters ─────────────
+// Uses CSS-only gradients instead of filter:blur(), no planets,
+// reduced star count, slower animations, will-change: transform.
+function StarFieldMobile() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#030508' }}>
+      <style>{`
+        @keyframes twinkle {
+          0%,100% { opacity: var(--op); }
+          50%      { opacity: calc(var(--op) * 0.3); }
+        }
+        @keyframes mobileNebula {
+          0%,100% { opacity: var(--nb); }
+          50%      { opacity: calc(var(--nb) * 1.2); }
+        }
+      `}</style>
+
+      {/* 2 static nebula layers — NO blur filter, pure CSS gradient */}
+      <div style={{ '--nb': 0.85, position: 'absolute', top: '-20%', left: '-15%', width: '80%', height: '80%',
+        background: 'radial-gradient(ellipse 55% 60% at 40% 40%, rgba(88,28,220,0.45) 0%, rgba(124,92,252,0.28) 30%, transparent 65%)',
+        animation: 'mobileNebula 12s ease-in-out infinite',
+        willChange: 'opacity',
+      }} />
+      <div style={{ '--nb': 0.75, position: 'absolute', bottom: '-20%', right: '-15%', width: '80%', height: '75%',
+        background: 'radial-gradient(ellipse 50% 55% at 60% 55%, rgba(219,39,119,0.38) 0%, rgba(168,85,247,0.22) 35%, transparent 65%)',
+        animation: 'mobileNebula 16s ease-in-out infinite 4s',
+        willChange: 'opacity',
+      }} />
+      <div style={{ '--nb': 0.6, position: 'absolute', top: '20%', right: '-5%', width: '55%', height: '55%',
+        background: 'radial-gradient(ellipse 50% 50% at 55% 40%, rgba(14,165,233,0.3) 0%, rgba(0,212,170,0.18) 40%, transparent 68%)',
+        animation: 'mobileNebula 20s ease-in-out infinite 8s',
+        willChange: 'opacity',
+      }} />
+
+      {/* 30 point stars — opacity-only animation, no scale/blur */}
+      {STARS_MOBILE.map(s => (
+        <div key={s.id} style={{
+          position: 'absolute',
+          top: `${s.top}%`, left: `${s.left}%`,
+          width: s.size, height: s.size,
+          borderRadius: '50%',
+          background: s.color,
+          '--op': s.opacity,
+          opacity: s.opacity,
+          animation: `twinkle ${s.dur * 1.5}s ease-in-out infinite`,
+          animationDelay: `${s.delay}s`,
+          willChange: 'opacity',
+        }} />
+      ))}
+    </div>
+  )
+}
+
+// ── Desktop StarField — full experience ───────────────────────
+function StarFieldDesktop() {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#030508' }}>
       <style>{`
@@ -364,116 +432,86 @@ function StarField() {
         }
       `}</style>
 
-      {/* ── Layer 1: Giant diffuse nebula base — sets the overall tone ── */}
-      {/* Purple/indigo dominant — fills top-left third */}
+      {/* Layer 1 — Giant diffuse nebula base */}
       <div style={{ '--nb': 0.9, position: 'absolute', top: '-30%', left: '-20%', width: '90%', height: '90%',
         background: 'radial-gradient(ellipse 55% 60% at 40% 40%, rgba(88,28,220,0.55) 0%, rgba(124,92,252,0.4) 18%, rgba(75,47,208,0.25) 35%, rgba(99,60,200,0.12) 55%, transparent 72%)',
         filter: 'blur(55px)', animation: 'nebulaFloat1 32s ease-in-out infinite, nebulaBreath 11s ease-in-out infinite' }} />
-
-      {/* Rose/magenta — bottom right, large and prominent */}
       <div style={{ '--nb': 0.85, position: 'absolute', bottom: '-30%', right: '-25%', width: '95%', height: '85%',
         background: 'radial-gradient(ellipse 50% 55% at 60% 55%, rgba(219,39,119,0.5) 0%, rgba(168,85,247,0.35) 20%, rgba(236,72,153,0.2) 40%, rgba(124,92,252,0.1) 60%, transparent 78%)',
         filter: 'blur(50px)', animation: 'nebulaFloat2 40s ease-in-out infinite, nebulaBreath 14s ease-in-out infinite 3s' }} />
 
-      {/* ── Layer 2: Mid-ground nebula detail — tighter and brighter ── */}
-      {/* Electric teal core — center */}
+      {/* Layer 2 — Mid-ground nebula detail */}
       <div style={{ '--nb': 0.7, position: 'absolute', top: '15%', left: '20%', width: '70%', height: '65%',
         background: 'radial-gradient(ellipse 45% 50% at 52% 48%, rgba(0,212,170,0.28) 0%, rgba(6,182,212,0.2) 22%, rgba(14,165,233,0.12) 45%, rgba(124,92,252,0.08) 65%, transparent 80%)',
         filter: 'blur(45px)', animation: 'nebulaFloat3 25s ease-in-out infinite' }} />
-
-      {/* Deep violet pillar — left edge, vertical */}
       <div style={{ '--nb': 0.8, position: 'absolute', top: '20%', left: '-8%', width: '40%', height: '70%',
         background: 'radial-gradient(ellipse 40% 70% at 35% 50%, rgba(109,40,217,0.5) 0%, rgba(124,92,252,0.32) 25%, rgba(91,33,182,0.18) 50%, transparent 72%)',
         filter: 'blur(40px)', animation: 'nebulaFloat1 20s ease-in-out infinite reverse, nebulaBreath 9s ease-in-out infinite 1s' }} />
-
-      {/* Cyan-blue streak — top right */}
       <div style={{ '--nb': 0.65, position: 'absolute', top: '-15%', right: '-10%', width: '60%', height: '65%',
         background: 'radial-gradient(ellipse 55% 45% at 55% 38%, rgba(14,165,233,0.45) 0%, rgba(0,212,170,0.28) 25%, rgba(56,189,248,0.15) 50%, rgba(124,92,252,0.08) 68%, transparent 82%)',
         filter: 'blur(38px)', animation: 'nebulaFloat2 28s ease-in-out infinite reverse' }} />
-
-      {/* Amber/gold warmth — bottom left corner */}
       <div style={{ '--nb': 0.55, position: 'absolute', bottom: '-15%', left: '-5%', width: '55%', height: '50%',
         background: 'radial-gradient(ellipse 50% 45% at 42% 62%, rgba(245,158,11,0.28) 0%, rgba(251,146,60,0.2) 22%, rgba(236,72,153,0.15) 45%, transparent 70%)',
         filter: 'blur(42px)', animation: 'nebulaFloat3 22s ease-in-out infinite, nebulaBreath 16s ease-in-out infinite 4s' }} />
 
-      {/* ── Layer 3: Fine nebula detail — small tight bright spots ── */}
-      {/* Bright purple core — upper center */}
+      {/* Layer 3 — Fine nebula detail */}
       <div style={{ '--nb': 0.9, position: 'absolute', top: '8%', left: '32%', width: '28%', height: '28%',
         background: 'radial-gradient(ellipse 60% 55% at 50% 45%, rgba(167,139,250,0.55) 0%, rgba(139,92,246,0.35) 20%, rgba(124,92,252,0.15) 45%, transparent 65%)',
         filter: 'blur(22px)', animation: 'nebulaFloat1 18s ease-in-out infinite 2s, nebulaBreath 7s ease-in-out infinite' }} />
-
-      {/* Hot teal wisps — mid right */}
       <div style={{ '--nb': 0.75, position: 'absolute', top: '38%', right: '5%', width: '32%', height: '35%',
         background: 'radial-gradient(ellipse 55% 60% at 58% 45%, rgba(34,211,238,0.45) 0%, rgba(6,182,212,0.28) 25%, rgba(0,212,170,0.12) 50%, transparent 68%)',
         filter: 'blur(25px)', animation: 'nebulaFloat2 15s ease-in-out infinite 1s, nebulaBreath 8s ease-in-out infinite 2s' }} />
-
-      {/* Pink bloom — center left */}
       <div style={{ '--nb': 0.7, position: 'absolute', top: '52%', left: '18%', width: '26%', height: '30%',
         background: 'radial-gradient(ellipse 50% 55% at 45% 50%, rgba(244,114,182,0.48) 0%, rgba(236,72,153,0.3) 22%, rgba(168,85,247,0.15) 48%, transparent 65%)',
         filter: 'blur(20px)', animation: 'nebulaFloat3 19s ease-in-out infinite reverse, nebulaBreath 10s ease-in-out infinite 3s' }} />
-
-      {/* Ice-white star-forming region — scattered */}
       <div style={{ '--nb': 0.6, position: 'absolute', top: '28%', left: '45%', width: '20%', height: '22%',
         background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.12) 0%, rgba(196,181,253,0.18) 30%, rgba(167,243,252,0.1) 55%, transparent 72%)',
         filter: 'blur(16px)', animation: 'nebulaFloat1 12s ease-in-out infinite 4s' }} />
-
-      {/* Deep blue dust lane — horizontal band */}
       <div style={{ '--nb': 0.5, position: 'absolute', top: '44%', left: '-5%', width: '80%', height: '18%',
         background: 'radial-gradient(ellipse 80% 40% at 40% 50%, rgba(30,64,175,0.22) 0%, rgba(29,78,216,0.12) 40%, transparent 70%)',
         filter: 'blur(30px)', animation: 'nebulaFloat2 35s ease-in-out infinite 2s' }} />
 
-      {/* ── Moon ── */}
+      {/* Moon */}
       <div style={{ position: 'absolute', top: '5%', right: '7%', width: 58, height: 58, borderRadius: '50%',
         background: 'radial-gradient(circle at 36% 32%, rgba(255,255,255,0.95) 0%, #e8e0ff 12%, #c4b5fd 30%, #a78bfa 52%, #7c3aed 75%, #4c1d95 100%)',
-        animation: 'moonPulse 6s ease-in-out infinite, planetFloat 11s ease-in-out infinite',
-      }}>
-        {/* Surface texture */}
+        animation: 'moonPulse 6s ease-in-out infinite, planetFloat 11s ease-in-out infinite' }}>
         <div style={{ position: 'absolute', top: '18%', left: '12%', width: 10, height: 8, borderRadius: '50%', background: 'rgba(109,40,217,0.3)', filter: 'blur(2px)' }} />
         <div style={{ position: 'absolute', top: '55%', left: '28%', width: 6, height: 6, borderRadius: '50%', background: 'rgba(109,40,217,0.25)', filter: 'blur(1.5px)' }} />
-        {/* Crescent shadow */}
         <div style={{ position: 'absolute', top: '8%', right: '4%', width: '65%', height: '82%', borderRadius: '50%', background: 'rgba(10,5,30,0.4)', filter: 'blur(4px)' }} />
-        {/* Atmosphere rim */}
         <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', background: 'transparent', boxShadow: 'inset 0 0 12px rgba(167,139,250,0.4)' }} />
       </div>
 
-      {/* ── Planet 1 — large teal ringed gas giant ── */}
+      {/* Planet 1 — teal ringed */}
       <div style={{ position: 'absolute', bottom: '10%', left: '4%', animation: 'planetFloat 14s ease-in-out infinite 2s' }}>
         <div style={{ position: 'relative', width: 50, height: 50 }}>
-          {/* Planet body */}
           <div style={{ width: 50, height: 50, borderRadius: '50%',
             background: 'radial-gradient(circle at 33% 28%, rgba(103,232,249,0.9) 0%, #06b6d4 25%, #0891b2 50%, #0e7490 75%, #083344 100%)',
-            boxShadow: '0 0 18px rgba(6,182,212,0.5), 0 0 36px rgba(0,212,170,0.25), 0 0 60px rgba(0,212,170,0.1)',
-          }} />
-          {/* Cloud bands */}
+            boxShadow: '0 0 18px rgba(6,182,212,0.5), 0 0 36px rgba(0,212,170,0.25), 0 0 60px rgba(0,212,170,0.1)' }} />
           <div style={{ position: 'absolute', top: '30%', left: '5%', width: '90%', height: '12%', borderRadius: 4, background: 'rgba(255,255,255,0.08)', filter: 'blur(2px)' }} />
           <div style={{ position: 'absolute', top: '55%', left: '8%', width: '84%', height: '8%', borderRadius: 4, background: 'rgba(255,255,255,0.05)', filter: 'blur(2px)' }} />
-          {/* Ring system — front */}
           <div style={{ position: 'absolute', top: '38%', left: '-32%', width: '164%', height: '24%',
             border: '1.5px solid rgba(103,232,249,0.55)', borderRadius: '50%',
             boxShadow: '0 0 6px rgba(6,182,212,0.35), inset 0 0 4px rgba(6,182,212,0.2)',
-            transform: 'rotateX(72deg)',
-          }} />
-          {/* Ring — outer fainter */}
+            transform: 'rotateX(72deg)' }} />
           <div style={{ position: 'absolute', top: '30%', left: '-42%', width: '184%', height: '40%',
             border: '1px solid rgba(103,232,249,0.2)', borderRadius: '50%',
-            transform: 'rotateX(72deg)',
-          }} />
+            transform: 'rotateX(72deg)' }} />
         </div>
       </div>
 
-      {/* ── Planet 2 — small purple distant ── */}
+      {/* Planet 2 — small purple */}
       <div style={{ position: 'absolute', top: '24%', left: '2%', width: 18, height: 18, borderRadius: '50%',
         background: 'radial-gradient(circle at 35% 30%, #e9d5ff 0%, #a855f7 45%, #6b21a8 80%, #3b0764 100%)',
         boxShadow: '0 0 10px rgba(168,85,247,0.55), 0 0 20px rgba(168,85,247,0.2)',
         animation: 'planetFloat 8s ease-in-out infinite 1s' }} />
 
-      {/* ── Planet 3 — tiny warm distant ── */}
+      {/* Planet 3 — tiny warm */}
       <div style={{ position: 'absolute', top: '68%', right: '12%', width: 10, height: 10, borderRadius: '50%',
         background: 'radial-gradient(circle at 38% 35%, #fde68a 0%, #f59e0b 50%, #b45309 100%)',
         boxShadow: '0 0 8px rgba(245,158,11,0.5)',
         animation: 'planetFloat 6s ease-in-out infinite 3s' }} />
 
-      {/* ── Point stars ── */}
+      {/* Point stars */}
       {STARS.map(s => (
         <div key={s.id} style={{
           position: 'absolute',
@@ -489,7 +527,7 @@ function StarField() {
         }} />
       ))}
 
-      {/* ── Sparkle ✦ glyphs ── */}
+      {/* Sparkle glyphs */}
       {SPARKLES.map(s => (
         <div key={`sp${s.id}`} style={{
           position: 'absolute',
@@ -5193,8 +5231,6 @@ export default function App() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: "'DM Sans', sans-serif", position: 'relative', overflow: 'visible' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap');
-
         @keyframes pulse        { 0%,100%{opacity:.3} 50%{opacity:1} }
         @keyframes shimmer      { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
         @keyframes generateReady{ 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.15)} }
@@ -5382,6 +5418,13 @@ export default function App() {
         <div style={{ paddingTop: 72 }}>
           <ScrollToTop />
           <RoutedErrorBoundary>
+            <Suspense fallback={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#7C5CFC', animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+                </div>
+              </div>
+            }>
             <Routes>
               <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
@@ -5404,6 +5447,7 @@ export default function App() {
               <Route path="/success" element={<SuccessPage />} />
               <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             </Routes>
+            </Suspense>
           </RoutedErrorBoundary>
         </div>
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
