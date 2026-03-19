@@ -1345,11 +1345,10 @@ function DreamChat({ user, onSignIn }) {
                 {(() => {
                   const isReady = !!(pendingPrompt || lastGenerationPromptRef.current)
                   const isGenerating = generatingIndex !== null
-                  const isDisabled = isGenerating || !isReady
 
                   return (
                     <button onClick={() => {
-                      if (isDisabled) return
+                      if (isGenerating) return
                       if (pendingPrompt) {
                         const { prompt, refImage } = pendingPrompt
                         setPendingPrompt(null)
@@ -1357,24 +1356,25 @@ function DreamChat({ user, onSignIn }) {
                         generateImage(prompt, messages.length - 1, refImage)
                       } else if (lastGenerationPromptRef.current) {
                         generateImage(lastGenerationPromptRef.current, messages.length - 1)
+                      } else {
+                        // No prompt yet — send "go" to make Dream generate immediately
+                        handleSend('generate')
                       }
-                    }} disabled={isDisabled}
+                    }} disabled={isGenerating}
                       style={{
-                        background: isDisabled && !isGenerating
-                          ? C.border  // grayed — not ready yet
-                          : isGenerating
+                        background: isGenerating
                           ? `linear-gradient(135deg, ${C.teal}88, #00A88488)`
                           : `linear-gradient(135deg, ${C.teal}, #00A884)`,
-                        border: isReady && !isGenerating ? `1px solid ${C.teal}88` : `1px solid transparent`,
+                        border: `1px solid ${C.teal}88`,
                         borderRadius: 8, padding: '8px 16px',
-                        color: isDisabled && !isGenerating ? C.muted : '#fff',
+                        color: '#fff',
                         fontSize: 12, fontWeight: 700,
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                        cursor: isGenerating ? 'not-allowed' : 'pointer',
                         animation: isReady && !isGenerating
                           ? 'generatePulse 2s ease-in-out infinite, generateReady 3s ease-in-out infinite'
                           : 'none',
                         minWidth: 180, textAlign: 'center',
-                        transition: 'background 0.3s, color 0.3s',
+                        transition: 'background 0.3s',
                       }}>
                       {isGenerating ? [
                         '✨ Making dreams come true...',
@@ -1386,7 +1386,6 @@ function DreamChat({ user, onSignIn }) {
                         '💫 Channeling the muse...',
                         '🎭 Bringing it to life...',
                       ][generatingIndex % 8]
-                      : isReady ? '✦ Generate Image'
                       : '✦ Generate Image'}
                     </button>
                   )
