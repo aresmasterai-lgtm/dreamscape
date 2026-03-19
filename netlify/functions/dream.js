@@ -138,7 +138,14 @@ Dream: "Got it. 🌑
 
 User: "make me something beautiful"
 Dream: "Here we go. ✨
-<prompt>An ethereal forest at twilight, bioluminescent flowers glowing along a misty river, a single beam of moonlight through ancient trees, magical realism style, rich jewel-toned colors, cinematic dreamlike atmosphere</prompt>"    if (!response.ok) {
+<prompt>An ethereal forest at twilight, bioluminescent flowers glowing along a misty river, a single beam of moonlight through ancient trees, magical realism style, rich jewel-toned colors, cinematic dreamlike atmosphere</prompt>"`,
+        messages,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
       if (response.status === 404 || data?.error?.type === 'not_found_error') {
         console.warn(`Model ${model} not found, clearing cache`)
         cachedModel = null
