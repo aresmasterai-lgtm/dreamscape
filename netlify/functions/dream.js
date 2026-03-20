@@ -214,9 +214,11 @@ export default async (req) => {
     )
 
   } catch (err) {
-    console.error('Dream function error:', err.message)
+    // requireAuth throws a Response object on auth failure — pass it through directly
+    if (err instanceof Response) return err
+    console.error('Dream function error:', err?.message || err)
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: err?.message || 'Internal server error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
