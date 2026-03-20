@@ -25,7 +25,18 @@ const Channels          = lazy(() => import('./components/Channels'))
 // can verify the request is from a real authenticated user.
 async function getAuthHeader() {
   try {
+    // refreshSession keeps the token fresh — prevents "Invalid or expired session" errors
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return {}
+    // If token expires within 60 seconds, refresh proactively
+    const expiresAt = session.expires_at || 0
+    const nowSecs   = Math.floor(Date.now() / 1000)
+    if (expiresAt - nowSecs < 60) {
+      const { data: refreshed } = await supabase.auth.refreshSession()
+      if (refreshed?.session?.access_token) {
+        return { 'Authorization': `Bearer ${refreshed.session.access_token}` }
+      }
+    }
     if (session?.access_token) {
       return { 'Authorization': `Bearer ${session.access_token}` }
     }
