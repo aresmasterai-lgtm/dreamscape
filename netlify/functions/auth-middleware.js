@@ -49,6 +49,11 @@ function makeSupabase() {
     || process.env.VITE_SUPABASE_ANON_KEY
     || process.env.SUPABASE_ANON_KEY
   if (!url || !key) throw new Error(`Supabase env vars missing`)
+  const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role ✅'
+    : process.env.SUPABASE_SECRET_KEY ? 'secret_key'
+    : process.env.VITE_SUPABASE_ANON_KEY ? 'anon_fallback ⚠️'
+    : 'unknown'
+  console.log(`[auth] Supabase key: ${keyType}, URL set: ${!!url}`)
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
