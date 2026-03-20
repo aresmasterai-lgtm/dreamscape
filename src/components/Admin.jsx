@@ -1428,6 +1428,100 @@ function BugReportsTab() {
 }
 
 // ── Admin Dashboard ───────────────────────────────────────────
+// ── System Health Tab ────────────────────────────────────────
+function SystemHealthTab() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [lastChecked, setLastChecked] = useState(null)
+
+  const check = async () => {
+    setLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/health', {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      })
+      const json = await res.json()
+      setData(json)
+      setLastChecked(new Date())
+    } catch (err) {
+      setData({ status: 'error', error: err.message })
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { check() }, [])
+
+  const statusColor = (s) => s === 'ok' ? C.teal : s === 'missing' ? C.red : s === 'degraded' ? C.gold : C.red
+  const statusIcon  = (s) => s === 'ok' ? '✅' : s === 'missing' ? '❌' : s === 'degraded' ? '⚠️' : '❌'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 4 }}>💚 System Health</h2>
+          {lastChecked && <div style={{ fontSize: 12, color: C.muted }}>Last checked: {lastChecked.toLocaleTimeString()}{data?.responseMs ? ` · ${data.responseMs}ms` : ''}</div>}
+        </div>
+        <button onClick={check} disabled={loading}
+          style={{ background: loading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
+          {loading ? 'Checking...' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {/* Overall status banner */}
+      {data && (
+        <div style={{ background: data.status === 'ok' ? `${C.teal}15` : `${C.red}15`, border: `1px solid ${data.status === 'ok' ? C.teal+'44' : C.red+'44'}`, borderRadius: 14, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 28 }}>{data.status === 'ok' ? '✅' : '⚠️'}</span>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: data.status === 'ok' ? C.teal : C.red }}>
+              {data.status === 'ok' ? 'All systems operational' : 'System degraded — check below'}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{data.timestamp ? new Date(data.timestamp).toLocaleString() : ''}</div>
+          </div>
+        </div>
+      )}
+
+      {data?.services && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Live Services</div>
+          {[
+            ['Dream AI (Anthropic)', data.services.anthropic, data.services.anthropic?.model ? `Model: ${data.services.anthropic.model}` : null],
+            ['Image Generation (Gemini)', data.services.gemini, data.services.gemini?.models ? `Models: ${data.services.gemini.models.join(', ')}` : null],
+            ['Printful (Merchandise)', data.services.printful, data.services.printful?.store ? `Store: ${data.services.printful.store}` : null],
+            ['Stripe (Payments)', data.services.stripe, data.services.stripe?.balance ? `Balance: ${data.services.stripe.balance}` : null],
+          ].map(([name, svc, detail], idx, arr) => (
+            <div key={name} style={{ padding: '14px 20px', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>{statusIcon(svc?.status)}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{name}</div>
+                {detail && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{detail}</div>}
+                {svc?.error && <div style={{ fontSize: 11, color: C.red, marginTop: 2 }}>{svc.error}</div>}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: statusColor(svc?.status) }}>{svc?.status?.toUpperCase()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data?.envVars && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>Environment Variables</div>
+          {Object.entries(data.envVars).map(([name, val], idx, arr) => (
+            <div key={name} style={{ padding: '12px 20px', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{statusIcon(val.status)}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: 'monospace' }}>{name}</div>
+                {val.preview && <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{val.preview}</div>}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: statusColor(val.status) }}>{val.status?.toUpperCase()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Admin({ user, profile }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState('overview')
@@ -1448,6 +1542,7 @@ export default function Admin({ user, profile }) {
     ['announcements', '📢 Announcements'],
     ['blog',          '✍️ Blog'],
     ['bugs',          '🐛 Bug Reports'],
+    ['health',        '💚 System Health'],
   ]
 
   return (
@@ -1477,6 +1572,7 @@ export default function Admin({ user, profile }) {
       {tab === 'announcements' && <AnnouncementsTab />}
       {tab === 'blog'          && <BlogTab />}
       {tab === 'bugs'          && <BugReportsTab />}
+      {tab === 'health'        && <SystemHealthTab />}
     </div>
   )
 }
