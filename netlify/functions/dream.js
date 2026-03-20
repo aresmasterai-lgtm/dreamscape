@@ -148,6 +148,7 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
     const data = await response.json()
 
     if (!response.ok) {
+      console.error('Anthropic API error:', response.status, JSON.stringify(data).slice(0, 300))
       if (response.status === 404 || data?.error?.type === 'not_found_error') {
         console.warn(`Model ${model} not found, clearing cache`)
         cachedModel = null
@@ -159,7 +160,17 @@ Dream: "Beautiful like serene and peaceful, or beautiful like jaw-dropping and e
       })
     }
 
-    const replyText = data.content[0].text
+    // Defensive parsing — log structure so we can debug unexpected responses
+    const textBlock = (data.content || []).find(b => b.type === 'text')
+    if (!textBlock) {
+      console.error('No text block in Anthropic response:', JSON.stringify(data).slice(0, 300))
+      return new Response(JSON.stringify({ error: 'No text in response', debug: data.content?.[0]?.type }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    const replyText = textBlock.text || ''
     const promptMatch = replyText.match(/<prompt>([\s\S]*?)<\/prompt>/)
     const extractedPrompt = promptMatch ? promptMatch[1].trim() : null
     const displayText = replyText.replace(/<prompt>[\s\S]*?<\/prompt>/g, '').trim()
