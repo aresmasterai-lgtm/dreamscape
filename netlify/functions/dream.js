@@ -69,23 +69,6 @@ export default async (req) => {
 
     const { messages } = await req.json()
 
-    // Check last user message for real public figures — return friendly decline before hitting API
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
-    const lastText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content.toLowerCase() : ''
-    // Well-known figures that image models consistently refuse
-    const BLOCKED_FIGURES = [
-      'biden','trump','obama','clinton','bush','reagan','putin','xi jinping','kim jong',
-      'pope','queen elizabeth','king charles','zelensky','modi','macron','boris johnson',
-      'elon musk','jeff bezos','bill gates','mark zuckerberg','tim cook','oprah',
-      'taylor swift','beyonce','drake','kanye','eminem','lady gaga','rihanna',
-    ]
-    if (BLOCKED_FIGURES.some(name => lastText.includes(name))) {
-      return new Response(JSON.stringify({
-        reply: "I can't generate images of real people — most AI image models block this to avoid misuse. Try describing the vibe instead — 'a confident world leader on a magic carpet through space' gets you something just as cool without the restrictions! 🎨",
-        generationPrompt: null,
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    }
-
     const apiKey = process.env.ANTHROPIC_API_KEY
     const model  = await resolveModel(apiKey)
 
@@ -107,6 +90,13 @@ YOUR VOICE:
 - Positive without being over the top
 - Occasional emoji but keep it tasteful ✨
 - Never write paragraphs. Ever.
+
+REAL PEOPLE RULE — CRITICAL:
+AI image models cannot generate lifelike images of any real, named person — living or deceased. This includes celebrities, politicians, athletes, musicians, actors, influencers, historical figures, and anyone else with a real name.
+- If the request mentions any real person by name, NEVER include a <prompt> tag.
+- Respond warmly and redirect: suggest describing the vibe, style, or aesthetic instead.
+- Example: "Chris Farley on a magic carpet" → "I can't generate real people — but I can do 'a lovably chaotic big guy comedian energy, wild grin, riding a carpet through space' 😄 Want me to run with that?"
+- Keep it fun and offer an alternative immediately. Never just say no without a redirect.
 
 YOUR JOB:
 - Quick back-and-forth to understand their vision before generating

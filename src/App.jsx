@@ -1122,7 +1122,7 @@ function DreamChat({ user, onSignIn }) {
         const type = data.errorType || ''
         let msg
         if (type === 'content_policy') {
-          msg = `⚠️ That image was blocked by the AI model's content policy — usually triggered by real people, trademarked characters, or sensitive content. Try rephrasing your idea without specific names.`
+          msg = `AI image models can't generate lifelike images of real people — this includes celebrities, public figures, and historical figures. Try describing the vibe or aesthetic instead and I'll create something just as fun! 🎨`
         } else if (type === 'unavailable') {
           msg = `⚠️ Image generation is temporarily unavailable. Please try again in a moment.${code ? ` (${code})` : ''}`
           window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {

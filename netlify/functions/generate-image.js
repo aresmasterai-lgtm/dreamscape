@@ -76,12 +76,38 @@ async function tryGemini(model, prompt, referenceImage, apiKey) {
   )
   const data = await res.json()
   const errMsg = data.error?.message || ''
+
+  // Model not found — clear cache and retry
   if (data.error?.code === 404 || errMsg.includes('not found') || errMsg.includes('not supported')) {
     cachedGeminiModel = null; cacheTime = 0
     return null
   }
-  if (data.error) throw new Error(errMsg)
-  return (data.candidates?.[0]?.content?.parts || []).find(p => p.inlineData) || null
+
+  // API-level error — check for content policy signals
+  if (data.error) {
+    const isPolicy = data.error.code === 400 ||
+      errMsg.toLowerCase().includes('safety') ||
+      errMsg.toLowerCase().includes('policy') ||
+      errMsg.toLowerCase().includes('person') ||
+      errMsg.toLowerCase().includes('harmful')
+    if (isPolicy) throw Object.assign(new Error(errMsg || 'Content policy'), { errorType: 'content_policy' })
+    throw new Error(errMsg)
+  }
+
+  // Candidate-level safety block — Gemini returns finishReason SAFETY with no image part
+  const candidate = data.candidates?.[0]
+  const finishReason = candidate?.finishReason || ''
+  if (finishReason === 'SAFETY' || finishReason === 'PROHIBITED_CONTENT' || finishReason === 'RECITATION') {
+    throw Object.assign(new Error(`Blocked: ${finishReason}`), { errorType: 'content_policy' })
+  }
+
+  // promptFeedback block (pre-generation safety check)
+  const blockReason = data.promptFeedback?.blockReason
+  if (blockReason) {
+    throw Object.assign(new Error(`Prompt blocked: ${blockReason}`), { errorType: 'content_policy' })
+  }
+
+  return (candidate?.content?.parts || []).find(p => p.inlineData) || null
 }
 
 async function tryImagen(model, prompt, apiKey) {
