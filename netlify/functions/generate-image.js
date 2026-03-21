@@ -63,14 +63,17 @@ function buildParts(prompt, referenceImage) {
   return [{ text: `Generate a high quality artwork image: ${prompt}` }]
 }
 
-async function tryGemini(model, prompt, referenceImage, apiKey) {
+async function tryGemini(model, prompt, referenceImage, apiKey, sizeConfig = null) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: buildParts(prompt, referenceImage) }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+        generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            ...(sizeConfig ? { imagenConfig: { aspectRatio: sizeConfig.width > sizeConfig.height ? 'LANDSCAPE' : sizeConfig.width < sizeConfig.height ? 'PORTRAIT' : 'SQUARE' } } : {}),
+          },
       }),
     }
   )
@@ -110,12 +113,20 @@ async function tryGemini(model, prompt, referenceImage, apiKey) {
   return (candidate?.content?.parts || []).find(p => p.inlineData) || null
 }
 
-async function tryImagen(model, prompt, apiKey) {
+async function tryImagen(model, prompt, apiKey, sizeConfig = null) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`,
     {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instances: [{ prompt }], parameters: { sampleCount: 1 } }),
+      body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: {
+            sampleCount: 1,
+            ...(sizeConfig && sizeConfig.width !== sizeConfig.height ? {
+              aspectRatio: sizeConfig.width > sizeConfig.height ? '16:9' : '9:16'
+            } : {}),
+          }
+        }),
     }
   )
   const data = await res.json()
@@ -172,15 +183,24 @@ export default async (req) => {
       }, 403)
     }
 
-    const { prompt, referenceImage } = await req.json()
+    const { prompt, referenceImage, aspectRatio } = await req.json()
     if (!prompt) return corsResponse({ error: 'Prompt is required' }, 400)
 
     const apiKey = process.env.GEMINI_API_KEY
     const { gemini, imagen } = await resolveModels(apiKey)
 
+    // Map aspect ratio to Gemini config
+    const RATIO_MAP = {
+      square:    { width: 1024, height: 1024 },
+      portrait:  { width: 896,  height: 1152 },
+      landscape: { width: 1152, height: 896  },
+      wide:      { width: 1344, height: 768  },
+    }
+    const sizeConfig = RATIO_MAP[aspectRatio] || RATIO_MAP.square
+
     // Strategy 1: Gemini
     if (gemini) {
-      let imagePart = await tryGemini(gemini, prompt, referenceImage, apiKey)
+      let imagePart = await tryGemini(gemini, prompt, referenceImage, apiKey, sizeConfig)
       if (!imagePart) {
         const newModel = await resolveModels(apiKey)
         if (newModel.gemini) imagePart = await tryGemini(newModel.gemini, prompt, referenceImage, apiKey)
@@ -194,7 +214,7 @@ export default async (req) => {
 
     // Strategy 2: Imagen
     if (imagen) {
-      const result = await tryImagen(imagen, prompt, apiKey)
+      const result = await tryImagen(imagen, prompt, apiKey, sizeConfig)
       if (result) return corsResponse({ success: true, imageData: result.imageData, mimeType: result.mimeType })
     }
 

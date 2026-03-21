@@ -781,6 +781,25 @@ function DreamChat({ user, onSignIn }) {
   const [autoSavedIds, setAutoSavedIds] = useState({})
   const [publishedIds, setPublishedIds] = useState(new Set())
   const inputRef = useRef(null)
+  const [aspectRatio, setAspectRatio] = useState('square')   // square | portrait | landscape | wide
+
+  const SIZE_OPTIONS = [
+    { id: 'square',    label: '■ Square',    hint: 'T-shirts, mugs, profile',   ratio: '1:1'   },
+    { id: 'portrait',  label: '▯ Portrait',  hint: 'Phone cases, prints, cards', ratio: '3:4'   },
+    { id: 'landscape', label: '▭ Landscape', hint: 'Banners, pillows, bags',     ratio: '4:3'   },
+    { id: 'wide',      label: '▬ Wide',      hint: 'Posters, art prints, wall',  ratio: '16:9'  },
+  ]
+
+  const PROMPT_CHIPS = [
+    '🐿️ A squirrel as a mad scientist',
+    '🌌 Epic space battle at sunrise',
+    '🐉 Neon dragon in cyberpunk city',
+    '🦁 Lion wearing a crown of flowers',
+    '🤖 Robot playing jazz in New Orleans',
+    '🌊 Surfer riding a wave made of stars',
+    '🦊 Fox as a ninja in ancient Japan',
+    '🎭 Colorful carnival at midnight',
+  ]
 
   // ── Session history ───────────────────────────────────────────
   const [currentSessionId, setCurrentSessionId] = useState(null)
@@ -1073,7 +1092,7 @@ function DreamChat({ user, onSignIn }) {
     }
   }
 
-  const generateImage = async (prompt, index, refImage = null) => {
+  const generateImage = async (prompt, index, refImage = null, ratio = null) => {
     if (!prompt || typeof prompt !== 'string') return
     if (!mountedRef.current) return
     // Check generation limit
@@ -1102,7 +1121,7 @@ function DreamChat({ user, onSignIn }) {
       const genAuthHdr = await getAuthHeader()
       const res = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...genAuthHdr },
-        body: JSON.stringify({ prompt, referenceImage: lastUserWithImage })
+        body: JSON.stringify({ prompt, referenceImage: lastUserWithImage, aspectRatio })
       })
       if (!mountedRef.current) return
       const data = await res.json()
@@ -1331,7 +1350,33 @@ function DreamChat({ user, onSignIn }) {
           )}
           <div ref={bottomRef} />
         </div>
-        {(lastAiIndex >= 0 || lastGenerationPromptRef.current) && !loading && (
+
+        {/* ── Prompt chips — only shown on fresh chat ── */}
+        {messages.length === 1 && !loading && (
+          <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {PROMPT_CHIPS.map(chip => (
+              <button key={chip} onClick={() => { setInput(chip.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent+'66'; e.currentTarget.style.color = C.text }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted }}>
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Size / aspect ratio selector ── */}
+        <div style={{ padding: '8px 16px 0', display: 'flex', gap: 6, flexWrap: 'wrap', borderTop: `1px solid ${C.border}` }}>
+          {SIZE_OPTIONS.map(s => (
+            <button key={s.id} onClick={() => setAspectRatio(s.id)} title={s.hint}
+              style={{ background: aspectRatio === s.id ? `${C.accent}22` : 'none', border: `1px solid ${aspectRatio === s.id ? C.accent+'77' : C.border}`, borderRadius: 8, padding: '4px 10px', color: aspectRatio === s.id ? C.accent : C.muted, fontSize: 11, fontWeight: aspectRatio === s.id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s', WebkitTapHighlightColor: 'transparent' }}>
+              {s.label}
+            </button>
+          ))}
+          <span style={{ fontSize: 10, color: C.muted, alignSelf: 'center', marginLeft: 4 }}>
+            {SIZE_OPTIONS.find(s => s.id === aspectRatio)?.hint}
+          </span>
+        </div>
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1491,56 +1536,72 @@ function DreamChat({ user, onSignIn }) {
 
 // ── Shared Image Lightbox ─────────────────────────────────────
 function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublishToggle, onDelete, onEdit, isPublic, showActions = true }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
+
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    // Prevent body scroll while lightbox open
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handler)
+      document.body.style.overflow = ''
+    }
   }, [onClose])
 
   const btnStyle = (color = C.muted, bg = 'none') => ({
     background: bg, border: `1px solid ${color}44`, borderRadius: 10,
-    padding: '10px 18px', color, fontSize: 13, fontWeight: 700,
+    padding: isMobile ? '12px 16px' : '10px 18px',
+    color, fontSize: isMobile ? 14 : 13, fontWeight: 700,
     cursor: 'pointer', textDecoration: 'none', display: 'inline-flex',
     alignItems: 'center', gap: 6, transition: 'all 0.15s',
+    WebkitTapHighlightColor: 'transparent',
   })
+
+  const hasActions = showActions && (onPublishToggle || onEdit || onRefine || onSell || onDelete)
 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
-      <style>{`@keyframes lbIn { from { opacity:0; transform: scale(0.94) } to { opacity:1; transform: scale(1) } }`}</style>
-      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
-        {/* Close */}
-        <button onClick={onClose}
-          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ✕
-        </button>
+      style={{ position: 'fixed', inset: 0, zIndex: 800, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', padding: isMobile ? 0 : 20, cursor: 'zoom-out', overflowY: 'auto' }}>
+      <style>{`@keyframes lbIn { from { opacity:0; transform: scale(0.94) } to { opacity:1; transform: scale(1) } }
+        @keyframes lbSlide { from { opacity:0; transform: translateY(20px) } to { opacity:1; transform: translateY(0) } }`}</style>
+
+      {/* ── Close button — large, always visible, top of screen on mobile ── */}
+      <button onClick={onClose}
+        style={{ position: 'fixed', top: isMobile ? 16 : 20, right: isMobile ? 16 : 20, zIndex: 900, background: 'rgba(8,11,20,0.9)', border: `1px solid ${C.border}`, borderRadius: '50%', width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, color: C.text, cursor: 'pointer', fontSize: isMobile ? 20 : 16, display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+        ✕
+      </button>
+
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease', padding: isMobile ? '60px 0 0' : 0 }} onClick={e => e.stopPropagation()}>
+
         {/* Image */}
         <img
           src={image.src}
           alt={image.alt}
-          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}44`, display: 'block', maxHeight: '72vh', objectFit: 'contain', background: C.panel }}
+          style={{ width: '100%', borderRadius: isMobile ? 0 : 16, boxShadow: isMobile ? 'none' : `0 0 80px ${C.accent}44`, display: 'block', maxHeight: isMobile ? '60vh' : '72vh', objectFit: 'contain', background: C.panel }}
         />
+
         {/* Caption */}
         {(image.title || image.prompt) && (
-          <div style={{ marginTop: 14, textAlign: 'center' }}>
-            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
-            {image.username && <div style={{ fontSize: 12, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
+          <div style={{ marginTop: 14, textAlign: 'center', padding: isMobile ? '0 20px' : 0 }}>
+            {image.title && <div style={{ fontSize: isMobile ? 17 : 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.username && <div style={{ fontSize: 13, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
             {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '…' : ''}</div>}
           </div>
         )}
+
         {/* Actions */}
-        {showActions && (
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap' }}>
-            {/* Owner actions */}
+        {hasActions && (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, flexWrap: 'wrap', padding: isMobile ? '0 16px 40px' : 0 }}>
             {onPublishToggle && (
               <button onClick={onPublishToggle} style={btnStyle(isPublic ? C.teal : C.accent, isPublic ? `${C.teal}18` : `${C.accent}18`)}>
                 {isPublic ? '🔒 Make Private' : '🌐 Publish'}
               </button>
             )}
             {onEdit && (
-              <button onClick={onEdit} style={btnStyle(C.text, `${C.border}`)}>
-                ✏️ Edit Details
+              <button onClick={onEdit} style={btnStyle(C.text, C.border)}>
+                ✏️ Edit
               </button>
             )}
             {onRefine && (
@@ -1553,17 +1614,25 @@ function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublish
                 🛍 Sell This
               </button>
             )}
-            {/* Always available */}
-            <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
-              onClick={e => e.stopPropagation()}
-              style={btnStyle(C.muted)}>
-              ↓ Download
-            </a>
+            {onDelete && (
+              <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={btnStyle(C.muted)}>
+                ↓ Download
+              </a>
+            )}
             {onDelete && (
               <button onClick={onDelete} style={btnStyle(C.red)}>
                 🗑 Delete
               </button>
             )}
+          </div>
+        )}
+
+        {/* Tap hint on mobile — only shown when no actions */}
+        {!hasActions && isMobile && (
+          <div style={{ textAlign: 'center', padding: '12px 0 32px', fontSize: 12, color: C.muted }}>
+            Tap anywhere to close
           </div>
         )}
       </div>
@@ -1850,9 +1919,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
         {artworks.map(art => (
           <div key={art.id}
             className="ds-card"
-            style={{ overflow: 'hidden', cursor: 'pointer' }}
-            onMouseEnter={() => setHover(art.id)}
-            onMouseLeave={() => setHover(null)}>
+            style={{ overflow: 'hidden', cursor: 'pointer' }}>
             {/* ── Image area ── */}
             <div style={{ position: 'relative', height: 160, background: `linear-gradient(135deg, ${C.accent}30, ${C.teal}20)`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={(e) => art.image_url ? openLightbox(e, art) : setExpanded(expanded === art.id ? null : art.id)}>
@@ -1862,19 +1929,28 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
                     resourceId={art.id} resourceType="artwork" />
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 40 }}>🎨</div>}
 
-              {/* Non-owner hover — View + Use This Art */}
-              {art.image_url && hover === art.id && !isOwner && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(8,11,20,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  onClick={e => e.stopPropagation()}>
-                  <button onClick={e => { e.stopPropagation(); openLightbox(e, art) }}
-                    style={{ background: 'rgba(8,11,20,0.8)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                    🔍 View
+              {/* Non-owner ⋯ kebab — always visible, works on mobile */}
+              {art.image_url && !isOwner && (
+                <div style={{ position: 'absolute', top: 6, right: 6 }} ref={menuOpen === art.id ? menuRef : null}>
+                  <button onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === art.id ? null : art.id) }}
+                    style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen === art.id ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, transition: 'all 0.15s' }}>
+                    ⋯
                   </button>
-                  {(art.license === 'royalty' || art.license === 'free') && (
-                    <button onClick={() => onReuse && onReuse(art)}
-                      style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                      🛍 Use This Art
-                    </button>
+                  {menuOpen === art.id && (
+                    <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, minWidth: 160, zIndex: 200, boxShadow: `0 8px 32px rgba(8,11,20,0.9), 0 0 0 1px ${C.accent}22`, overflow: 'hidden' }}
+                      onClick={e => e.stopPropagation()}>
+                      {[
+                        { icon: '🔍', label: 'View Full', color: C.muted, action: (e) => openLightbox(e, art) },
+                        ...((art.license === 'royalty' || art.license === 'free') ? [
+                          { icon: '🛍', label: 'Use This Art', color: C.accent, action: () => onReuse && onReuse(art) }
+                        ] : []),
+                      ].map((item, idx, arr) => (
+                        <button key={item.label} onClick={(e) => { setMenuOpen(null); item.action(e) }}
+                          style={{ width: '100%', background: 'none', border: 'none', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', padding: '9px 13px', color: item.color, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: 13, flexShrink: 0 }}>{item.icon}</span>{item.label}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -4590,10 +4666,13 @@ function ProfilePage({ user, profile: initialProfile }) {
                   style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '12px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   ✦ Remix in Dream
                 </button>
-                <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
-                  style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
-                  ↓ Download
-                </a>
+                {/* Download — only for own artwork */}
+                {user && reuseTarget.user_id === user.id && (
+                  <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
+                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
+                    ↓ Download
+                  </a>
+                )}
                 <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }}
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
                   🔗 Share

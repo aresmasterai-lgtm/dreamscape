@@ -148,6 +148,8 @@ function Spinner({ label, cards = 0 }) {
 
 // ── Image Lightbox ────────────────────────────────────────────
 function ImageLightbox({ image, onClose }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
+
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -160,19 +162,23 @@ function ImageLightbox({ image, onClose }) {
 
   return (
     <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', padding: isMobile ? 0 : 20, cursor: 'zoom-out', overflowY: 'auto' }}>
       <style>{`@keyframes lbIn { from { opacity:0; transform:scale(0.94) } to { opacity:1; transform:scale(1) } }`}</style>
-      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
-        <button onClick={onClose}
-          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ✕
-        </button>
+
+      {/* Close — fixed, always reachable */}
+      <button onClick={onClose}
+        style={{ position: 'fixed', top: isMobile ? 16 : 20, right: isMobile ? 16 : 20, zIndex: 910, background: 'rgba(8,11,20,0.9)', border: `1px solid ${C.border}`, borderRadius: '50%', width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, color: C.text, cursor: 'pointer', fontSize: isMobile ? 20 : 16, display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+        ✕
+      </button>
+
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease', padding: isMobile ? '60px 0 0' : 0 }} onClick={e => e.stopPropagation()}>
         <img src={image.src} alt={image.alt}
-          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '78vh', objectFit: 'contain', background: C.panel }} />
+          style={{ width: '100%', borderRadius: isMobile ? 0 : 16, boxShadow: isMobile ? 'none' : `0 0 80px ${C.accent}33`, display: 'block', maxHeight: isMobile ? '70vh' : '78vh', objectFit: 'contain', background: C.panel }} />
         {(image.title || image.caption) && (
-          <div style={{ marginTop: 14, textAlign: 'center' }}>
-            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
-            {image.caption && <div style={{ fontSize: 12, color: C.muted }}>{image.caption}</div>}
+          <div style={{ marginTop: 14, textAlign: 'center', padding: isMobile ? '0 20px 40px' : 0 }}>
+            {image.title && <div style={{ fontSize: isMobile ? 17 : 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.caption && <div style={{ fontSize: 13, color: C.muted }}>{image.caption}</div>}
+            {isMobile && <div style={{ fontSize: 12, color: C.muted, marginTop: 12 }}>Tap anywhere to close</div>}
           </div>
         )}
       </div>

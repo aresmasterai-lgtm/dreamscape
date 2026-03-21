@@ -128,7 +128,9 @@ function artAltTag(art) {
 }
 
 // ── Image Lightbox ────────────────────────────────────────────
-function ImageLightbox({ image, onClose, onSell, onDownload }) {
+function ImageLightbox({ image, onClose, onSell, onDownload, isOwn = false }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
+
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -141,43 +143,50 @@ function ImageLightbox({ image, onClose, onSell, onDownload }) {
 
   return (
     <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,11,20,0.97)', backdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', padding: isMobile ? 0 : 20, cursor: 'zoom-out', overflowY: 'auto' }}>
       <style>{`@keyframes lbIn { from { opacity:0; transform:scale(0.94) } to { opacity:1; transform:scale(1) } }`}</style>
-      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease' }} onClick={e => e.stopPropagation()}>
-        {/* Close */}
-        <button onClick={onClose}
-          style={{ position: 'absolute', top: -14, right: -14, zIndex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: '50%', width: 36, height: 36, color: C.text, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ✕
-        </button>
-        {/* Image */}
+
+      {/* Close — fixed, always reachable */}
+      <button onClick={onClose}
+        style={{ position: 'fixed', top: isMobile ? 16 : 20, right: isMobile ? 16 : 20, zIndex: 910, background: 'rgba(8,11,20,0.9)', border: `1px solid ${C.border}`, borderRadius: '50%', width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, color: C.text, cursor: 'pointer', fontSize: isMobile ? 20 : 16, display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+        ✕
+      </button>
+
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease', padding: isMobile ? '60px 0 0' : 0 }} onClick={e => e.stopPropagation()}>
         <img src={image.src} alt={image.alt}
-          style={{ width: '100%', borderRadius: 16, boxShadow: `0 0 80px ${C.accent}33`, display: 'block', maxHeight: '75vh', objectFit: 'contain', background: C.panel }} />
-        {/* Caption */}
+          style={{ width: '100%', borderRadius: isMobile ? 0 : 16, boxShadow: isMobile ? 'none' : `0 0 80px ${C.accent}33`, display: 'block', maxHeight: isMobile ? '65vh' : '75vh', objectFit: 'contain', background: C.panel }} />
+
         {(image.title || image.username) && (
-          <div style={{ marginTop: 14, textAlign: 'center' }}>
-            {image.title && <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
-            {image.username && <div style={{ fontSize: 12, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
-            {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '…' : ''}</div>}
+          <div style={{ marginTop: 14, textAlign: 'center', padding: isMobile ? '0 20px' : 0 }}>
+            {image.title && <div style={{ fontSize: isMobile ? 17 : 16, fontWeight: 700, color: C.text, marginBottom: 4 }}>{image.title}</div>}
+            {image.username && <div style={{ fontSize: 13, color: C.accent, marginBottom: 6 }}>@{image.username}</div>}
+            {image.prompt && <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, maxWidth: 600, margin: '0 auto' }}>{image.prompt.slice(0, 200)}{image.prompt.length > 200 ? '\u2026' : ''}</div>}
           </div>
         )}
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap', padding: isMobile ? '0 16px 40px' : 0 }}>
           {onSell && (
             <button onClick={onSell}
-              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              🛍 Sell This
+              style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: isMobile ? '12px 20px' : '10px 22px', color: '#fff', fontSize: isMobile ? 14 : 13, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+              \ud83d\udecd Sell This
             </button>
           )}
-          <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
-            onClick={e => e.stopPropagation()}
-            style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 18px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none' }}>
-            ↓ Download
-          </a>
+          {isOwn && (
+            <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: isMobile ? '12px 20px' : '10px 18px', color: C.muted, fontSize: isMobile ? 14 : 13, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              \u2193 Download
+            </a>
+          )}
+          {!onSell && !isOwn && isMobile && (
+            <div style={{ fontSize: 12, color: C.muted, padding: '8px 0' }}>Tap anywhere to close</div>
+          )}
         </div>
       </div>
     </div>
   )
 }
+
 
 // ── Art Card ──────────────────────────────────────────────────
 function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete, onEdit }) {
@@ -512,6 +521,7 @@ export default function Gallery({ user, onSignIn }) {
           image={lightbox}
           onClose={() => setLightbox(null)}
           onSell={isOwn(lightbox.art) ? () => { setCreateTarget(lightbox.art); setLightbox(null) } : null}
+          isOwn={isOwn(lightbox.art)}
         />
       )}
 
