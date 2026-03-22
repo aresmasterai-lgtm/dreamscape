@@ -142,6 +142,42 @@ async function tryImagen(model, prompt, apiKey, sizeConfig = null) {
   return p?.bytesBase64Encoded ? { imageData: p.bytesBase64Encoded, mimeType: p.mimeType || 'image/png' } : null
 }
 
+// ── DALL-E 3 fallback ────────────────────────────────────────
+async function tryDalle(prompt, apiKey, sizeConfig = null) {
+  // Map to DALL-E supported sizes
+  const size = !sizeConfig || (sizeConfig.width === sizeConfig.height) ? '1024x1024'
+    : sizeConfig.width > sizeConfig.height ? '1792x1024'
+    : '1024x1792'
+
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: prompt.slice(0, 4000),
+      n: 1,
+      size,
+      response_format: 'b64_json',
+      quality: 'standard',
+    }),
+  })
+
+  const data = await res.json()
+
+  if (data.error) {
+    console.warn('DALL-E error:', data.error.message)
+    if (data.error.code === 'content_policy_violation') {
+      throw Object.assign(new Error(data.error.message), { errorType: 'content_policy' })
+    }
+    throw new Error(data.error.message)
+  }
+
+  const b64 = data.data?.[0]?.b64_json
+  if (!b64) return null
+  console.log('DALL-E 3 generated successfully')
+  return { imageData: b64, mimeType: 'image/png' }
+}
+
 // Server-side generation limit check
 async function checkServerLimit(userId, tier, supabase) {
   if (tier === 'studio') return { allowed: true }
@@ -198,24 +234,45 @@ export default async (req) => {
     }
     const sizeConfig = RATIO_MAP[aspectRatio] || RATIO_MAP.square
 
-    // Strategy 1: Gemini
+    // Strategy 1: Gemini — try up to 3 times with progressively simpler prompts
     if (gemini) {
-      let imagePart = await tryGemini(gemini, prompt, referenceImage, apiKey, sizeConfig)
-      if (!imagePart) {
-        const newModel = await resolveModels(apiKey)
-        if (newModel.gemini) imagePart = await tryGemini(newModel.gemini, prompt, referenceImage, apiKey)
+      const attempts = [
+        { p: prompt,                                             ref: referenceImage },
+        { p: `Illustration: ${prompt.slice(0, 300)}`,           ref: referenceImage },
+        { p: `Colorful digital art, fantasy scene: ${prompt.slice(0, 200)}`, ref: null },
+      ]
+      for (const attempt of attempts) {
+        try {
+          const imagePart = await tryGemini(gemini, attempt.p, attempt.ref, apiKey, sizeConfig)
+          if (imagePart) return corsResponse({ success: true, imageData: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType || 'image/png' })
+        } catch (err) {
+          // Only continue retrying on content_policy — other errors propagate
+          if (err.errorType !== 'content_policy') throw err
+          console.warn(`Gemini blocked attempt, retrying with simpler prompt...`)
+        }
       }
-      if (!imagePart) {
-        const simple = `Digital artwork, vibrant, highly detailed: ${prompt.slice(0, 200)}`
-        imagePart = await tryGemini(gemini, simple, referenceImage, apiKey)
-      }
-      if (imagePart) return corsResponse({ success: true, imageData: imagePart.inlineData.data, mimeType: imagePart.inlineData.mimeType || 'image/png' })
     }
 
     // Strategy 2: Imagen
     if (imagen) {
-      const result = await tryImagen(imagen, prompt, apiKey, sizeConfig)
-      if (result) return corsResponse({ success: true, imageData: result.imageData, mimeType: result.mimeType })
+      try {
+        const result = await tryImagen(imagen, prompt, apiKey, sizeConfig)
+        if (result) return corsResponse({ success: true, imageData: result.imageData, mimeType: result.mimeType })
+      } catch (err) {
+        if (err.errorType !== 'content_policy') throw err
+        console.warn('Imagen also blocked, exhausted all strategies')
+      }
+    }
+
+    // Strategy 3: DALL-E 3 (OpenAI) — final fallback, more permissive than Gemini
+    const openAiKey = process.env.OPENAI_API_KEY
+    if (openAiKey) {
+      try {
+        const dalleResult = await tryDalle(prompt, openAiKey, sizeConfig)
+        if (dalleResult) return corsResponse({ success: true, imageData: dalleResult.imageData, mimeType: 'image/png' })
+      } catch (err) {
+        console.warn('DALL-E 3 also failed:', err.message)
+      }
     }
 
     const errorCode = `DS-${Date.now().toString(36).toUpperCase()}`

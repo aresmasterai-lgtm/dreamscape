@@ -760,6 +760,51 @@ function GenUsageCounter({ user }) {
 // ── Dream AI Chat ─────────────────────────────────────────────
 const INITIAL_MESSAGE = { role: 'assistant', content: "✨ Hey! I'm Dream. What are we creating today?" }
 
+// ── Generate button helper (avoids IIFE in JSX) ──────────────
+function GenerateButton({ pendingPrompt, lastGenerationPromptRef, generatingIndex, messages, setPendingPrompt, generateImage, handleSend }) {
+  const isReady = !!(pendingPrompt || lastGenerationPromptRef.current)
+  const isGenerating = generatingIndex !== null
+  const MESSAGES = [
+    '✨ Making dreams come true...',
+    '🎨 Painting your vision...',
+    '🌌 Bending reality...',
+    '⚡ Conjuring something epic...',
+    '🔮 Reading your mind...',
+    '🌀 Warping the cosmos...',
+    '💫 Channeling the muse...',
+    '🎭 Bringing it to life...',
+  ]
+  return (
+    <button onClick={() => {
+      if (isGenerating) return
+      if (pendingPrompt) {
+        const { prompt, refImage } = pendingPrompt
+        setPendingPrompt(null)
+        lastGenerationPromptRef.current = prompt
+        generateImage(prompt, messages.length - 1, refImage)
+      } else if (lastGenerationPromptRef.current) {
+        generateImage(lastGenerationPromptRef.current, messages.length - 1)
+      } else {
+        handleSend('generate')
+      }
+    }} disabled={isGenerating}
+      style={{
+        background: isGenerating
+          ? `linear-gradient(135deg, ${C.teal}88, #00A88488)`
+          : `linear-gradient(135deg, ${C.teal}, #00A884)`,
+        border: `1px solid ${C.teal}88`,
+        borderRadius: 8, padding: '8px 16px',
+        color: '#fff', fontSize: 12, fontWeight: 700,
+        cursor: isGenerating ? 'not-allowed' : 'pointer',
+        animation: isReady && !isGenerating ? 'generatePulse 2s ease-in-out infinite, generateReady 3s ease-in-out infinite' : 'none',
+        minWidth: 180, textAlign: 'center',
+        transition: 'background 0.3s',
+      }}>
+      {isGenerating ? MESSAGES[generatingIndex % 8] : '✦ Generate Image'}
+    </button>
+  )
+}
+
 function DreamChat({ user, onSignIn }) {
   const [messages, setMessages] = useState([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
@@ -1132,12 +1177,16 @@ function DreamChat({ user, onSignIn }) {
         // Auto-save to artwork — upload to Storage first so we store a URL not raw base64
         if (user) {
           const promptText = typeof prompt === 'string' ? prompt : ''
+          // Derive a smart title from the prompt — take first 6 words, title-case them
+          const smartTitle = promptText
+            ? promptText.split(' ').slice(0, 6).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') + (promptText.split(' ').length > 6 ? '...' : '')
+            : 'AI Artwork'
           // Try to upload to Supabase Storage for efficient CDN delivery
           const storageUrl = await uploadArtworkToStorage(user.id, imageDataUrl, data.mimeType || 'image/png')
           const finalImageUrl = storageUrl || imageDataUrl // fall back to base64 if upload fails
           const { data: savedArt } = await supabase.from('artwork').insert({
             user_id: user.id,
-            title: 'Untitled Generation',
+            title: smartTitle,
             prompt: promptText,
             image_url: finalImageUrl,
             style_tags: [],
@@ -1152,7 +1201,7 @@ function DreamChat({ user, onSignIn }) {
         const type = data.errorType || ''
         let msg
         if (type === 'content_policy') {
-          msg = `AI image models can't generate lifelike images of real people — this includes celebrities, public figures, and historical figures. Try describing the vibe or aesthetic instead and I'll create something just as fun! 🎨`
+          msg = `⚠️ The image model blocked that request — this sometimes happens with certain content combinations. Try rephrasing or hitting Retry, it often works on the next attempt. If your prompt includes real named people (celebrities, politicians etc.) try describing the vibe instead.`
         } else if (type === 'unavailable') {
           msg = `⚠️ Image generation is temporarily unavailable. Please try again in a moment.${code ? ` (${code})` : ''}`
           window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
@@ -1377,6 +1426,7 @@ function DreamChat({ user, onSignIn }) {
             {SIZE_OPTIONS.find(s => s.id === aspectRatio)?.hint}
           </span>
         </div>
+        {(lastAiIndex >= 0 || lastGenerationPromptRef.current) && !loading && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.panel, flexShrink: 0 }}>
             {generatedImages[lastAiIndex] ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1419,65 +1469,7 @@ function DreamChat({ user, onSignIn }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <style>{`
-                  @keyframes generatePulse {
-                    0%   { box-shadow: 0 0 0 0 rgba(0,212,170,0.7), 0 0 12px rgba(124,92,252,0.4); }
-                    50%  { box-shadow: 0 0 0 10px rgba(0,212,170,0), 0 0 28px rgba(124,92,252,0.7); }
-                    100% { box-shadow: 0 0 0 0 rgba(0,212,170,0), 0 0 12px rgba(124,92,252,0.4); }
-                  }
-                  @keyframes generateReady {
-                    0%,100% { filter: brightness(1); }
-                    50%     { filter: brightness(1.15); }
-                  }
-                `}</style>
-                {(() => {
-                  const isReady = !!(pendingPrompt || lastGenerationPromptRef.current)
-                  const isGenerating = generatingIndex !== null
-
-                  return (
-                    <button onClick={() => {
-                      if (isGenerating) return
-                      if (pendingPrompt) {
-                        const { prompt, refImage } = pendingPrompt
-                        setPendingPrompt(null)
-                        lastGenerationPromptRef.current = prompt
-                        generateImage(prompt, messages.length - 1, refImage)
-                      } else if (lastGenerationPromptRef.current) {
-                        generateImage(lastGenerationPromptRef.current, messages.length - 1)
-                      } else {
-                        // No prompt yet — send "go" to make Dream generate immediately
-                        handleSend('generate')
-                      }
-                    }} disabled={isGenerating}
-                      style={{
-                        background: isGenerating
-                          ? `linear-gradient(135deg, ${C.teal}88, #00A88488)`
-                          : `linear-gradient(135deg, ${C.teal}, #00A884)`,
-                        border: `1px solid ${C.teal}88`,
-                        borderRadius: 8, padding: '8px 16px',
-                        color: '#fff',
-                        fontSize: 12, fontWeight: 700,
-                        cursor: isGenerating ? 'not-allowed' : 'pointer',
-                        animation: isReady && !isGenerating
-                          ? 'generatePulse 2s ease-in-out infinite, generateReady 3s ease-in-out infinite'
-                          : 'none',
-                        minWidth: 180, textAlign: 'center',
-                        transition: 'background 0.3s',
-                      }}>
-                      {isGenerating ? [
-                        '✨ Making dreams come true...',
-                        '🎨 Painting your vision...',
-                        '🌌 Bending reality...',
-                        '⚡ Conjuring something epic...',
-                        '🔮 Reading your mind...',
-                        '🌀 Warping the cosmos...',
-                        '💫 Channeling the muse...',
-                        '🎭 Bringing it to life...',
-                      ][generatingIndex % 8]
-                      : '✦ Generate Image'}
-                    </button>
-                  )
-                })()}
+                <GenerateButton pendingPrompt={pendingPrompt} lastGenerationPromptRef={lastGenerationPromptRef} generatingIndex={generatingIndex} messages={messages} setPendingPrompt={setPendingPrompt} generateImage={generateImage} handleSend={handleSend} />
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
                   style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '8px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
                   {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save Prompt'}

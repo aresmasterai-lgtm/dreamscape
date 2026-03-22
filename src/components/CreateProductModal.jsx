@@ -137,6 +137,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [tags, setTags]             = useState('')
   const [creating, setCreating]     = useState(false)
   const [error, setError]           = useState('')
+  const [aiDetailsLoading, setAiDetailsLoading] = useState(false)
 
   const inp = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
   const lbl = { display: 'block', fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }
@@ -156,6 +157,55 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   useEffect(() => {
     if (selected && !price) setPrice(suggestPrice(getBaseCost(selected.model)))
   }, [selected])
+
+  // Auto-generate product details when reaching step 3
+  useEffect(() => {
+    if (step !== 3 || aiDetailsLoading) return
+    const hasDetails = titleTouched || description.trim() || tags.trim()
+    if (hasDetails) return // Don't overwrite what user already typed
+    generateProductDetails()
+  }, [step])
+
+  const generateProductDetails = async () => {
+    if (!selected) return
+    setAiDetailsLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const artPrompt   = defaultTitle || 'AI generated artwork'
+      const productType = selected.type || selected.model || 'product'
+
+      const res = await fetch('/api/dream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            content: `You are a product copywriter for an AI art print-on-demand store. Generate listing details for a ${productType} featuring this artwork: "${artPrompt}".
+
+Reply with ONLY a valid JSON object, no markdown, no explanation:
+{"title":"catchy product title max 80 chars","description":"2 engaging sentences about this product","tags":"tag1,tag2,tag3,tag4,tag5"}`
+          }]
+        })
+      })
+
+      const data = await res.json()
+      const replyText = data.reply || data.generationPrompt || ''
+
+      // Extract JSON — handle cases where Dream wraps it in text
+      const jsonMatch = replyText.match(/\{[^{}]*"title"[^{}]*"description"[^{}]*"tags"[^{}]*\}/)
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (parsed.title)       { setTitle(parsed.title);       setTitleTouched(true) }
+          if (parsed.description)   setDescription(parsed.description)
+          if (parsed.tags)          setTags(parsed.tags)
+        } catch {}
+      }
+    } catch (e) {
+      console.log('AI details generation failed:', e.message)
+    }
+    setAiDetailsLoading(false)
+  }
 
   const uploadDataUrl = async (dataUrl) => {
     setStep(0)
@@ -570,7 +620,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
           {/* Step 3: Details */}
           {step === 3 && (
             <div>
-              {/* Mini summary */}
+              {/* Mini summary + AI Fill button */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', background: '#f0f0f0', flexShrink: 0 }}>
                   <img src={mockupUrl || hostedImageUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -579,7 +629,20 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{selected?.model}</div>
                   <div style={{ fontSize: 11, color: C.muted }}>{selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}: {selectedColors.slice(0, 4).join(', ')}{selectedColors.length > 4 ? ` +${selectedColors.length - 4}` : ''}</div>
                 </div>
+                <button onClick={generateProductDetails} disabled={aiDetailsLoading}
+                  title="Let Dream AI write your title, description and tags"
+                  style={{ background: aiDetailsLoading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '7px 12px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: aiDetailsLoading ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
+                  {aiDetailsLoading ? '✦ Writing...' : '✦ AI Fill'}
+                </button>
               </div>
+
+              {/* AI loading banner */}
+              {aiDetailsLoading && (
+                <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.accent, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ animation: 'pulse 1s ease-in-out infinite' }}>✦</span>
+                  Dream AI is writing your product title, description and tags...
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* Title */}
