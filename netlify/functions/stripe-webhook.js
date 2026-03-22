@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail, templates } from './send-email.js'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -114,6 +115,30 @@ export default async (req) => {
         dreamscapeFee: split.dreamscapeFee,
         artistId: originalArtistId,
       })
+
+      // Send sale notification email to creator
+      if (creatorId || product?.user_id) {
+        const { data: creatorProfile } = await supabase
+          .from('profiles')
+          .select('email_notifications')
+          .eq('id', creatorId || product?.user_id)
+          .single()
+
+        // Get creator's email from auth
+        const { data: { user: creatorUser } } = await supabase.auth.admin.getUserById(creatorId || product?.user_id)
+        
+        if (creatorUser?.email && creatorProfile?.email_notifications !== false) {
+          const emailData = templates.sale({
+            productName: metadata.productName || 'Your product',
+            earnings: split.creatorEarnings,
+            buyerLocation: session.shipping_details?.address?.city
+              ? `${session.shipping_details.address.city}, ${session.shipping_details.address.country}`
+              : null,
+            orderId: order.id,
+          })
+          await sendEmail({ to: creatorUser.email, ...emailData })
+        }
+      }
 
     } catch (err) {
       console.error('Webhook processing error:', err.message)

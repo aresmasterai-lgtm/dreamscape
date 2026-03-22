@@ -2442,6 +2442,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [brandTagline, setBrandTagline] = useState(profile?.brand_tagline || '')
   const [brandColor, setBrandColor] = useState(profile?.brand_color || '#7C5CFC')
   const [storefrontActive, setStorefrontActive] = useState(profile?.storefront_active || false)
+  const [emailNotifications, setEmailNotifications] = useState(profile?.email_notifications !== false)
   const [customDomain, setCustomDomain] = useState(profile?.custom_domain || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -2544,6 +2545,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         brand_tagline: brandTagline.trim() || null,
         brand_color: brandColor || '#7C5CFC',
         storefront_active: storefrontActive,
+        email_notifications: emailNotifications,
         custom_domain: customDomain.trim().toLowerCase().replace(/^https?:\/\//, '') || null,
         updated_at: new Date().toISOString(),
       }
@@ -2639,6 +2641,17 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
               <div>
                 <label style={labelStyle}>Website / Social Link</label>
                 <input value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://yoursite.com" maxLength={200} style={inputStyle} />
+              </div>
+              {/* Email notification preference */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Email Notifications</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Sales, payouts, new followers</div>
+                </div>
+                <button onClick={() => setEmailNotifications(v => !v)}
+                  style={{ width: 44, height: 24, borderRadius: 12, background: emailNotifications ? C.teal : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', top: 4, left: emailNotifications ? 22 : 4, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', display: 'block' }} />
+                </button>
               </div>
             </div>
           )}
@@ -2876,6 +2889,12 @@ function FollowListModal({ type, profileId, viewerUser, onClose }) {
     } else {
       await supabase.from('follows').insert({ follower_id: viewerUser.id, following_id: targetId })
       setFollowingIds(prev => new Set([...prev, targetId]))
+      // Fire follow notification in background (email + in-app)
+      getAuthHeader().then(h => fetch('/api/notify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ targetUserId: targetId }),
+      }).catch(() => {}))
     }
     setTogglingId(null)
   }
@@ -4326,6 +4345,90 @@ function TeamTab({ user, profile }) {
 }
 
 // ── Profile Page ──────────────────────────────────────────────
+// ── Wishlist Tab ──────────────────────────────────────────────
+function WishlistTab({ user }) {
+  const navigate = useNavigate()
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [removing, setRemoving] = useState(null)
+
+  useEffect(() => { loadWishlist() }, [])
+
+  const loadWishlist = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('wishlist')
+      .select('*, products(*, profiles!user_id(username))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    setItems(data || [])
+    setLoading(false)
+  }
+
+  const removeItem = async (wishlistId, productId) => {
+    setRemoving(productId)
+    await supabase.from('wishlist').delete().eq('id', wishlistId)
+    setItems(prev => prev.filter(i => i.id !== wishlistId))
+    setRemoving(null)
+  }
+
+  if (loading) return <Spinner label="Loading wishlist..." />
+
+  if (items.length === 0) return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>♡</div>
+      <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 8 }}>Your wishlist is empty</h3>
+      <p style={{ color: C.muted, fontSize: 14, marginBottom: 24, lineHeight: 1.7 }}>Browse the Marketplace and tap ♡ on any product to save it here.</p>
+      <button onClick={() => navigate('/marketplace')}
+        style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+        Browse Marketplace →
+      </button>
+    </div>
+  )
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{items.length} saved item{items.length !== 1 ? 's' : ''}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+        {items.map(item => {
+          const product = item.products
+          if (!product) return null
+          return (
+            <div key={item.id} className="ds-card" style={{ overflow: 'hidden' }}>
+              {/* Image */}
+              <div style={{ height: 180, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
+                onClick={() => navigate(`/product/${product.id}`)}>
+                {product.mockup_url
+                  ? <img src={product.mockup_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 48 }}>🛍</div>
+                }
+                {/* Remove heart */}
+                <button onClick={e => { e.stopPropagation(); removeItem(item.id, product.id) }}
+                  disabled={removing === product.id}
+                  style={{ position: 'absolute', top: 8, right: 8, background: '#FF6B9D', border: 'none', borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {removing === product.id ? '·' : '♥'}
+                </button>
+              </div>
+              {/* Details */}
+              <div style={{ padding: '12px 14px' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.teal }}>${parseFloat(product.price || 0).toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>@{product.profiles?.username}</div>
+                </div>
+                <button onClick={() => navigate(`/product/${product.id}`)}
+                  style={{ width: '100%', marginTop: 10, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '8px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  Buy Now →
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ProfilePage({ user, profile: initialProfile }) {
   const navigate = useNavigate()
   const [profile, setProfile] = useState(initialProfile)
@@ -4502,6 +4605,7 @@ function ProfilePage({ user, profile: initialProfile }) {
       ['analytics', '📊 Analytics'],
       ['team', '👥 Team'],
     ] : []),
+    ['wishlist', '♥ Wishlist'],
     ['about', '✦ About'],
     ['feed', '👥 Following Feed'],
   ]
@@ -4702,6 +4806,8 @@ function ProfilePage({ user, profile: initialProfile }) {
           )}
         </div>
       )}
+
+      {tab === 'wishlist' && <WishlistTab user={user} />}
 
       {tab === 'about' && (
         <div style={{ maxWidth: 640 }}>
@@ -5050,6 +5156,12 @@ function ArtistProfilePage({ viewerUser }) {
     } else {
       await supabase.from('follows').insert({ follower_id: viewerUser.id, following_id: profile.id })
       setIsFollowing(true); setFollowerCount(c => c + 1)
+      // Fire follow notification in background
+      getAuthHeader().then(h => fetch('/api/notify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ targetUserId: profile.id }),
+      }).catch(() => {}))
     }
     setFollowLoading(false)
   }

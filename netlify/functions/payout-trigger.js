@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { requireAuth, corsResponse, optionsResponse } from './auth-middleware.js'
+import { sendEmail, templates } from './send-email.js'
 import { createClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -73,6 +74,18 @@ export default async (req) => {
       .in('id', orderIds)
 
     console.log(`Payout: $${(totalCents / 100).toFixed(2)} to ${profile.stripe_account_id} for ${pendingOrders.length} orders`)
+
+    // Send payout confirmation email
+    try {
+      const { data: { user: creatorUser } } = await supabase.auth.admin.getUserById(user.id)
+      if (creatorUser?.email) {
+        const emailData = templates.payout({
+          amount: totalCents / 100,
+          orderCount: pendingOrders.length,
+        })
+        await sendEmail({ to: creatorUser.email, ...emailData })
+      }
+    } catch (emailErr) { console.warn('Payout email failed:', emailErr.message) }
 
     return corsResponse({
       success: true,

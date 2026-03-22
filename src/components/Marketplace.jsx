@@ -335,12 +335,33 @@ function ShopView({ user, onSignIn }) {
   const [search, setSearch] = useState('')
   const [lightbox, setLightbox] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
+  const [wishlist, setWishlist] = useState(new Set())
+  const [wishlistLoading, setWishlistLoading] = useState(new Set())
   const navigate = useNavigate()
 
   const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art']
   const PRODUCT_TYPES = ['All', 'T-Shirt', 'Hoodie', 'Mug', 'Poster', 'Phone Case', 'Tote Bag', 'Pillow', 'Other']
 
   useEffect(() => { loadProducts() }, [])
+  useEffect(() => { if (user) loadWishlist() }, [user])
+
+  const loadWishlist = async () => {
+    const { data } = await supabase.from('wishlist').select('product_id').eq('user_id', user.id)
+    if (data) setWishlist(new Set(data.map(w => w.product_id)))
+  }
+
+  const toggleWishlist = async (productId) => {
+    if (!user) return onSignIn()
+    setWishlistLoading(prev => new Set([...prev, productId]))
+    if (wishlist.has(productId)) {
+      await supabase.from('wishlist').delete().eq('user_id', user.id).eq('product_id', productId)
+      setWishlist(prev => { const n = new Set(prev); n.delete(productId); return n })
+    } else {
+      await supabase.from('wishlist').insert({ user_id: user.id, product_id: productId })
+      setWishlist(prev => new Set([...prev, productId]))
+    }
+    setWishlistLoading(prev => { const n = new Set(prev); n.delete(productId); return n })
+  }
 
   const loadProducts = async () => {
     try {
@@ -458,6 +479,9 @@ function ShopView({ user, onSignIn }) {
               onLightbox={() => product.mockup_url && setLightbox({ src: product.mockup_url, alt: productAltTag(product), title: product.title, caption: `by @${product.profiles?.username || 'artist'}` })}
               onBuy={() => handleBuy(product)}
               buyingId={buyingId}
+              isWishlisted={wishlist.has(product.id)}
+              onWishlist={() => toggleWishlist(product.id)}
+              wishlistLoading={wishlistLoading.has(product.id)}
               onEdit={setEditTarget}
               onDelete={handleDelete}
               priority={idx < 8}
@@ -629,7 +653,7 @@ function EditProductModal({ product, user, onSave, onClose }) {
 }
 
 // ── Product Card with kebab menu ─────────────────────────────
-function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, onDelete, priority = false }) {
+function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, onDelete, priority = false, isWishlisted = false, onWishlist, wishlistLoading = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const menuRef = useRef(null)
@@ -669,6 +693,15 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
 
       {/* ⋯ Kebab button — outside image div to escape overflow:hidden */}
       <div style={{ position: 'absolute', top: 6, right: 6, zIndex: 60 }} ref={menuRef} onClick={e => e.stopPropagation()}>
+
+      {/* ♥ Wishlist button */}
+      {onWishlist && (
+        <button onClick={e => { e.stopPropagation(); onWishlist() }} disabled={wishlistLoading}
+          title={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
+          style={{ position: 'absolute', top: 6, left: 6, zIndex: 60, background: isWishlisted ? '#FF6B9D' : 'rgba(8,11,20,0.82)', border: `1px solid ${isWishlisted ? '#FF6B9D' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: isWishlisted ? '#fff' : '#fff', cursor: wishlistLoading ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+          {wishlistLoading ? '·' : isWishlisted ? '♥' : '♡'}
+        </button>
+      )}
         <button onClick={() => setMenuOpen(o => !o)}
           style={{ background: 'rgba(8,11,20,0.82)', border: `1px solid ${menuOpen ? C.accent + '66' : 'rgba(255,255,255,0.15)'}`, borderRadius: 8, width: 30, height: 30, color: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
           ⋯
