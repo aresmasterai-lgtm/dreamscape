@@ -2355,6 +2355,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [brandTagline, setBrandTagline] = useState(profile?.brand_tagline || '')
   const [brandColor, setBrandColor] = useState(profile?.brand_color || '#7C5CFC')
   const [storefrontActive, setStorefrontActive] = useState(profile?.storefront_active || false)
+  const [customDomain, setCustomDomain] = useState(profile?.custom_domain || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const isBizTier = ['merchant', 'brand', 'enterprise'].includes(profile?.subscription_tier)
@@ -2456,6 +2457,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         brand_tagline: brandTagline.trim() || null,
         brand_color: brandColor || '#7C5CFC',
         storefront_active: storefrontActive,
+        custom_domain: customDomain.trim().toLowerCase().replace(/^https?:\/\//, '') || null,
         updated_at: new Date().toISOString(),
       }
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
@@ -2665,12 +2667,29 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{brandColor}</div>
                     <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Used for storefront accents, buttons and borders</div>
                   </div>
-                  {/* Preview */}
                   <div style={{ marginLeft: 'auto', background: `${brandColor}18`, border: `2px solid ${brandColor}66`, borderRadius: 10, padding: '6px 14px', fontSize: 12, fontWeight: 700, color: brandColor }}>
                     Preview
                   </div>
                 </div>
               </div>
+
+              {/* Custom domain — Brand/Enterprise only */}
+              {['brand', 'enterprise'].includes(profile?.subscription_tier) && (
+                <div>
+                  <label style={labelStyle}>Custom Domain <span style={{ color: C.gold, fontWeight: 700, fontSize: 10 }}>Brand+</span></label>
+                  <input value={customDomain} onChange={e => setCustomDomain(e.target.value)}
+                    placeholder="shop.yourcompany.com"
+                    style={inputStyle} />
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.6 }}>
+                    Point a CNAME record from your domain to <span style={{ color: C.text, fontFamily: 'monospace' }}>trydreamscape.com</span>, then enter it here. Verification can take up to 48 hours.
+                  </div>
+                  {profile?.custom_domain && (
+                    <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: profile.custom_domain_verified ? `${C.teal}15` : `${C.gold}15`, border: `1px solid ${profile.custom_domain_verified ? C.teal+'44' : C.gold+'44'}`, borderRadius: 8, padding: '4px 10px', fontSize: 11, color: profile.custom_domain_verified ? C.teal : C.gold }}>
+                      {profile.custom_domain_verified ? '✅ Verified' : '⏳ Pending verification'} — {profile.custom_domain}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3382,15 +3401,44 @@ function PayoutsCard({ user, profile }) {
     }
   }
 
+  const [payingOut, setPayingOut] = useState(false)
+  const [payoutResult, setPayoutResult] = useState(null)
+
+  // Handle return from Stripe Connect onboarding
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connect') === 'success') {
+      checkStatus()
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (params.get('connect') === 'refresh') {
+      handleConnect()
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   const handleConnect = async () => {
     setConnecting(true)
     try {
-      const res = await fetch('/api/connect-onboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, email: user.email }) })
+      const h = await getAuthHeader()
+      const res = await fetch('/api/connect-onboard', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h } })
       const data = await res.json()
       if (data.url) window.location.href = data.url
       else alert('Something went wrong: ' + (data.error || 'Unknown'))
     } catch { alert('Connection error.') }
     setConnecting(false)
+  }
+
+  const handlePayout = async () => {
+    setPayingOut(true)
+    setPayoutResult(null)
+    try {
+      const h = await getAuthHeader()
+      const res = await fetch('/api/payout-trigger', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h } })
+      const data = await res.json()
+      setPayoutResult(data)
+      if (data.success) loadEarnings()
+    } catch { setPayoutResult({ error: 'Connection error' }) }
+    setPayingOut(false)
   }
 
   return (
@@ -3428,9 +3476,20 @@ function PayoutsCard({ user, profile }) {
         </div>
       ) : (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
             <span style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 20, padding: '3px 12px', fontSize: 12, fontWeight: 700, color: C.teal }}>✅ Payouts Active</span>
+            <button onClick={handlePayout} disabled={payingOut || earnings.pending <= 0}
+              style={{ background: earnings.pending > 0 && !payingOut ? `linear-gradient(135deg, ${C.teal}, #00A884)` : C.border, border: 'none', borderRadius: 10, padding: '8px 16px', color: earnings.pending > 0 && !payingOut ? '#fff' : C.muted, fontSize: 12, fontWeight: 700, cursor: earnings.pending > 0 && !payingOut ? 'pointer' : 'not-allowed' }}>
+              {payingOut ? '⏳ Processing...' : earnings.pending > 0 ? `💸 Request Payout ($${earnings.pending.toFixed(2)})` : '✓ Nothing Pending'}
+            </button>
           </div>
+          {payoutResult && (
+            <div style={{ background: payoutResult.success ? `${C.teal}12` : `${C.red}12`, border: `1px solid ${payoutResult.success ? C.teal+'44' : C.red+'44'}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: payoutResult.success ? C.teal : C.red }}>
+              {payoutResult.success
+                ? `✅ $${payoutResult.transferred.toFixed(2)} transferred across ${payoutResult.orderCount} orders — arrives in 2-7 business days`
+                : `⚠️ ${payoutResult.error || payoutResult.message}`}
+            </div>
+          )}
 
           {/* Product sales */}
           <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>🛍 Product Sales</div>
@@ -3475,8 +3534,45 @@ function AnalyticsTab({ user, products }) {
   const [recentOrders, setRecent] = useState([])
   const [loading, setLoading]     = useState(true)
   const [range, setRange]         = useState(30) // days
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => { loadAnalytics() }, [range])
+
+  const exportCSV = async () => {
+    setExporting(true)
+    try {
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id, created_at, product_name, amount_total, creator_earnings, payout_status, shipping_name')
+        .eq('creator_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (!orders?.length) { alert('No orders to export.'); setExporting(false); return }
+
+      const rows = [
+        ['Order ID', 'Date', 'Product', 'Sale Amount', 'Your Earnings', 'Payout Status', 'Customer Name'],
+        ...orders.map(o => [
+          o.id,
+          new Date(o.created_at).toLocaleDateString('en-US'),
+          o.product_name || '',
+          `$${(o.amount_total || 0).toFixed(2)}`,
+          `$${(o.creator_earnings || 0).toFixed(2)}`,
+          o.payout_status || 'pending',
+          o.shipping_name || '',
+        ])
+      ]
+
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `dreamscape-orders-${new Date().toISOString().slice(0,10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) { alert('Export failed: ' + e.message) }
+    setExporting(false)
+  }
 
   const loadAnalytics = async () => {
     setLoading(true)
@@ -3532,16 +3628,20 @@ function AnalyticsTab({ user, products }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Range selector */}
+      {/* Range selector + export */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text }}>📊 Analytics</h3>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {[[7,'7d'],[30,'30d'],[90,'90d']].map(([days, label]) => (
             <button key={days} onClick={() => setRange(days)}
               style={{ background: range === days ? `${C.accent}25` : 'none', border: `1px solid ${range === days ? C.accent + '66' : C.border}`, borderRadius: 8, padding: '5px 14px', color: range === days ? C.accent : C.muted, fontSize: 12, fontWeight: range === days ? 700 : 400, cursor: 'pointer' }}>
               {label}
             </button>
           ))}
+          <button onClick={exportCSV} disabled={exporting}
+            style={{ background: exporting ? C.border : `${C.teal}18`, border: `1px solid ${exporting ? C.border : C.teal+'44'}`, borderRadius: 8, padding: '5px 14px', color: exporting ? C.muted : C.teal, fontSize: 12, fontWeight: 700, cursor: exporting ? 'not-allowed' : 'pointer', marginLeft: 6 }}>
+            {exporting ? '⏳ Exporting...' : '⬇ CSV'}
+          </button>
         </div>
       </div>
 

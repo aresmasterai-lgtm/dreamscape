@@ -245,19 +245,22 @@ function OrdersTab() {
 
 // ── Content Tab ───────────────────────────────────────────────
 function ContentTab() {
-  const [tab, setTab] = useState('products')
+  const [tab, setTab]           = useState('products')
   const [products, setProducts] = useState([])
   const [artworks, setArtworks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [confirm, setConfirm] = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [confirm, setConfirm]   = useState(null)
+  const [selected, setSelected] = useState(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   useEffect(() => { loadContent() }, [])
+  useEffect(() => { setSelected(new Set()) }, [tab])
 
   const loadContent = async () => {
     setLoading(true)
     const [{ data: prods }, { data: art }] = await Promise.all([
-      supabase.from('products').select('*, profiles(username)').order('created_at', { ascending: false }).limit(100),
-      supabase.from('artwork').select('*, profiles(username)').order('created_at', { ascending: false }).limit(100),
+      supabase.from('products').select('*, profiles!user_id(username)').order('created_at', { ascending: false }).limit(200),
+      supabase.from('artwork').select('*, profiles!user_id(username)').order('created_at', { ascending: false }).limit(200),
     ])
     setProducts(prods || [])
     setArtworks(art || [])
@@ -276,9 +279,62 @@ function ContentTab() {
     setConfirm(null)
   }
 
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const selectAll = () => {
+    const items = tab === 'products' ? products : artworks
+    setSelected(new Set(items.map(i => i.id)))
+  }
+
+  // Bulk actions
+  const bulkPublishArtwork = async (isPublic) => {
+    if (!selected.size) return
+    setBulkLoading(true)
+    const ids = [...selected]
+    await supabase.from('artwork').update({ is_public: isPublic }).in('id', ids)
+    setArtworks(prev => prev.map(a => ids.includes(a.id) ? { ...a, is_public: isPublic } : a))
+    setSelected(new Set())
+    setBulkLoading(false)
+  }
+
+  const bulkHideProducts = async (hidden) => {
+    if (!selected.size) return
+    setBulkLoading(true)
+    const ids = [...selected]
+    await supabase.from('products').update({ is_hidden: hidden }).in('id', ids)
+    setProducts(prev => prev.map(p => ids.includes(p.id) ? { ...p, is_hidden: hidden } : p))
+    setSelected(new Set())
+    setBulkLoading(false)
+  }
+
+  const bulkDelete = async () => {
+    if (!selected.size) return
+    setBulkLoading(true)
+    const ids = [...selected]
+    if (tab === 'products') {
+      await supabase.from('products').delete().in('id', ids)
+      setProducts(prev => prev.filter(p => !ids.includes(p.id)))
+    } else {
+      await supabase.from('artwork').delete().in('id', ids)
+      setArtworks(prev => prev.filter(a => !ids.includes(a.id)))
+    }
+    setSelected(new Set())
+    setConfirm(null)
+    setBulkLoading(false)
+  }
+
+  const items = tab === 'products' ? products : artworks
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+      {/* Tab selector */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
         {[['products', `Products (${products.length})`], ['artworks', `Artworks (${artworks.length})`]].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ background: tab === id ? `${C.accent}20` : 'none', border: `1px solid ${tab === id ? C.accent + '55' : 'transparent'}`, borderRadius: 8, padding: '7px 16px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer' }}>
@@ -286,10 +342,56 @@ function ContentTab() {
           </button>
         ))}
       </div>
+
+      {/* Bulk action bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <button onClick={selected.size === items.length ? () => setSelected(new Set()) : selectAll}
+          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+          {selected.size === items.length ? '✕ Clear All' : `☐ Select All (${items.length})`}
+        </button>
+        {selected.size > 0 && (
+          <>
+            <span style={{ fontSize: 12, color: C.accent, fontWeight: 700 }}>{selected.size} selected</span>
+            {tab === 'artworks' && (
+              <>
+                <button onClick={() => bulkPublishArtwork(true)} disabled={bulkLoading}
+                  style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '5px 12px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🌐 Publish All
+                </button>
+                <button onClick={() => bulkPublishArtwork(false)} disabled={bulkLoading}
+                  style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '5px 12px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🔒 Unpublish All
+                </button>
+              </>
+            )}
+            {tab === 'products' && (
+              <>
+                <button onClick={() => bulkHideProducts(true)} disabled={bulkLoading}
+                  style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '5px 12px', color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  🔒 Hide All
+                </button>
+                <button onClick={() => bulkHideProducts(false)} disabled={bulkLoading}
+                  style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '5px 12px', color: C.teal, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  👁 Show All
+                </button>
+              </>
+            )}
+            <button onClick={() => setConfirm({ type: 'bulk', count: selected.size })} disabled={bulkLoading}
+              style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 8, padding: '5px 12px', color: C.red, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              🗑 Delete ({selected.size})
+            </button>
+          </>
+        )}
+        {bulkLoading && <span style={{ fontSize: 12, color: C.muted }}>⏳ Working...</span>}
+      </div>
+
       {loading ? <Spinner /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(tab === 'products' ? products : artworks).map(item => (
-            <div key={item.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          {items.map(item => (
+            <div key={item.id} style={{ background: selected.has(item.id) ? `${C.accent}08` : C.card, border: `1px solid ${selected.has(item.id) ? C.accent+'44' : C.border}`, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', transition: 'all 0.15s' }}>
+              {/* Checkbox */}
+              <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)}
+                style={{ width: 16, height: 16, cursor: 'pointer', accentColor: C.accent, flexShrink: 0 }} />
               {(item.mockup_url || item.image_url)
                 ? <img src={item.mockup_url || item.image_url} alt={item.title} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                 : <div style={{ width: 48, height: 48, borderRadius: 8, background: `${C.accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🎨</div>
@@ -304,34 +406,23 @@ function ContentTab() {
                   {item.is_hidden && <div style={{ fontSize: 11, background: `${C.red}20`, border: `1px solid ${C.red}44`, borderRadius: 20, padding: '2px 8px', color: C.red, fontWeight: 600 }}>Hidden</div>}
                 </div>
               )}
-              {tab === 'artworks' && <div style={{ fontSize: 11, background: item.is_public ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${item.is_public ? C.teal + '44' : C.muted + '33'}`, borderRadius: 20, padding: '3px 10px', color: item.is_public ? C.teal : C.muted, fontWeight: 600 }}>{item.is_public ? '🌐 Public' : '🔒 Private'}</div>}
-              {/* Unpublish — artwork only */}
-              {tab === 'artworks' && item.is_public && (
+              {tab === 'artworks' && <div style={{ fontSize: 11, background: item.is_public ? `${C.teal}20` : `${C.muted}20`, border: `1px solid ${item.is_public ? C.teal+'44' : C.muted+'33'}`, borderRadius: 20, padding: '3px 10px', color: item.is_public ? C.teal : C.muted, fontWeight: 600 }}>{item.is_public ? '🌐 Public' : '🔒 Private'}</div>}
+              {/* Per-row actions */}
+              {tab === 'artworks' && (
                 <button onClick={async () => {
-                  await supabase.from('artwork').update({ is_public: false }).eq('id', item.id)
-                  setArtworks(prev => prev.map(a => a.id === item.id ? { ...a, is_public: false } : a))
-                }}
-                  style={{ background: `${C.gold}15`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  🔒 Unpublish
+                  const newVal = !item.is_public
+                  await supabase.from('artwork').update({ is_public: newVal }).eq('id', item.id)
+                  setArtworks(prev => prev.map(a => a.id === item.id ? { ...a, is_public: newVal } : a))
+                }} style={{ background: item.is_public ? `${C.gold}15` : `${C.teal}15`, border: `1px solid ${item.is_public ? C.gold+'44' : C.teal+'44'}`, borderRadius: 8, padding: '6px 14px', color: item.is_public ? C.gold : C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {item.is_public ? '🔒 Unpublish' : '🌐 Publish'}
                 </button>
               )}
-              {tab === 'artworks' && !item.is_public && (
-                <button onClick={async () => {
-                  await supabase.from('artwork').update({ is_public: true }).eq('id', item.id)
-                  setArtworks(prev => prev.map(a => a.id === item.id ? { ...a, is_public: true } : a))
-                }}
-                  style={{ background: `${C.teal}15`, border: `1px solid ${C.teal}44`, borderRadius: 8, padding: '6px 14px', color: C.teal, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                  🌐 Publish
-                </button>
-              )}
-              {/* Hide/show products */}
               {tab === 'products' && (
                 <button onClick={async () => {
                   const newVal = !item.is_hidden
                   await supabase.from('products').update({ is_hidden: newVal }).eq('id', item.id)
                   setProducts(prev => prev.map(p => p.id === item.id ? { ...p, is_hidden: newVal } : p))
-                }}
-                  style={{ background: item.is_hidden ? `${C.teal}15` : `${C.gold}15`, border: `1px solid ${item.is_hidden ? C.teal + '44' : C.gold + '44'}`, borderRadius: 8, padding: '6px 14px', color: item.is_hidden ? C.teal : C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                }} style={{ background: item.is_hidden ? `${C.teal}15` : `${C.gold}15`, border: `1px solid ${item.is_hidden ? C.teal+'44' : C.gold+'44'}`, borderRadius: 8, padding: '6px 14px', color: item.is_hidden ? C.teal : C.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   {item.is_hidden ? '👁 Show' : '🔒 Hide'}
                 </button>
               )}
@@ -347,11 +438,13 @@ function ContentTab() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: 'rgba(8,11,20,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32, maxWidth: 400, width: '100%', textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 16 }}>🗑️</div>
-            <h3 style={{ color: C.text, marginBottom: 8, fontFamily: 'Playfair Display, serif' }}>Remove "{confirm.title}"?</h3>
+            <h3 style={{ color: C.text, marginBottom: 8, fontFamily: 'Playfair Display, serif' }}>
+              {confirm.type === 'bulk' ? `Delete ${confirm.count} items?` : `Remove "${confirm.title}"?`}
+            </h3>
             <p style={{ color: C.muted, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>This cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirm(null)} style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: 11, color: C.muted, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => confirm.type === 'products' ? deleteProduct(confirm.id) : deleteArtwork(confirm.id)}
+              <button onClick={() => confirm.type === 'bulk' ? bulkDelete() : confirm.type === 'products' ? deleteProduct(confirm.id) : deleteArtwork(confirm.id)}
                 style={{ flex: 1, background: `linear-gradient(135deg, ${C.red}, #CC0000)`, border: 'none', borderRadius: 10, padding: 11, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Delete</button>
             </div>
           </div>

@@ -1,51 +1,56 @@
 import Stripe from 'stripe'
+import { requireAuth, corsResponse, optionsResponse } from './auth-middleware.js'
 import { createClient } from '@supabase/supabase-js'
 
-export default async (req) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  }
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
-  if (req.method === 'OPTIONS') return new Response('', { status: 200, headers })
+export default async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse()
 
   try {
-    const { userId } = await req.json()
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
-    )
+    const { user } = await requireAuth(req)
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('stripe_connect_id, stripe_connect_enabled')
-      .eq('id', userId)
+      .select('stripe_account_id, stripe_onboarded')
+      .eq('id', user.id)
       .single()
 
-    if (!profile?.stripe_connect_id) {
-      return new Response(JSON.stringify({ connected: false, enabled: false }), { status: 200, headers })
+    if (!profile?.stripe_account_id) {
+      return corsResponse({ connected: false, enabled: false })
     }
 
-    // Check account status with Stripe
-    const account = await stripe.accounts.retrieve(profile.stripe_connect_id)
-    const enabled = account.charges_enabled && account.payouts_enabled
+    // Verify with Stripe
+    const account = await stripe.accounts.retrieve(profile.stripe_account_id)
+    const connected = !!account.id
+    const enabled   = account.charges_enabled && account.payouts_enabled
 
-    // Update status in Supabase if it changed
-    if (enabled !== profile.stripe_connect_enabled) {
-      await supabase.from('profiles').update({ stripe_connect_enabled: enabled }).eq('id', userId)
+    // Update onboarded flag if newly completed
+    if (enabled && !profile.stripe_onboarded) {
+      await supabase
+        .from('profiles')
+        .update({ stripe_onboarded: true })
+        .eq('id', user.id)
     }
 
-    return new Response(JSON.stringify({
-      connected: true,
+    return corsResponse({
+      connected,
       enabled,
-      charges_enabled: account.charges_enabled,
-      payouts_enabled: account.payouts_enabled,
-      requirements: account.requirements?.currently_due || [],
-    }), { status: 200, headers })
+      accountId:       profile.stripe_account_id,
+      chargesEnabled:  account.charges_enabled,
+      payoutsEnabled:  account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+      country:         account.country,
+    })
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers })
+    if (err instanceof Response) return err
+    console.error('connect-status error:', err.message)
+    return corsResponse({ connected: false, enabled: false, error: err.message })
   }
 }
 

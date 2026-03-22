@@ -1,60 +1,61 @@
 import Stripe from 'stripe'
+import { requireAuth, corsResponse, optionsResponse } from './auth-middleware.js'
 import { createClient } from '@supabase/supabase-js'
 
-export default async (req) => {
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  }
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
-  if (req.method === 'OPTIONS') return new Response('', { status: 200, headers })
+export default async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse()
 
   try {
-    const { userId, email } = await req.json()
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-    const supabase = createClient(
-      process.env.VITE_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
-    )
+    const { user } = await requireAuth(req)
 
-    // Check if creator already has a connect account
+    // Check if creator already has a Stripe account
     const { data: profile } = await supabase
       .from('profiles')
-      .select('stripe_connect_id, stripe_connect_enabled')
-      .eq('id', userId)
+      .select('stripe_account_id, stripe_onboarded')
+      .eq('id', user.id)
       .single()
 
-    let accountId = profile?.stripe_connect_id
+    let accountId = profile?.stripe_account_id
 
-    // Create a new Standard connect account if they don't have one
+    // Create a new Express account if none exists
     if (!accountId) {
       const account = await stripe.accounts.create({
-        type: 'standard',
-        email,
-        metadata: { user_id: userId },
+        type: 'express',
+        email: user.email,
+        capabilities: { transfers: { requested: true } },
+        business_type: 'individual',
+        metadata: { dreamscape_user_id: user.id },
       })
       accountId = account.id
 
-      // Save the account ID to their profile
-      await supabase.from('profiles').update({
-        stripe_connect_id: accountId,
-        stripe_connect_enabled: false,
-      }).eq('id', userId)
+      // Save to profile immediately
+      await supabase
+        .from('profiles')
+        .update({ stripe_account_id: accountId, stripe_onboarded: false })
+        .eq('id', user.id)
     }
 
-    // Create an account link for onboarding
+    // Create onboarding link
+    const origin = req.headers.get('origin') || 'https://trydreamscape.com'
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: 'https://trydreamscape.com/profile?connect=refresh',
-      return_url: 'https://trydreamscape.com/profile?connect=success',
+      refresh_url: `${origin}/profile?connect=refresh`,
+      return_url:  `${origin}/profile?connect=success`,
       type: 'account_onboarding',
     })
 
-    return new Response(JSON.stringify({ url: accountLink.url }), { status: 200, headers })
+    return corsResponse({ url: accountLink.url })
+
   } catch (err) {
-    console.error('Connect onboard error:', err.message)
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers })
+    if (err instanceof Response) return err
+    console.error('connect-onboard error:', err.message)
+    return corsResponse({ error: err.message }, 500)
   }
 }
 
