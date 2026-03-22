@@ -5330,27 +5330,25 @@ function ResetPasswordPage() {
 }
 function DiscoverPage({ user, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
+  // Logged-in users get the home feed; guests get the hero
+  if (user) return <HomeFeed user={user} />
+  return <HeroLanding onSignIn={onSignIn} />
+}
+
+// ── Hero Landing (guests) ─────────────────────────────────────
+function HeroLanding({ onSignIn }) {
   const navigate = useNavigate()
-  const [stats, setStats] = useState({ artists: null, artworks: null, products: null, countries: '150+' })
+  const [stats, setStats] = useState({ artists: null, artworks: null, products: null })
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [
-          { count: artists },
-          { count: artworks },
-          { count: products },
-        ] = await Promise.all([
+        const [{ count: artists }, { count: artworks }, { count: products }] = await Promise.all([
           supabase.from('profiles').select('id', { count: 'exact', head: true }),
           supabase.from('artwork').select('id', { count: 'exact', head: true }).eq('is_public', true),
           supabase.from('products').select('id', { count: 'exact', head: true }),
         ])
-        setStats({
-          artists:  artists  || 0,
-          artworks: artworks || 0,
-          products: products || 0,
-          countries: '150+',
-        })
+        setStats({ artists: artists || 0, artworks: artworks || 0, products: products || 0 })
       } catch {}
     }
     load()
@@ -5366,14 +5364,11 @@ function DiscoverPage({ user, onSignIn }) {
     <div style={{ minHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}18 0%, transparent 70%)`, top: '5%', left: '15%', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${C.teal}12 0%, transparent 70%)`, bottom: '10%', right: '10%', pointerEvents: 'none' }} />
-
-      {/* Beta banner */}
       <div style={{ background: `linear-gradient(135deg, ${C.gold}22, ${C.accent}18)`, border: `1px solid ${C.gold}44`, borderRadius: 20, padding: '6px 18px', marginBottom: 20, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 14 }}>🎉</span>
         <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>BETA — Founding member pricing: 50% off all plans forever</span>
         <button onClick={() => navigate('/pricing')} style={{ background: C.gold, border: 'none', borderRadius: 10, padding: '3px 10px', color: '#000', fontSize: 11, fontWeight: 800, cursor: 'pointer', marginLeft: 4 }}>See Plans →</button>
       </div>
-
       <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>AI-Powered Artist Platform</div>
       <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(36px, 7vw, 80px)', fontWeight: 900, lineHeight: 1.05, marginBottom: 20, maxWidth: 800 }}>
         Where Artists<br />
@@ -5383,23 +5378,305 @@ function DiscoverPage({ user, onSignIn }) {
         Generate stunning artwork with AI, connect with artists worldwide, and sell merchandise globally.
       </p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-        <button onClick={() => user ? navigate('/create') : onSignIn()} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Start Creating Free ✦</button>
+        <button onClick={onSignIn} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px 28px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Start Creating Free ✦</button>
         <button onClick={() => navigate('/marketplace')} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 28px', color: C.text, fontSize: 14, cursor: 'pointer' }}>Explore Marketplace</button>
       </div>
-
-      {/* Live stats */}
       <div style={{ display: 'flex', gap: 40, marginTop: 56, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {[
-          [fmt(stats.artists),  'Artists'],
-          [fmt(stats.artworks), 'Artworks'],
-          [fmt(stats.products), 'Products'],
-          [stats.countries,     'Countries'],
-        ].map(([num, label]) => (
+        {[['Artists', fmt(stats.artists)], ['Artworks', fmt(stats.artworks)], ['Products', fmt(stats.products)], ['Countries', '150+']].map(([label, num]) => (
           <div key={label} style={{ textAlign: 'center' }}>
             <div className='ds-stat-num' style={{ fontSize: 26, fontWeight: 800, color: C.text, fontFamily: 'Playfair Display, serif', minWidth: 60 }}>{num}</div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{label}</div>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Home Feed (logged-in users) ───────────────────────────────
+function HomeFeed({ user }) {
+  const navigate = useNavigate()
+  const [feedTab, setFeedTab]           = useState('following')
+  const [followingArt, setFollowingArt] = useState([])
+  const [trendingArt, setTrendingArt]   = useState([])
+  const [suggested, setSuggested]       = useState([])
+  const [newProducts, setNewProducts]   = useState([])
+  const [loadingFeed, setLoadingFeed]   = useState(true)
+  const [loadingTrend, setLoadingTrend] = useState(true)
+  const [followingIds, setFollowingIds] = useState(new Set())
+  const [togglingId, setTogglingId]     = useState(null)
+  const [lightbox, setLightbox]         = useState(null)
+  const [createTarget, setCreateTarget] = useState(null)
+
+  useEffect(() => { loadAll() }, [user.id])
+
+  const loadAll = async () => {
+    // Load IDs of people the user follows
+    const { data: followRows } = await supabase
+      .from('follows').select('following_id').eq('follower_id', user.id)
+    const ids = (followRows || []).map(r => r.following_id)
+    setFollowingIds(new Set(ids))
+
+    // Following feed
+    setLoadingFeed(true)
+    if (ids.length > 0) {
+      const { data: art } = await supabase
+        .from('artwork')
+        .select('*, profiles!user_id(id, username, display_name, avatar_url)')
+        .in('user_id', ids)
+        .eq('is_public', true)
+        .or('broken_image.is.null,broken_image.eq.false')
+        .order('created_at', { ascending: false })
+        .limit(48)
+      setFollowingArt(art || [])
+    }
+    setLoadingFeed(false)
+
+    // Trending (recent public artwork not from people you follow)
+    setLoadingTrend(true)
+    const { data: trend } = await supabase
+      .from('artwork')
+      .select('*, profiles!user_id(id, username, display_name, avatar_url)')
+      .eq('is_public', true)
+      .or('broken_image.is.null,broken_image.eq.false')
+      .order('created_at', { ascending: false })
+      .limit(48)
+    setTrendingArt(trend || [])
+    setLoadingTrend(false)
+
+    // Suggested creators — active artists not yet followed, with recent public artwork
+    const { data: recentCreators } = await supabase
+      .from('artwork')
+      .select('user_id, profiles!user_id(id, username, display_name, avatar_url, bio)')
+      .eq('is_public', true)
+      .neq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    // Deduplicate by user_id, skip already-followed
+    const seen = new Set([user.id, ...ids])
+    const unique = []
+    for (const row of recentCreators || []) {
+      if (!seen.has(row.user_id) && row.profiles) {
+        seen.add(row.user_id)
+        unique.push(row.profiles)
+      }
+      if (unique.length >= 6) break
+    }
+    setSuggested(unique)
+
+    // New products from people you follow
+    if (ids.length > 0) {
+      const { data: prods } = await supabase
+        .from('products')
+        .select('*, profiles!user_id(username)')
+        .in('user_id', ids)
+        .or('is_hidden.is.null,is_hidden.eq.false')
+        .order('created_at', { ascending: false })
+        .limit(6)
+      setNewProducts(prods || [])
+    }
+  }
+
+  const toggleFollow = async (targetId) => {
+    if (togglingId) return
+    setTogglingId(targetId)
+    if (followingIds.has(targetId)) {
+      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId)
+      setFollowingIds(prev => { const n = new Set(prev); n.delete(targetId); return n })
+      setSuggested(prev => prev.filter(p => p.id !== targetId))
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId })
+      setFollowingIds(prev => new Set([...prev, targetId]))
+      setSuggested(prev => prev.filter(p => p.id !== targetId))
+      // Fire notification
+      getAuthHeader().then(h => fetch('/api/notify-follow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ targetUserId: targetId }),
+      }).catch(() => {}))
+    }
+    setTogglingId(null)
+  }
+
+  const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'there'
+  const activeArt  = feedTab === 'following' ? followingArt : trendingArt
+  const isLoading  = feedTab === 'following' ? loadingFeed : loadingTrend
+
+  return (
+    <div style={{ padding: '32px 20px', maxWidth: 1100, margin: '0 auto' }}>
+      {lightbox && (
+        <ImageLightbox
+          image={lightbox}
+          onClose={() => setLightbox(null)}
+          onSell={lightbox.art?.user_id === user.id ? () => { setCreateTarget(lightbox.art); setLightbox(null) } : null}
+        />
+      )}
+      {createTarget && (
+        <CreateProductModal user={user} imageUrl={createTarget.image_url} title={createTarget.title || ''} onClose={() => setCreateTarget(null)} onSuccess={() => setCreateTarget(null)} />
+      )}
+
+      {/* Greeting */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 4 }}>
+          Welcome back ✦
+        </h1>
+        <p style={{ color: C.muted, fontSize: 14 }}>
+          {followingIds.size > 0
+            ? `You're following ${followingIds.size} creator${followingIds.size !== 1 ? 's' : ''}`
+            : 'Follow some creators to build your personal feed'}
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}>
+        {/* Main feed */}
+        <div>
+          {/* Feed tabs */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+            {[['following', '✦ Following'], ['trending', '🔥 Trending']].map(([id, label]) => (
+              <button key={id} onClick={() => setFeedTab(id)}
+                style={{ background: 'none', border: 'none', borderBottom: `2px solid ${feedTab === id ? C.accent : 'transparent'}`, padding: '8px 18px', color: feedTab === id ? C.accent : C.muted, fontSize: 13, fontWeight: feedTab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {isLoading ? (
+            <Spinner label="Loading feed..." />
+          ) : activeArt.length === 0 ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+              {feedTab === 'following' ? (
+                <>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
+                  <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 8 }}>Your following feed is empty</h3>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>Follow some creators to see their latest artwork here. Check out the suggested artists →</p>
+                  <button onClick={() => setFeedTab('trending')}
+                    style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    Browse Trending →
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🎨</div>
+                  <p style={{ color: C.muted, fontSize: 14, marginBottom: 20 }}>No artwork yet — be the first to create!</p>
+                  <button onClick={() => navigate('/create')}
+                    style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    Start Creating ✦
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div style={{ columns: 'auto 220px', columnGap: 12 }}>
+              {activeArt.map(art => (
+                <div key={art.id} style={{ breakInside: 'avoid', marginBottom: 12 }}>
+                  {/* Creator header above each artwork */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div onClick={() => navigate(`/u/${art.profiles?.username}`)}
+                      style={{ width: 24, height: 24, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}>
+                      {art.profiles?.avatar_url
+                        ? <img src={art.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff' }}>{(art.profiles?.username || '?')[0].toUpperCase()}</div>
+                      }
+                    </div>
+                    <button onClick={() => navigate(`/u/${art.profiles?.username}`)}
+                      style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                      @{art.profiles?.username}
+                    </button>
+                    <span style={{ fontSize: 10, color: C.muted, marginLeft: 'auto' }}>
+                      {new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  {/* Artwork card */}
+                  <div style={{ borderRadius: 12, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
+                    onClick={() => setLightbox({ src: art.image_url, alt: art.title || 'AI artwork', title: art.title, username: art.profiles?.username, art })}>
+                    <LazyImage src={art.image_url} alt={art.title || 'AI artwork'} width={400}
+                      style={{ width: '100%', display: 'block' }} />
+                    {art.title && (
+                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(8,11,20,0.85))', padding: '20px 10px 8px', fontSize: 11, fontWeight: 600, color: '#fff' }}>
+                        {art.title}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, position: 'sticky', top: 20 }}>
+
+          {/* Quick actions */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Quick Actions</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => navigate('/create')}
+                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 16px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
+                ✦ Create New Artwork
+              </button>
+              <button onClick={() => navigate('/marketplace')}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.text, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
+                🛍 Browse Marketplace
+              </button>
+              <button onClick={() => navigate('/gallery')}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.text, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
+                🎨 Explore Gallery
+              </button>
+            </div>
+          </div>
+
+          {/* New products from following */}
+          {newProducts.length > 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>🛍 New from people you follow</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {newProducts.map(p => (
+                  <div key={p.id} onClick={() => navigate(`/product/${p.id}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '6px 0' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: C.border, overflow: 'hidden', flexShrink: 0 }}>
+                      {p.mockup_url && <img src={p.mockup_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
+                      <div style={{ fontSize: 11, color: C.teal, fontWeight: 700 }}>${parseFloat(p.price || 0).toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Suggested creators */}
+          {suggested.length > 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>✦ Suggested Creators</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {suggested.map(creator => (
+                  <div key={creator.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div onClick={() => navigate(`/u/${creator.username}`)}
+                      style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}>
+                      {creator.avatar_url
+                        ? <img src={creator.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#fff' }}>{(creator.username || '?')[0].toUpperCase()}</div>
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {creator.display_name || creator.username}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted }}>@{creator.username}</div>
+                    </div>
+                    <button onClick={() => toggleFollow(creator.id)} disabled={!!togglingId}
+                      style={{ background: followingIds.has(creator.id) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${followingIds.has(creator.id) ? C.border : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: followingIds.has(creator.id) ? C.muted : '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      {togglingId === creator.id ? '...' : followingIds.has(creator.id) ? '✓' : '+ Follow'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
