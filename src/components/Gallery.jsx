@@ -454,6 +454,7 @@ export default function Gallery({ user, onSignIn }) {
   const [reuseTarget, setReuseTarget] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [search, setSearch] = useState('')
+  const [activeTag, setActiveTag] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
 
@@ -507,9 +508,14 @@ export default function Gallery({ user, onSignIn }) {
     })
   }
 
-  const filtered = artworks.filter(a =>
-    !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.prompt?.toLowerCase().includes(search.toLowerCase())
-  )
+  // Collect unique tags from all loaded artwork for the filter bar
+  const allTags = [...new Set(artworks.flatMap(a => a.style_tags || []))].sort()
+
+  const filtered = artworks.filter(a => {
+    const matchSearch = !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.prompt?.toLowerCase().includes(search.toLowerCase())
+    const matchTag = !activeTag || (a.style_tags || []).includes(activeTag)
+    return matchSearch && matchTag
+  })
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
@@ -532,22 +538,41 @@ export default function Gallery({ user, onSignIn }) {
       </div>
 
       {/* Controls */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6 }}>
           {[['all', '✦ All'], ['mine', '🎨 My Art']].map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)}
+            <button key={id} onClick={() => { setTab(id); setActiveTag('') }}
               style={{ background: tab === id ? `${C.accent}20` : 'none', border: `1px solid ${tab === id ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '8px 16px', color: tab === id ? C.accent : C.muted, fontSize: 13, fontWeight: tab === id ? 700 : 400, cursor: 'pointer' }}>
               {label}
             </button>
           ))}
         </div>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search artwork..."
+        <input value={search} onChange={e => { setSearch(e.target.value); setActiveTag('') }} placeholder="Search artwork..."
           style={{ flex: 1, minWidth: 160, maxWidth: 280, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 14px', color: C.text, fontSize: 13, outline: 'none' }} />
         <button onClick={() => navigate('/create')}
           style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginLeft: 'auto' }}>
           ✦ Create New
         </button>
       </div>
+
+      {/* Tag filter chips — dynamic from loaded artwork */}
+      {allTags.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+          <button onClick={() => setActiveTag('')}
+            style={{ background: !activeTag ? `${C.accent}20` : 'none', border: `1px solid ${!activeTag ? C.accent+'55' : C.border}`, borderRadius: 20, padding: '4px 12px', color: !activeTag ? C.accent : C.muted, fontSize: 11, fontWeight: !activeTag ? 700 : 400, cursor: 'pointer' }}>
+            All
+          </button>
+          {allTags.slice(0, 20).map(tag => (
+            <button key={tag} onClick={() => setActiveTag(tag === activeTag ? '' : tag)}
+              style={{ background: activeTag === tag ? `${C.accent}20` : 'none', border: `1px solid ${activeTag === tag ? C.accent+'55' : C.border}`, borderRadius: 20, padding: '4px 12px', color: activeTag === tag ? C.accent : C.muted, fontSize: 11, fontWeight: activeTag === tag ? 700 : 400, cursor: 'pointer', textTransform: 'capitalize' }}>
+              {tag}
+            </button>
+          ))}
+          <span style={{ fontSize: 11, color: C.muted, alignSelf: 'center', marginLeft: 4 }}>
+            {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
 
       {/* My Art tip */}
       {tab === 'mine' && user && !loading && artworks.length > 0 && (
@@ -566,7 +591,7 @@ export default function Gallery({ user, onSignIn }) {
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
           <div style={{ fontSize: 52, marginBottom: 16 }}>🎨</div>
           <p style={{ color: C.muted, fontSize: 15, marginBottom: 20 }}>
-            {tab === 'mine' ? "You haven't created any artwork yet." : search ? 'No artwork matches your search.' : 'No artwork yet — be the first to create!'}
+            {tab === 'mine' ? "You haven't created any artwork yet." : (search || activeTag) ? 'No artwork matches your filters.' : 'No artwork yet — be the first to create!'}
           </p>
           <button onClick={() => navigate('/create')}
             style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>

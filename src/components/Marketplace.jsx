@@ -631,6 +631,7 @@ function EditProductModal({ product, user, onSave, onClose }) {
 // ── Product Card with kebab menu ─────────────────────────────
 function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdit, onDelete, priority = false }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   const menuRef = useRef(null)
   const navigate = useNavigate()
 
@@ -640,6 +641,18 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [menuOpen])
+
+  const handleShare = () => {
+    const url = `https://trydreamscape.com/product/${product.id}`
+    if (navigator.share) {
+      navigator.share({ title: product.title, text: `Check out this AI art merch!`, url })
+    } else {
+      navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+    setMenuOpen(false)
+  }
 
   return (
     <div className='ds-card' style={{ overflow: 'visible', cursor: 'pointer', position: 'relative' }}>
@@ -669,11 +682,13 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
                     { icon: '🗑', label: 'Delete', action: () => onDelete && onDelete(product), color: C.red },
                   ]
                 : []),
-              { icon: '🔍', label: 'View Details', action: onView, color: C.muted },
-              { icon: '🖼',  label: 'Full Image',   action: onLightbox, color: C.muted },
+              { icon: '🔍', label: 'View Details',  action: onView,    color: C.muted },
+              { icon: '🖼',  label: 'Full Image',    action: onLightbox, color: C.muted },
+              { icon: '🔗',  label: copied ? '✓ Copied!' : 'Share Link', action: handleShare, color: C.teal },
+              { icon: '↗',  label: 'Product Page',  action: () => { setMenuOpen(false); navigate(`/product/${product.id}`) }, color: C.muted },
               { icon: '🛍',  label: `Buy — $${parseFloat(product.price || 29.99).toFixed(2)}`, action: onBuy, color: C.teal },
             ].map((item, idx, arr) => (
-              <button key={item.label} onClick={() => { setMenuOpen(false); item.action() }}
+              <button key={item.label} onClick={() => { item.action() }}
                 style={{ width: '100%', background: 'none', border: 'none', borderBottom: idx < arr.length - 1 ? `1px solid ${C.border}` : 'none', padding: '10px 14px', color: item.color, fontSize: 12, fontWeight: 600, cursor: buyingId === product.id ? 'not-allowed' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
                 <span style={{ fontSize: 13, flexShrink: 0 }}>{item.icon}</span>{item.label}
               </button>

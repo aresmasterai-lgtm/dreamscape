@@ -2051,6 +2051,93 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
   )
 }
 
+// ── Onboarding Modal ──────────────────────────────────────────
+function OnboardingModal({ user, onClose }) {
+  const navigate = useNavigate()
+  const [step, setStep] = useState(0)
+
+  const STEPS = [
+    {
+      icon: '✦',
+      title: 'Welcome to Dreamscape!',
+      body: "You're now part of a creative community turning AI art into real products. Here's how to get started in 3 steps.",
+      action: 'Let\'s go →',
+      onAction: () => setStep(1),
+    },
+    {
+      icon: '🎨',
+      title: 'Step 1 — Create your first artwork',
+      body: 'Head to the Create page, describe your vision to Dream AI, and generate your first image. It only takes a few seconds.',
+      action: 'Open Dream AI →',
+      onAction: () => { onClose(); navigate('/create') },
+      skip: () => setStep(2),
+    },
+    {
+      icon: '🛍',
+      title: 'Step 2 — Turn it into a product',
+      body: "Once you've generated an image you love, hit Sell This to put it on a t-shirt, mug, poster, or more. Printful handles printing and shipping.",
+      action: 'Got it →',
+      onAction: () => setStep(3),
+      skip: () => setStep(3),
+    },
+    {
+      icon: '💸',
+      title: 'Step 3 — Connect your bank & earn',
+      body: 'Go to your Profile → Payouts and connect Stripe to receive earnings directly. Every sale you make deposits straight to your account.',
+      action: 'Set Up Payouts →',
+      onAction: () => { onClose(); navigate('/profile') },
+      skip: () => onClose(),
+    },
+  ]
+
+  const s = STEPS[step]
+
+  const dismiss = () => {
+    localStorage.setItem(`ds_onboarded_${user.id}`, '1')
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9200, background: 'rgba(8,11,20,0.92)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, width: '100%', maxWidth: 440, overflow: 'hidden', boxShadow: `0 32px 100px rgba(0,0,0,0.7), 0 0 0 1px ${C.accent}22` }}>
+        {/* Progress dots */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '20px 24px 0' }}>
+          {STEPS.map((_, i) => (
+            <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i === step ? C.accent : i < step ? C.teal : C.border, transition: 'all 0.3s' }} />
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: '28px 32px 24px', textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}33, ${C.teal}22)`, border: `2px solid ${C.accent}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, margin: '0 auto 20px' }}>
+            {s.icon}
+          </div>
+          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 12, lineHeight: 1.3 }}>{s.title}</h2>
+          <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, marginBottom: 28 }}>{s.body}</p>
+
+          <button onClick={s.onAction}
+            style={{ width: '100%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '13px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
+            {s.action}
+          </button>
+          {s.skip && (
+            <button onClick={s.skip}
+              style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', padding: '4px' }}>
+              Skip for now
+            </button>
+          )}
+        </div>
+
+        {/* Dismiss */}
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: '12px 24px', textAlign: 'center' }}>
+          <button onClick={dismiss} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+            Don't show this again
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Age Gate ──────────────────────────────────────────────────
 const AGE_KEY = 'ds_age_verified'
 
@@ -5652,6 +5739,164 @@ function Navbar({ user, profile, signOut, onSignIn }) {
 }
 
 // ── Success Page (/success) ───────────────────────────────────
+// ── Product Share Page (/product/:id) ─────────────────────────
+function ProductPage({ user, onSignIn }) {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const [product, setProduct] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [buyingId, setBuyingId] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    supabase.from('products')
+      .select('*, profiles!user_id(id, username, display_name, avatar_url)')
+      .eq('id', id).single()
+      .then(({ data }) => { setProduct(data); setLoading(false) })
+  }, [id])
+
+  // Inject OG meta tags dynamically for social sharing
+  useEffect(() => {
+    if (!product) return
+    const setMeta = (prop, content) => {
+      let el = document.querySelector(`meta[property="${prop}"]`) || document.querySelector(`meta[name="${prop}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute(prop.startsWith('og:') ? 'property' : 'name', prop); document.head.appendChild(el) }
+      el.setAttribute('content', content)
+    }
+    const title = `${product.title} — Dreamscape`
+    const desc  = `${product.title} by @${product.profiles?.username} · $${parseFloat(product.price || 0).toFixed(2)} · AI art merchandise on Dreamscape`
+    setMeta('og:title', title)
+    setMeta('og:description', desc)
+    setMeta('og:image', product.mockup_url || product.artwork?.image_url || '')
+    setMeta('og:url', window.location.href)
+    setMeta('og:type', 'product')
+    setMeta('twitter:card', 'summary_large_image')
+    setMeta('twitter:title', title)
+    setMeta('twitter:description', desc)
+    setMeta('twitter:image', product.mockup_url || '')
+    document.title = title
+  }, [product])
+
+  const handleBuy = async () => {
+    if (!user) return onSignIn()
+    setBuyingId(product.id)
+    try {
+      const res = await fetch('/api/create-checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: product.title,
+          price: product.price || 29.99,
+          imageUrl: product.mockup_url || '',
+          printfulProductId: product.printful_product_id,
+          printfulVariantId: product.printful_variant_ids?.[0] || '',
+          quantity: 1,
+        }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else alert('Checkout error: ' + (data.error || 'Unknown'))
+    } catch { alert('Connection error.') }
+    setBuyingId(null)
+  }
+
+  const shareUrl = `https://trydreamscape.com/product/${id}`
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: product.title, text: `Check out this AI art merch on Dreamscape!`, url: shareUrl })
+    } else {
+      navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  if (loading) return <Spinner label="Loading product..." />
+  if (!product) return (
+    <div style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <div style={{ fontSize: 48 }}>🔍</div>
+      <div style={{ fontSize: 18, color: C.text, fontFamily: 'Playfair Display, serif' }}>Product not found</div>
+      <button onClick={() => navigate('/marketplace')} style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Browse Marketplace</button>
+    </div>
+  )
+
+  return (
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: '40px 20px' }}>
+      {/* Back */}
+      <button onClick={() => navigate('/marketplace')}
+        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
+        ← Back to Marketplace
+      </button>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'start' }}>
+        {/* Image */}
+        <div style={{ position: 'relative' }}>
+          <img src={product.mockup_url || product.image_url} alt={product.title}
+            style={{ width: '100%', borderRadius: 20, boxShadow: `0 0 80px ${C.accent}33`, display: 'block' }} />
+        </div>
+
+        {/* Details */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Creator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0 }}>
+              {product.profiles?.avatar_url
+                ? <img src={product.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff' }}>{(product.profiles?.username || '?')[0].toUpperCase()}</div>
+              }
+            </div>
+            <button onClick={() => navigate(`/u/${product.profiles?.username}`)}
+              style={{ background: 'none', border: 'none', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+              @{product.profiles?.username || 'artist'}
+            </button>
+          </div>
+
+          {/* Title + price */}
+          <div>
+            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 8, lineHeight: 1.3 }}>{product.title}</h1>
+            <div style={{ fontSize: 28, fontWeight: 900, color: C.teal, fontFamily: 'Playfair Display, serif' }}>
+              ${parseFloat(product.price || 0).toFixed(2)}
+            </div>
+          </div>
+
+          {/* Description */}
+          {product.description && (
+            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7 }}>{product.description}</p>
+          )}
+
+          {/* Tags */}
+          {product.tags?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {product.tags.map(tag => (
+                <span key={tag} style={{ background: `${C.accent}15`, border: `1px solid ${C.accent}33`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Buy + share */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleBuy} disabled={!!buyingId}
+              style={{ flex: 1, background: buyingId ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: buyingId ? 'not-allowed' : 'pointer' }}>
+              {buyingId ? '⏳ Processing...' : '🛒 Buy Now'}
+            </button>
+            <button onClick={handleShare}
+              style={{ background: `${C.teal}18`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '14px 18px', color: C.teal, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              {copied ? '✓ Copied!' : '🔗 Share'}
+            </button>
+          </div>
+
+          {/* Printful trust line */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+            <span style={{ fontSize: 16 }}>🏭</span>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>Printed & shipped by Printful · Ships worldwide · Fulfilled in 2-5 business days</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SuccessPage() {
   useMeta({ title: 'Order Confirmed', description: 'Your order has been placed and is being fulfilled.' })
   const navigate = useNavigate()
@@ -5930,7 +6175,20 @@ export default function App() {
     return () => document.removeEventListener('contextmenu', block)
   }, [])
   const [showAuth, setShowAuth] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const needsProfileSetup = user && !profile?.username
+
+  // Show onboarding for new users who just completed profile setup
+  useEffect(() => {
+    if (!user || !profile?.username) return
+    const key = `ds_onboarded_${user.id}`
+    if (!localStorage.getItem(key)) {
+      // Check if they have any artwork — if none, show onboarding
+      supabase.from('artwork').select('id', { count: 'exact', head: true }).eq('user_id', user.id).then(({ count }) => {
+        if ((count || 0) === 0) setShowOnboarding(true)
+      })
+    }
+  }, [user?.id, profile?.username])
   const { isVerified, isBlockedU13, isBlockedU18, pass } = useAgeGate()
 
   // Show age gate before anything else (except loading)
@@ -6171,6 +6429,7 @@ export default function App() {
               <Route path="/admin" element={<Admin user={user} profile={profile} />} />
               <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/success" element={<SuccessPage />} />
+              <Route path="/product/:id" element={<ProductPage user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
             </Routes>
             </Suspense>
@@ -6198,6 +6457,9 @@ export default function App() {
       <DreamWidget user={user} onSignIn={() => setShowAuth(true)} />
       {/* Floating feedback — always visible during BETA, bottom-left, auto-opens on crash */}
       <FloatingFeedback user={user} />
+      {showOnboarding && user && (
+        <OnboardingModal user={user} onClose={() => { setShowOnboarding(false); localStorage.setItem(`ds_onboarded_${user.id}`, '1') }} />
+      )}
     </div>
   )
 }
