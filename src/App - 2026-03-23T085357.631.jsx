@@ -1469,7 +1469,7 @@ function DreamChat({ user, onSignIn }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <GenerateButton pendingPrompt={pendingPrompt} lastGenerationPromptRef={lastGenerationPromptRef} generatingIndex={generatingIndex} messages={messages} setPendingPrompt={setPendingPrompt} generateImage={generateImage} handleSend={handleSend} />
+                <GenerateButton pendingPrompt={pendingPrompt} lastGenerationPromptRef={lastGenerationPromptRef} generatingIndex={generatingIndex} messages={messages} setPendingPrompt={setPendingPrompt} generateImage={generateImage} handleSend={send} />
                 <button onClick={() => !savedIndexes.has(lastAiIndex) && setSaveTarget({ prompt: messages[lastAiIndex].content, index: lastAiIndex, imageUrl: '' })}
                   style={{ background: 'none', border: `1px solid ${savedIndexes.has(lastAiIndex) ? C.teal + '55' : C.border}`, borderRadius: 8, padding: '8px 14px', color: savedIndexes.has(lastAiIndex) ? C.teal : C.muted, fontSize: 12, cursor: savedIndexes.has(lastAiIndex) ? 'default' : 'pointer' }}>
                   {savedIndexes.has(lastAiIndex) ? '✅ Saved' : '✦ Save Prompt'}
@@ -5411,70 +5411,71 @@ function HomeFeed({ user }) {
   useEffect(() => { loadAll() }, [user.id])
 
   const loadAll = async () => {
-    // Load IDs of people the user follows
-    const { data: followRows } = await supabase
-      .from('follows').select('following_id').eq('follower_id', user.id)
-    const ids = (followRows || []).map(r => r.following_id)
-    setFollowingIds(new Set(ids))
-
-    // Following feed
     setLoadingFeed(true)
-    if (ids.length > 0) {
-      const { data: art } = await supabase
-        .from('artwork')
-        .select('*, profiles!user_id(id, username, display_name, avatar_url)')
-        .in('user_id', ids)
-        .eq('is_public', true)
-        .or('broken_image.is.null,broken_image.eq.false')
-        .order('created_at', { ascending: false })
-        .limit(48)
-      setFollowingArt(art || [])
-    }
-    setLoadingFeed(false)
-
-    // Trending (recent public artwork not from people you follow)
     setLoadingTrend(true)
-    const { data: trend } = await supabase
-      .from('artwork')
-      .select('*, profiles!user_id(id, username, display_name, avatar_url)')
-      .eq('is_public', true)
-      .or('broken_image.is.null,broken_image.eq.false')
-      .order('created_at', { ascending: false })
-      .limit(48)
-    setTrendingArt(trend || [])
-    setLoadingTrend(false)
+    try {
+      // Load IDs of people the user follows
+      const { data: followRows } = await supabase
+        .from('follows').select('following_id').eq('follower_id', user.id)
+      const ids = (followRows || []).map(r => r.following_id)
+      setFollowingIds(new Set(ids))
 
-    // Suggested creators — active artists not yet followed, with recent public artwork
-    const { data: recentCreators } = await supabase
-      .from('artwork')
-      .select('user_id, profiles!user_id(id, username, display_name, avatar_url, bio)')
-      .eq('is_public', true)
-      .neq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(200)
+      // Following feed + trending in parallel
+      const [followRes, trendRes, creatorsRes] = await Promise.all([
+        ids.length > 0
+          ? supabase.from('artwork')
+              .select('*, profiles!user_id(id, username, display_name, avatar_url)')
+              .in('user_id', ids)
+              .eq('is_public', true)
+              .or('broken_image.is.null,broken_image.eq.false')
+              .order('created_at', { ascending: false })
+              .limit(48)
+          : Promise.resolve({ data: [] }),
+        supabase.from('artwork')
+          .select('*, profiles!user_id(id, username, display_name, avatar_url)')
+          .eq('is_public', true)
+          .or('broken_image.is.null,broken_image.eq.false')
+          .order('created_at', { ascending: false })
+          .limit(48),
+        supabase.from('artwork')
+          .select('user_id, profiles!user_id(id, username, display_name, avatar_url, bio)')
+          .eq('is_public', true)
+          .neq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(200),
+      ])
 
-    // Deduplicate by user_id, skip already-followed
-    const seen = new Set([user.id, ...ids])
-    const unique = []
-    for (const row of recentCreators || []) {
-      if (!seen.has(row.user_id) && row.profiles) {
-        seen.add(row.user_id)
-        unique.push(row.profiles)
+      setFollowingArt(followRes.data || [])
+      setTrendingArt(trendRes.data || [])
+
+      // Suggested creators — deduplicate, skip already-followed
+      const seen = new Set([user.id, ...ids])
+      const unique = []
+      for (const row of creatorsRes.data || []) {
+        if (!seen.has(row.user_id) && row.profiles) {
+          seen.add(row.user_id)
+          unique.push(row.profiles)
+        }
+        if (unique.length >= 6) break
       }
-      if (unique.length >= 6) break
-    }
-    setSuggested(unique)
+      setSuggested(unique)
 
-    // New products from people you follow
-    if (ids.length > 0) {
-      const { data: prods } = await supabase
-        .from('products')
-        .select('*, profiles!user_id(username)')
-        .in('user_id', ids)
-        .or('is_hidden.is.null,is_hidden.eq.false')
-        .order('created_at', { ascending: false })
-        .limit(6)
-      setNewProducts(prods || [])
+      // New products from following
+      if (ids.length > 0) {
+        const { data: prods } = await supabase
+          .from('products')
+          .select('*, profiles!user_id(username)')
+          .in('user_id', ids)
+          .or('is_hidden.is.null,is_hidden.eq.false')
+          .order('created_at', { ascending: false })
+          .limit(6)
+        setNewProducts(prods || [])
+      }
+    } catch (err) {
+      console.error('HomeFeed loadAll error:', err.message)
+    } finally {
+      setLoadingFeed(false)
+      setLoadingTrend(false)
     }
   }
 

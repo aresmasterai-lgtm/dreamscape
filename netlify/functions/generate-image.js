@@ -7,47 +7,70 @@ let cachedImagenModel = null
 let cacheTime = 0
 const CACHE_TTL = 1000 * 60 * 60
 
+// Known-good fallbacks — used immediately if API resolution fails or returns nothing
+const GEMINI_FALLBACK = 'gemini-2.0-flash-exp'
+const IMAGEN_FALLBACK  = 'imagen-3.0-generate-001'
+
 async function resolveModels(apiKey) {
   const now = Date.now()
-  if (cachedGeminiModel && cachedImagenModel && (now - cacheTime) < CACHE_TTL) {
-    return { gemini: cachedGeminiModel, imagen: cachedImagenModel }
+  // Cache hit — either model being set is sufficient
+  if ((cachedGeminiModel || cachedImagenModel) && (now - cacheTime) < CACHE_TTL) {
+    return {
+      gemini: cachedGeminiModel || GEMINI_FALLBACK,
+      imagen: cachedImagenModel || IMAGEN_FALLBACK,
+    }
   }
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`,
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000) }
     )
+    if (!res.ok) throw new Error(`ListModels HTTP ${res.status}`)
     const data = await res.json()
     const models = data.models || []
+
+    // Gemini image generation models — match known naming patterns
     const geminiCandidates = models.filter(m => {
       const name = (m.name || '').toLowerCase()
       const methods = m.supportedGenerationMethods || []
-      return methods.includes('generateContent') && name.includes('image')
+      const hasGenerate = methods.includes('generateContent')
+      const isImageModel = name.includes('image') || name.includes('flash-exp') || name.includes('2.0-flash')
+      return hasGenerate && isImageModel
     }).map(m => m.name.replace('models/', ''))
+
     const geminiScore = (n) => {
-      if (n.includes('2.5')) return 4
+      if (n.includes('2.5')) return 5
+      if (n.includes('2.0')) return 4
       if (n.includes('3-pro')) return 3
       if (n.includes('3.1')) return 2
       if (n.includes('3')) return 1
       return 0
     }
     geminiCandidates.sort((a, b) => geminiScore(b) - geminiScore(a))
+
+    // Imagen models
     const imagenCandidates = models.filter(m => {
       const name = (m.name || '').toLowerCase()
       const methods = m.supportedGenerationMethods || []
-      return methods.includes('predict') && name.includes('imagen')
+      return (methods.includes('predict') || methods.includes('generateImages')) && name.includes('imagen')
     }).map(m => m.name.replace('models/', ''))
     imagenCandidates.sort((a, b) => {
+      if (a.includes('4') && !b.includes('4')) return -1
+      if (b.includes('4') && !a.includes('4')) return 1
       if (a.includes('ultra') && !b.includes('ultra')) return -1
       if (b.includes('ultra') && !a.includes('ultra')) return 1
       return b.localeCompare(a)
     })
-    if (geminiCandidates.length) { cachedGeminiModel = geminiCandidates[0]; cacheTime = now }
-    if (imagenCandidates.length) { cachedImagenModel = imagenCandidates[0]; cacheTime = now }
+
+    cachedGeminiModel = geminiCandidates[0] || GEMINI_FALLBACK
+    cachedImagenModel = imagenCandidates[0] || IMAGEN_FALLBACK
+    cacheTime = now
+    console.log(`[generate-image] Resolved models: gemini=${cachedGeminiModel} imagen=${cachedImagenModel}`)
   } catch (err) {
-    console.warn('ListModels failed:', err.message)
-    if (!cachedGeminiModel) cachedGeminiModel = 'gemini-2.5-flash-image'
-    if (!cachedImagenModel) cachedImagenModel = 'imagen-4.0-generate-001'
+    console.warn('[generate-image] ListModels failed, using hardcoded fallbacks:', err.message)
+    if (!cachedGeminiModel) cachedGeminiModel = GEMINI_FALLBACK
+    if (!cachedImagenModel) cachedImagenModel = IMAGEN_FALLBACK
+    cacheTime = now // cache the fallbacks too — don't retry every request
   }
   return { gemini: cachedGeminiModel, imagen: cachedImagenModel }
 }
