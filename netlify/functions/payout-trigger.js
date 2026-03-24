@@ -97,6 +97,32 @@ export default async (req) => {
   } catch (err) {
     if (err instanceof Response) return err
     console.error('payout-trigger error:', err.message)
+
+    // ── Payout failure alerting ────────────────────────────
+    // Log to payout_failures table and email Kingsley
+    try {
+      await supabase.from('payout_failures').insert({
+        user_id:   (await requireAuth(req).catch(() => ({ user: { id: 'unknown' } }))).user?.id || null,
+        error:     err.message,
+        attempted_at: new Date().toISOString(),
+      })
+    } catch {}
+
+    // Alert owner email
+    const ownerEmail = process.env.OWNER_ALERT_EMAIL || 'kingsley@lucrativemerchants.com'
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
+        body: JSON.stringify({
+          from: 'Dreamscape Alerts <noreply@trydreamscape.com>',
+          to: ownerEmail,
+          subject: '⚠️ Dreamscape payout failure',
+          html: `<p>A creator payout failed at ${new Date().toISOString()}.</p><p><strong>Error:</strong> ${err.message}</p><p>Check the payout_failures table in Supabase.</p>`,
+        }),
+      }).catch(() => {})
+    } catch {}
+
     return corsResponse({ error: err.message }, 500)
   }
 }

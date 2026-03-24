@@ -48,6 +48,7 @@ export default async (req) => {
     return new Response(`Webhook Error: ${err.message}`, { status: 400 })
   }
 
+  // ── checkout.session.completed ─────────────────────────────
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object
 
@@ -57,6 +58,19 @@ export default async (req) => {
       const productId       = metadata.productId
       const creatorId       = metadata.creatorId
       const printfulVariantId = metadata.printfulVariantId
+
+      // ── IDEMPOTENCY: skip duplicate webhook deliveries ────
+      const { data: existing } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('stripe_session_id', session.id)
+        .maybeSingle()
+      if (existing) {
+        console.log(`Order for session ${session.id} already exists — skipping duplicate webhook`)
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200, headers: { 'Content-Type': 'application/json' },
+        })
+      }
 
       // Load product to get original artist attribution + base cost
       let product = null
@@ -75,8 +89,6 @@ export default async (req) => {
           product = data
           originalArtistId = data.original_artist_id
           artistRoyaltyPct = data.artist_royalty_pct || 0
-          // Estimate base cost from price (actual cost would need Printful API)
-          // We use a conservative 40% of retail as base cost estimate
           baseCost = (data.price || 0) * 0.40
         }
       }
@@ -88,7 +100,7 @@ export default async (req) => {
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .insert({
-          user_id:              null, // buyer — set if we have their id
+          user_id:              null,
           creator_id:           creatorId || product?.user_id || null,
           original_artist_id:   originalArtistId,
           stripe_session_id:    session.id,
@@ -118,31 +130,72 @@ export default async (req) => {
 
       // Send sale notification email to creator
       if (creatorId || product?.user_id) {
-        const { data: creatorProfile } = await supabase
-          .from('profiles')
-          .select('email_notifications')
-          .eq('id', creatorId || product?.user_id)
-          .single()
+        try {
+          const { data: creatorProfile } = await supabase
+            .from('profiles')
+            .select('email_notifications')
+            .eq('id', creatorId || product?.user_id)
+            .single()
 
-        // Get creator's email from auth
-        const { data: { user: creatorUser } } = await supabase.auth.admin.getUserById(creatorId || product?.user_id)
-        
-        if (creatorUser?.email && creatorProfile?.email_notifications !== false) {
-          const emailData = templates.sale({
-            productName: metadata.productName || 'Your product',
-            earnings: split.creatorEarnings,
-            buyerLocation: session.shipping_details?.address?.city
-              ? `${session.shipping_details.address.city}, ${session.shipping_details.address.country}`
-              : null,
-            orderId: order.id,
-          })
-          await sendEmail({ to: creatorUser.email, ...emailData })
+          const { data: { user: creatorUser } } = await supabase.auth.admin.getUserById(creatorId || product?.user_id)
+          
+          if (creatorUser?.email && creatorProfile?.email_notifications !== false) {
+            const emailData = templates.sale({
+              productName: metadata.productName || 'Your product',
+              earnings: split.creatorEarnings,
+              buyerLocation: session.shipping_details?.address?.city
+                ? `${session.shipping_details.address.city}, ${session.shipping_details.address.country}`
+                : null,
+              orderId: order.id,
+            })
+            await sendEmail({ to: creatorUser.email, ...emailData })
+          }
+        } catch (emailErr) {
+          console.warn('Sale email failed (non-fatal):', emailErr.message)
         }
       }
 
     } catch (err) {
       console.error('Webhook processing error:', err.message)
-      // Return 200 anyway — Stripe will retry on non-200
+      // Return 200 anyway — Stripe will retry on non-200, leading to duplicate orders
+    }
+  }
+
+  // ── customer.subscription.deleted ─────────────────────────
+  // Fires when a subscription is cancelled or payment fails permanently
+  if (event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.paused') {
+    const subscription = event.data.object
+    try {
+      const customerId = subscription.customer
+      // Find user by Stripe customer ID stored in profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, subscription_tier')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (profile && profile.subscription_tier !== 'free') {
+        await supabase
+          .from('profiles')
+          .update({ subscription_tier: 'free', stripe_subscription_id: null })
+          .eq('id', profile.id)
+        console.log(`Downgraded user ${profile.id} from ${profile.subscription_tier} to free (subscription deleted)`)
+      }
+    } catch (err) {
+      console.error('Subscription deletion handler error:', err.message)
+    }
+  }
+
+  // ── invoice.payment_failed ─────────────────────────────────
+  // Fires on failed renewal — give a grace period (Stripe retries 3x over ~1 week)
+  // On the 3rd failure Stripe fires subscription.deleted — handled above
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object
+    const attempt = invoice.attempt_count || 1
+    console.log(`Payment failed for customer ${invoice.customer} — attempt ${attempt}/3`)
+    // Only act on final failure (Stripe fires subscription.deleted too, but log here)
+    if (attempt >= 3) {
+      console.warn(`Final payment failure for ${invoice.customer} — subscription.deleted should follow`)
     }
   }
 

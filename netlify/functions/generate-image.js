@@ -91,6 +91,7 @@ async function tryGemini(model, prompt, referenceImage, apiKey, sizeConfig = nul
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(22000), // 22s — leaves 4s for graceful response before Netlify 26s hard kill
       body: JSON.stringify({
         contents: [{ parts: buildParts(prompt, referenceImage) }],
         generationConfig: {
@@ -141,6 +142,7 @@ async function tryImagen(model, prompt, apiKey, sizeConfig = null) {
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${apiKey}`,
     {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20000), // 20s timeout
       body: JSON.stringify({
           instances: [{ prompt }],
           parameters: {
@@ -173,6 +175,7 @@ async function tryDalle(prompt, apiKey, sizeConfig = null) {
     : '1024x1792'
 
   const res = await fetch('https://api.openai.com/v1/images/generations', {
+    signal: AbortSignal.timeout(18000), // 18s timeout
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
