@@ -96,6 +96,7 @@ const C = {
   bg: '#080B14', panel: '#0E1220', card: '#131826',
   border: '#1E2A40', accent: '#7C5CFC', teal: '#00D4AA',
   gold: '#F5C842', text: '#E8EAF0', muted: '#6B7494',
+  red: '#FF4D4D',
 }
 
 
@@ -1203,6 +1204,25 @@ function DreamChat({ user, onSignIn }) {
         if (type === 'content_policy') {
           msg = `⚠️ The image model blocked that request — this sometimes happens with certain content combinations. Try rephrasing or hitting Retry, it often works on the next attempt. If your prompt includes real named people (celebrities, politicians etc.) try describing the vibe instead.`
         } else if (type === 'unavailable') {
+          // Auto-retry once silently after 3s before showing the error
+          if (!refImage && mountedRef.current) {
+            await new Promise(r => setTimeout(r, 3000))
+            if (mountedRef.current) {
+              try {
+                const retryRes = await fetch('/api/generate-image', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json', ...genAuthHdr },
+                  body: JSON.stringify({ prompt, referenceImage: null, aspectRatio })
+                })
+                const retryData = await retryRes.json()
+                if (retryData?.success && mountedRef.current) {
+                  const imageDataUrl = `data:${retryData.mimeType};base64,${retryData.imageData}`
+                  setGeneratedImages(prev => ({ ...prev, [index]: imageDataUrl }))
+                  setGeneratingIndex(null)
+                  return // silent retry succeeded — no error shown
+                }
+              } catch {}
+            }
+          }
           msg = `⚠️ Image generation is temporarily unavailable. Please try again in a moment.${code ? ` (${code})` : ''}`
           window.dispatchEvent(new CustomEvent('dreamscape:error', { detail: {
             category: 'generation',
@@ -4213,19 +4233,25 @@ function TeamTab({ user, profile }) {
   const handleInvite = async () => {
     setError(''); setSuccess('')
     if (!inviteEmail.trim()) { setError('Enter an email address.'); return }
-    if (seatsFilled >= seatLimit) { setError(`You've reached your ${seatLimit} seat limit. Upgrade to Brand or Enterprise for more.`); return }
-    if (members.some(m => m.email === inviteEmail.trim() && m.status !== 'removed')) { setError('That person is already on your team.'); return }
     setInviting(true)
-    const { error: dbErr } = await supabase.from('team_members').insert({
-      account_id: user.id,
-      email: inviteEmail.trim().toLowerCase(),
-      role: inviteRole,
-      status: 'pending',
-    })
-    if (dbErr) { setError('Failed to invite. Please try again.'); setInviting(false); return }
-    setSuccess(`Invite sent to ${inviteEmail.trim()}`)
-    setEmail('')
-    await loadTeam()
+    try {
+      const h = await getAuthHeader()
+      const res = await fetch('/api/team-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to invite. Please try again.')
+      } else {
+        setSuccess(`Invite sent to ${inviteEmail.trim()}`)
+        setEmail('')
+        await loadTeam()
+      }
+    } catch {
+      setError('Connection error. Please try again.')
+    }
     setInviting(false)
   }
 
@@ -5871,6 +5897,53 @@ function FloatingFeedback({ user }) {
 // ── Navbar ────────────────────────────────────────────────────
 
 // ── Notification Bell ─────────────────────────────────────────
+
+// ── System Status Indicator ───────────────────────────────────
+function SystemStatus() {
+  const [status, setStatus] = useState(null) // null=unknown, 'ok', 'degraded', 'down'
+  const [tooltip, setTooltip] = useState(false)
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('/api/health', { signal: AbortSignal.timeout(8000) })
+        const data = await res.json()
+        setStatus(data.status === 'ok' ? 'ok' : 'degraded')
+      } catch {
+        setStatus('degraded')
+      }
+    }
+    check()
+    const interval = setInterval(check, 5 * 60 * 1000) // every 5 min
+    return () => clearInterval(interval)
+  }, [])
+
+  if (status === null || status === 'ok') return null // invisible when healthy
+
+  const colors = { degraded: C.gold, down: C.red }
+  const msgs   = {
+    degraded: 'Generation may be slow — our team is on it',
+    down:     'Generation is temporarily down — we're fixing it now',
+  }
+
+  return (
+    <div style={{ position: 'relative' }}
+      onMouseEnter={() => setTooltip(true)} onMouseLeave={() => setTooltip(false)}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${colors[status]}18`, border: `1px solid ${colors[status]}44`, borderRadius: 20, padding: '4px 10px', cursor: 'default' }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: colors[status], animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: colors[status] }}>
+          {status === 'degraded' ? 'Slow' : 'Down'}
+        </span>
+      </div>
+      {tooltip && (
+        <div style={{ position: 'absolute', top: 36, right: 0, background: C.card, border: `1px solid ${colors[status]}44`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.text, whiteSpace: 'nowrap', zIndex: 500, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+          {msgs[status]}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NotificationBell({ user }) {
   const [notifications, setNotifications] = useState([])
   const [open, setOpen] = useState(false)
@@ -6030,6 +6103,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
               {profile?.is_admin && (
                 <Link to="/admin" style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, borderRadius: 8, padding: '6px 14px', color: C.gold, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>⚡ Admin</Link>
               )}
+              <SystemStatus />
               <NotificationBell user={user} />
               <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
 
@@ -6130,6 +6204,209 @@ function Navbar({ user, profile, signOut, onSignIn }) {
 
 // ── Success Page (/success) ───────────────────────────────────
 // ── Product Share Page (/product/:id) ─────────────────────────
+
+// ── Star Rating Widget ────────────────────────────────────────
+function StarRating({ value, onChange, size = 20, readonly = false }) {
+  const [hover, setHover] = useState(0)
+  const display = hover || value || 0
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {[1,2,3,4,5].map(n => (
+        <span key={n}
+          onClick={() => !readonly && onChange?.(n)}
+          onMouseEnter={() => !readonly && setHover(n)}
+          onMouseLeave={() => !readonly && setHover(0)}
+          style={{ fontSize: size, cursor: readonly ? 'default' : 'pointer', color: n <= display ? '#F5C842' : C.border, lineHeight: 1, transition: 'color 0.1s', userSelect: 'none' }}>
+          ★
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ── Product Reviews Section ───────────────────────────────────
+function ProductReviews({ productId, user, compact = false }) {
+  const [reviews, setReviews]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [myReview, setMyReview] = useState(null)  // user's existing review
+  const [rating, setRating]     = useState(0)
+  const [body, setBody]         = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [editing, setEditing]   = useState(false)
+  const [error, setError]       = useState('')
+  const [showAll, setShowAll]   = useState(false)
+
+  useEffect(() => { loadReviews() }, [productId])
+
+  const loadReviews = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('product_reviews')
+      .select('*, profiles!user_id(username, avatar_url, display_name)')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false })
+    setReviews(data || [])
+    if (user && data) {
+      const mine = data.find(r => r.user_id === user.id)
+      if (mine) { setMyReview(mine); setRating(mine.rating); setBody(mine.body || '') }
+    }
+    setLoading(false)
+  }
+
+  const handleSubmit = async () => {
+    if (!rating) { setError('Please select a star rating.'); return }
+    setError(''); setSubmitting(true)
+    try {
+      if (myReview) {
+        // Update existing
+        const { error: e } = await supabase.from('product_reviews')
+          .update({ rating, body: body.trim() || null, updated_at: new Date().toISOString() })
+          .eq('id', myReview.id)
+        if (e) throw e
+      } else {
+        // Insert new
+        const { error: e } = await supabase.from('product_reviews')
+          .insert({ product_id: productId, user_id: user.id, rating, body: body.trim() || null })
+        if (e) throw e
+      }
+      setEditing(false)
+      await loadReviews()
+    } catch (e) { setError(e.message || 'Failed to submit review.') }
+    setSubmitting(false)
+  }
+
+  const handleDelete = async () => {
+    if (!myReview || !window.confirm('Delete your review?')) return
+    await supabase.from('product_reviews').delete().eq('id', myReview.id)
+    setMyReview(null); setRating(0); setBody('')
+    await loadReviews()
+  }
+
+  // Summary stats
+  const avg   = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0
+  const dist  = [5,4,3,2,1].map(n => ({ n, count: reviews.filter(r => r.rating === n).length }))
+  const shown = showAll ? reviews : reviews.slice(0, compact ? 3 : 5)
+
+  if (loading) return <div style={{ padding: '12px 0', color: C.muted, fontSize: 13 }}>Loading reviews...</div>
+
+  return (
+    <div style={{ marginTop: compact ? 0 : 8 }}>
+      {/* Summary bar */}
+      {reviews.length > 0 && (
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 40, fontWeight: 900, color: '#F5C842', lineHeight: 1 }}>{avg.toFixed(1)}</div>
+            <StarRating value={Math.round(avg)} readonly size={14} />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</div>
+          </div>
+          {!compact && (
+            <div style={{ flex: 1, minWidth: 140 }}>
+              {dist.map(({ n, count }) => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, color: C.muted, width: 8, textAlign: 'right' }}>{n}</span>
+                  <span style={{ fontSize: 11, color: '#F5C842' }}>★</span>
+                  <div style={{ flex: 1, height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: '#F5C842', width: reviews.length ? `${(count / reviews.length) * 100}%` : '0%', borderRadius: 3, transition: 'width 0.4s' }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: C.muted, width: 16 }}>{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Write / edit review */}
+      {user && (!myReview || editing) && (
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+            {myReview ? 'Edit your review' : 'Write a review'}
+          </div>
+          <StarRating value={rating} onChange={setRating} size={26} />
+          <textarea
+            value={body}
+            onChange={e => setBody(e.target.value)}
+            placeholder="Share your experience with this product... (optional)"
+            maxLength={1000}
+            rows={3}
+            style={{ width: '100%', marginTop: 10, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          />
+          {error && <div style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button onClick={handleSubmit} disabled={submitting || !rating}
+              style={{ background: rating ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 8, padding: '8px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: rating ? 'pointer' : 'not-allowed' }}>
+              {submitting ? 'Submitting...' : myReview ? 'Update Review' : 'Submit Review'}
+            </button>
+            {myReview && (
+              <button onClick={() => { setEditing(false); setRating(myReview.rating); setBody(myReview.body || '') }}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 14px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* User's existing review (non-editing) */}
+      {myReview && !editing && (
+        <div style={{ background: `${C.accent}0A`, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: '12px 16px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>Your review</span>
+              <StarRating value={myReview.rating} readonly size={13} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', padding: 0 }}>✏️ Edit</button>
+              <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: C.red, fontSize: 12, cursor: 'pointer', padding: 0 }}>🗑 Delete</button>
+            </div>
+          </div>
+          {myReview.body && <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, margin: 0 }}>{myReview.body}</p>}
+        </div>
+      )}
+
+      {/* Sign-in prompt */}
+      {!user && reviews.length === 0 && (
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Sign in to leave the first review.</div>
+      )}
+
+      {/* Review list */}
+      {shown.map(r => r.user_id !== user?.id && (
+        <div key={r.id} style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 14, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0 }}>
+              {r.profiles?.avatar_url
+                ? <img src={r.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 700 }}>{(r.profiles?.username || '?')[0].toUpperCase()}</div>
+              }
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{r.profiles?.display_name || '@' + r.profiles?.username}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <StarRating value={r.rating} readonly size={12} />
+                <span style={{ fontSize: 10, color: C.muted }}>{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+            </div>
+          </div>
+          {r.body && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, margin: 0 }}>{r.body}</p>}
+        </div>
+      ))}
+
+      {reviews.filter(r => r.user_id !== user?.id).length > (compact ? 3 : 5) && (
+        <button onClick={() => setShowAll(v => !v)}
+          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+          {showAll ? 'Show less' : `Show all ${reviews.filter(r => r.user_id !== user?.id).length} reviews`}
+        </button>
+      )}
+
+      {reviews.length === 0 && user && !myReview && (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: C.muted, fontSize: 13 }}>
+          No reviews yet — be the first to share your experience!
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProductPage({ user, onSignIn }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -6282,6 +6559,19 @@ function ProductPage({ user, onSignIn }) {
             <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>Printed & shipped by Printful · Ships worldwide · Fulfilled in 2-5 business days</div>
           </div>
         </div>
+      </div>
+
+      {/* Reviews section */}
+      <div style={{ marginTop: 48, maxWidth: 720 }}>
+        <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 22, color: C.text, marginBottom: 20 }}>
+          ★ Reviews
+          {product.review_count > 0 && (
+            <span style={{ fontSize: 14, fontWeight: 400, color: C.muted, marginLeft: 12 }}>
+              {product.avg_rating} · {product.review_count} review{product.review_count !== 1 ? 's' : ''}
+            </span>
+          )}
+        </h2>
+        <ProductReviews productId={product.id} user={user} />
       </div>
     </div>
   )
