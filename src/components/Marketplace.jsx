@@ -10,6 +10,158 @@ async function getAuthHeader() {
   return {}
 }
 
+// ── Star Rating Widget ────────────────────────────────────────
+function StarRating({ value, onChange, size = 18, readonly = false }) {
+  const [hover, setHover] = useState(0)
+  const display = hover || value || 0
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {[1,2,3,4,5].map(n => (
+        <span key={n}
+          onClick={() => !readonly && onChange?.(n)}
+          onMouseEnter={() => !readonly && setHover(n)}
+          onMouseLeave={() => !readonly && setHover(0)}
+          style={{ fontSize: size, cursor: readonly ? 'default' : 'pointer', color: n <= display ? '#F5C842' : C.border, lineHeight: 1, transition: 'color 0.1s', userSelect: 'none' }}>
+          ★
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ── Product Reviews (compact modal version) ───────────────────
+function ProductReviews({ productId, user, compact = false }) {
+  const [reviews, setReviews]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [myReview, setMyReview]     = useState(null)
+  const [rating, setRating]         = useState(0)
+  const [body, setBody]             = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [editing, setEditing]       = useState(false)
+  const [error, setError]           = useState('')
+  const [showAll, setShowAll]       = useState(false)
+
+  useEffect(() => { loadReviews() }, [productId])
+
+  const loadReviews = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('product_reviews')
+      .select('*, profiles!user_id(username, avatar_url, display_name)')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false })
+    setReviews(data || [])
+    if (user && data) {
+      const mine = data.find(r => r.user_id === user.id)
+      if (mine) { setMyReview(mine); setRating(mine.rating); setBody(mine.body || '') }
+    }
+    setLoading(false)
+  }
+
+  const handleSubmit = async () => {
+    if (!rating) { setError('Please select a star rating.'); return }
+    setError(''); setSubmitting(true)
+    try {
+      if (myReview) {
+        const { error: e } = await supabase.from('product_reviews')
+          .update({ rating, body: body.trim() || null, updated_at: new Date().toISOString() })
+          .eq('id', myReview.id)
+        if (e) throw e
+      } else {
+        const { error: e } = await supabase.from('product_reviews')
+          .insert({ product_id: productId, user_id: user.id, rating, body: body.trim() || null })
+        if (e) throw e
+      }
+      setEditing(false)
+      await loadReviews()
+    } catch (e) { setError(e.message || 'Failed to submit.') }
+    setSubmitting(false)
+  }
+
+  const handleDelete = async () => {
+    if (!myReview || !window.confirm('Delete your review?')) return
+    await supabase.from('product_reviews').delete().eq('id', myReview.id)
+    setMyReview(null); setRating(0); setBody('')
+    await loadReviews()
+  }
+
+  const others = reviews.filter(r => r.user_id !== user?.id)
+  const shown  = showAll ? others : others.slice(0, compact ? 3 : 5)
+
+  if (loading) return <div style={{ fontSize: 12, color: C.muted, padding: '8px 0' }}>Loading reviews...</div>
+
+  return (
+    <div>
+      {/* Write / edit */}
+      {user && (!myReview || editing) && (
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+          <StarRating value={rating} onChange={setRating} size={22} />
+          <textarea value={body} onChange={e => setBody(e.target.value)}
+            placeholder="Share your thoughts... (optional)" maxLength={1000} rows={2}
+            style={{ width: '100%', marginTop: 8, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', color: C.text, fontSize: 12, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+          {error && <div style={{ fontSize: 11, color: C.red, marginTop: 4 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button onClick={handleSubmit} disabled={submitting || !rating}
+              style={{ background: rating ? `linear-gradient(135deg, ${C.accent}, #4B2FD0)` : C.border, border: 'none', borderRadius: 7, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: rating ? 'pointer' : 'not-allowed' }}>
+              {submitting ? '...' : myReview ? 'Update' : 'Submit'}
+            </button>
+            {myReview && <button onClick={() => { setEditing(false); setRating(myReview.rating); setBody(myReview.body || '') }}
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, padding: '6px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>Cancel</button>}
+          </div>
+        </div>
+      )}
+
+      {/* Own review (non-editing) */}
+      {myReview && !editing && (
+        <div style={{ background: `${C.accent}0A`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>Your review</span>
+              <StarRating value={myReview.rating} readonly size={11} />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 11, cursor: 'pointer', padding: 0 }}>Edit</button>
+              <button onClick={handleDelete} style={{ background: 'none', border: 'none', color: C.red, fontSize: 11, cursor: 'pointer', padding: 0 }}>Delete</button>
+            </div>
+          </div>
+          {myReview.body && <p style={{ fontSize: 12, color: C.text, lineHeight: 1.5, margin: 0 }}>{myReview.body}</p>}
+        </div>
+      )}
+
+      {/* Others' reviews */}
+      {shown.map(r => (
+        <div key={r.id} style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 10, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{ width: 22, height: 22, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0 }}>
+              {r.profiles?.avatar_url
+                ? <img src={r.profiles.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', fontWeight: 700 }}>{(r.profiles?.username||'?')[0].toUpperCase()}</div>
+              }
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{r.profiles?.display_name || '@'+r.profiles?.username}</span>
+            <StarRating value={r.rating} readonly size={11} />
+            <span style={{ fontSize: 10, color: C.muted, marginLeft: 'auto' }}>{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          </div>
+          {r.body && <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, margin: 0 }}>{r.body}</p>}
+        </div>
+      ))}
+
+      {others.length > (compact ? 3 : 5) && (
+        <button onClick={() => setShowAll(v => !v)}
+          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, padding: '5px 12px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>
+          {showAll ? 'Show less' : `Show all ${others.length} reviews`}
+        </button>
+      )}
+
+      {reviews.length === 0 && (
+        <div style={{ fontSize: 12, color: C.muted }}>
+          {user ? 'No reviews yet — be the first!' : 'No reviews yet.'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Image URL helper — only transform Supabase storage URLs through Netlify CDN
 // External CDN URLs (Printful, CloudFront, etc.) are served directly
 function imgUrl(src, w = 800, q = 80) {
@@ -526,6 +678,19 @@ function ShopView({ user, onSignIn }) {
                 {buyingId === selectedProduct.id ? '⏳ Redirecting...' : '🛒 Buy Now'}
               </button>
               <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 10 }}>Secure checkout powered by Stripe</p>
+
+              {/* Reviews inline */}
+              <div style={{ marginTop: 20, borderTop: `1px solid ${C.border}`, paddingTop: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                  ★ Reviews
+                  {selectedProduct.review_count > 0 && (
+                    <span style={{ fontSize: 11, color: '#F5C842', fontWeight: 400, marginLeft: 8 }}>
+                      {parseFloat(selectedProduct.avg_rating || 0).toFixed(1)} · {selectedProduct.review_count} review{selectedProduct.review_count !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <ProductReviews productId={selectedProduct.id} user={user} compact={true} />
+              </div>
             </div>
           </div>
         </div>
@@ -734,10 +899,16 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
       <div style={{ padding: '12px 14px' }} onClick={onView}>
         <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
         {product.tags?.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
             {product.tags.slice(0, 2).map(tag => (
               <span key={tag} style={{ background: `${C.accent}18`, borderRadius: 10, padding: '2px 8px', fontSize: 10, color: C.accent }}>{tag}</span>
             ))}
+          </div>
+        )}
+        {product.review_count > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <span style={{ color: '#F5C842', fontSize: 11 }}>{'★'.repeat(Math.round(product.avg_rating || 0))}</span>
+            <span style={{ fontSize: 11, color: C.muted }}>{parseFloat(product.avg_rating || 0).toFixed(1)} ({product.review_count})</span>
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
