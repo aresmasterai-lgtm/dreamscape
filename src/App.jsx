@@ -5923,7 +5923,7 @@ function SystemStatus() {
   const colors = { degraded: C.gold, down: C.red }
   const msgs   = {
     degraded: 'Generation may be slow — our team is on it',
-    down:     'Generation is temporarily down — we're fixing it now',
+    down:     "Generation is temporarily down — we're fixing it now",
   }
 
   return (
