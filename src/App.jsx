@@ -1383,7 +1383,7 @@ function DreamChat({ user, onSignIn }) {
             )}
           </div>
         )}
-        <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 300, maxHeight: '55vh' }}>
+        <div style={{ overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minHeight: 200, maxHeight: 'min(55vh, 400px)' }}>
           {messages.map((msg, i) => {
             const isUser = msg.role === 'user'
             const textContent = typeof msg.content === 'string' ? msg.content : msg.content?.find?.(c => c.type === 'text')?.text || ''
@@ -1422,10 +1422,10 @@ function DreamChat({ user, onSignIn }) {
 
         {/* ── Prompt chips — only shown on fresh chat ── */}
         {messages.length === 1 && !loading && (
-          <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ padding: '0 16px 12px', display: 'flex', flexWrap: 'nowrap', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
             {PROMPT_CHIPS.map(chip => (
               <button key={chip} onClick={() => { setInput(chip.replace(/^[^\s]+\s/, '')); inputRef.current?.focus() }}
-                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '5px 12px', color: C.muted, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '8px 14px', color: C.muted, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent', minHeight: 36, flexShrink: 0 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent+'66'; e.currentTarget.style.color = C.text }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted }}>
                 {chip}
@@ -1435,7 +1435,7 @@ function DreamChat({ user, onSignIn }) {
         )}
 
         {/* ── Size / aspect ratio selector ── */}
-        <div style={{ padding: '8px 16px 0', display: 'flex', gap: 6, flexWrap: 'wrap', borderTop: `1px solid ${C.border}` }}>
+        <div style={{ padding: '8px 16px 0', display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto', borderTop: `1px solid ${C.border}`, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
           {SIZE_OPTIONS.map(s => (
             <button key={s.id} onClick={() => setAspectRatio(s.id)} title={s.hint}
               style={{ background: aspectRatio === s.id ? `${C.accent}22` : 'none', border: `1px solid ${aspectRatio === s.id ? C.accent+'77' : C.border}`, borderRadius: 8, padding: '4px 10px', color: aspectRatio === s.id ? C.accent : C.muted, fontSize: 11, fontWeight: aspectRatio === s.id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s', WebkitTapHighlightColor: 'transparent' }}>
@@ -1519,8 +1519,9 @@ function DreamChat({ user, onSignIn }) {
             </button>
             <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
               placeholder="Describe your vision or ask Dream anything..."
-              style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
-            <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer' }}>✦</button>
+              style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit' }}
+              autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck={false} />
+            <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>✦</button>
           </div>
         </div>
       </div>
@@ -5719,7 +5720,7 @@ function IsolatedCreatePage({ user, onSignIn }) {
 function CreatePage({ user, onSignIn }) {
   useMeta({ title: 'Create with Dream AI', description: 'Generate AI art with Dream AI — describe your vision and create stunning artwork.' })
   return (
-    <div style={{ padding: '40px 20px', maxWidth: 700, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(16px, 4vw, 40px) 16px', maxWidth: 700, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <h1 className='ds-heading-glow' style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(26px, 5vw, 36px)', marginBottom: 10, color: C.text }}>Create with Dream AI</h1>
         <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>Describe your vision and Dream will craft the perfect prompt — then generate an image and sell it globally.</p>
@@ -7077,7 +7078,7 @@ export default function App() {
 
       <StarField />
 
-      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh' }}>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: 72 }}>
         <Navbar user={user} profile={profile} signOut={signOut} onSignIn={() => setShowAuth(true)} />
         <div style={{ paddingTop: 72 }}>
           <ScrollToTop />
