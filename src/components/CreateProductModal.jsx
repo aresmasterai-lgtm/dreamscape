@@ -37,6 +37,9 @@ function getBaseCost(modelName = '') {
   if (m.includes('long sleeve') || m.includes('longsleeve')) return 17.95
   if (m.includes('kids') || m.includes('youth') || m.includes('toddler') || m.includes('baby') || m.includes('onesie')) return 10.95
   if (m.includes('t-shirt') || m.includes('tee') || m.includes('jersey') || m.includes('cotton tee') || m.includes('unisex t') || m.includes('classic t')) return 14.95
+  if (m.includes('acrylic print') || m.includes('acrylic')) return 39.95
+  if (m.includes('metal print') || m.includes('aluminum') || m.includes('dibond')) return 34.95
+  if (m.includes('wood print') || m.includes('wood art')) return 29.95
   if (m.includes('canvas') && !m.includes('tote')) return 29.95
   if (m.includes('framed')) return 34.95
   if (m.includes('poster') || m.includes('print') || m.includes('art print')) return 11.95
@@ -70,20 +73,23 @@ function suggestPrice(base) {
 
 // ── Broad category keywords matching Printful's naming ────────
 const CATEGORIES = [
-  { label: 'T-Shirts',    icon: '👕', kw: ['t-shirt','tee','jersey','cotton tee','unisex t','classic t','heavy t','bella','next level','soft style','ring spun','comfort colors'] },
-  { label: 'Hoodies',     icon: '🧥', kw: ['hoodie','sweatshirt','pullover','crewneck','crew neck','fleece','quarter zip'] },
-  { label: 'Mugs',        icon: '☕', kw: ['mug','cup','ceramic','latte','travel mug'] },
-  { label: 'Posters',     icon: '🖼',  kw: ['poster','print','art print','canvas print','framed','wall art','photo print'] },
-  { label: 'Phone Cases', icon: '📱', kw: ['phone case','iphone','samsung','snap case','tough case','clear case','galaxy'] },
-  { label: 'Tote Bags',   icon: '🛍',  kw: ['tote','canvas bag','grocery bag','shopping bag'] },
-  { label: 'Tank Tops',   icon: '👙', kw: ['tank','racerback','sleeveless','muscle shirt','jersey tank'] },
-  { label: 'Stickers',    icon: '✨', kw: ['sticker','decal','die cut','vinyl sticker','kiss cut'] },
-  { label: 'Hats',        icon: '🧢', kw: ['hat','cap','beanie','snapback','trucker','dad hat','bucket hat','fitted'] },
-  { label: 'Blankets',    icon: '🛏',  kw: ['blanket','throw','sherpa','fleece blanket'] },
-  { label: 'Pillows',     icon: '🛋',  kw: ['pillow','cushion','throw pillow','accent pillow'] },
-  { label: 'Kids',        icon: '👶', kw: ['kids','youth','toddler','baby','onesie','children','infant','romper'] },
-  { label: 'Long Sleeve', icon: '👔', kw: ['long sleeve','longsleeve','long-sleeve'] },
-  { label: 'All-Over',    icon: '🎨', kw: ['all-over','allover','aop','cut & sew','sublimation'] },
+  { label: 'T-Shirts',      icon: '👕', kw: ['t-shirt','tee','jersey','cotton tee','unisex t','classic t','heavy t','bella','next level','soft style','ring spun','comfort colors'] },
+  { label: 'Hoodies',       icon: '🧥', kw: ['hoodie','sweatshirt','pullover','crewneck','crew neck','fleece','quarter zip'] },
+  { label: 'Mugs',          icon: '☕', kw: ['mug','cup','ceramic','latte','travel mug'] },
+  { label: 'Posters',       icon: '🖼',  kw: ['poster','matte poster','glossy poster','photo print'] },
+  { label: 'Canvas Prints', icon: '🎨', kw: ['canvas print','gallery wrapped canvas','stretched canvas','canvas wrap','canvas art'] },
+  { label: 'Framed Prints', icon: '🖼',  kw: ['framed poster','framed print','wood framed','framed art','framed canvas'] },
+  { label: 'Wall Art',      icon: '🏛',  kw: ['metal print','acrylic print','wood print','dibond','aluminum print','poster hanger','wall art'] },
+  { label: 'Phone Cases',   icon: '📱', kw: ['phone case','iphone','samsung','snap case','tough case','clear case','galaxy'] },
+  { label: 'Tote Bags',     icon: '🛍',  kw: ['tote','canvas bag','grocery bag','shopping bag'] },
+  { label: 'Pillows',       icon: '🛋',  kw: ['pillow','cushion','throw pillow','accent pillow'] },
+  { label: 'Tank Tops',     icon: '👙', kw: ['tank','racerback','sleeveless','muscle shirt','jersey tank'] },
+  { label: 'Stickers',      icon: '✨', kw: ['sticker','decal','die cut','vinyl sticker','kiss cut'] },
+  { label: 'Hats',          icon: '🧢', kw: ['hat','cap','beanie','snapback','trucker','dad hat','bucket hat','fitted'] },
+  { label: 'Blankets',      icon: '🛏',  kw: ['blanket','throw','sherpa','fleece blanket'] },
+  { label: 'Kids',          icon: '👶', kw: ['kids','youth','toddler','baby','onesie','children','infant','romper'] },
+  { label: 'Long Sleeve',   icon: '👔', kw: ['long sleeve','longsleeve','long-sleeve'] },
+  { label: 'All-Over',      icon: '🎨', kw: ['all-over','allover','aop','cut & sew','sublimation'] },
 ]
 
 function matchesCategory(p, cat) {

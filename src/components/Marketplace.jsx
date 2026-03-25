@@ -491,8 +491,8 @@ function ShopView({ user, onSignIn }) {
   const [wishlistLoading, setWishlistLoading] = useState(new Set())
   const navigate = useNavigate()
 
-  const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art']
-  const PRODUCT_TYPES = ['All', 'T-Shirt', 'Hoodie', 'Mug', 'Poster', 'Phone Case', 'Tote Bag', 'Pillow', 'Other']
+  const STYLE_TAGS = ['All', 'Abstract', 'Portrait', 'Fantasy', 'Nature', 'Anime', 'Surreal', 'Dark', 'Minimalist', 'Retro', 'Sci-Fi', 'Street Art', 'Floral', 'Geometric', 'Cyberpunk', 'Watercolor', 'Vintage', 'Cosmic']
+  const PRODUCT_TYPES = ['All', 'T-Shirt', 'Hoodie', 'Poster', 'Canvas', 'Framed', 'Wall Art', 'Mug', 'Phone Case', 'Tote Bag', 'Pillow', 'Blanket', 'Hat', 'Sticker', 'Other']
 
   useEffect(() => { loadProducts() }, [])
   useEffect(() => { if (user) loadWishlist() }, [user])
@@ -540,7 +540,15 @@ function ShopView({ user, onSignIn }) {
 
   const filtered = products.filter(p => {
     const matchStyle = styleFilter === 'All' || p.tags?.includes(styleFilter)
-    const matchType = typeFilter === 'All' || (p.product_type || '').toLowerCase().includes(typeFilter.toLowerCase())
+    const matchType = typeFilter === 'All' || (() => {
+      const pt = (p.product_type || '').toLowerCase()
+      const t  = typeFilter.toLowerCase()
+      if (t === 'canvas')   return pt.includes('canvas') && !pt.includes('tote')
+      if (t === 'wall art') return pt.includes('wall') || pt.includes('metal print') || pt.includes('acrylic') || pt.includes('wood print')
+      if (t === 'framed')   return pt.includes('framed')
+      if (t === 'other')    return !['t-shirt','shirt','tee','hoodie','mug','poster','canvas','framed','phone','tote','pillow','blanket','hat','sticker','wall'].some(k => pt.includes(k))
+      return pt.includes(t)
+    })()
     const matchSearch = !search || p.title?.toLowerCase().includes(search.toLowerCase())
     return matchStyle && matchType && matchSearch
   })

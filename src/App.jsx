@@ -111,7 +111,10 @@ const PRINTFUL_BASE_COSTS = {
   'LONG SLEEVE': 17.95, 'CROP': 15.95, 'TANK': 12.95, 'POLO': 19.95,
   'DRESS': 22.95, 'LEGGINGS': 21.95, 'SHORTS': 18.95, 'JOGGER': 24.95,
   'JACKET': 34.95, 'BOMBER': 38.95, 'MUG': 8.95, 'TRAVEL MUG': 16.95,
-  'BOTTLE': 18.95, 'POSTER': 9.95, 'CANVAS': 18.95, 'PRINT': 9.95,
+  'BOTTLE': 18.95, 'POSTER': 9.95, 'CANVAS': 29.95, 'CANVAS PRINT': 29.95, 'PRINT': 9.95,
+  'FRAMED': 34.95, 'FRAMED POSTER': 34.95, 'FRAMED PRINT': 34.95,
+  'METAL PRINT': 34.95, 'ACRYLIC PRINT': 39.95, 'WOOD PRINT': 29.95,
+  'WALL ART': 24.95, 'ART PRINT': 14.95,
   'PHONE': 11.95, 'TOTE': 12.95, 'BAG': 14.95, 'BACKPACK': 29.95,
   'PILLOW': 17.95, 'BLANKET': 34.95, 'SOCKS': 10.95, 'HAT': 17.95,
   'CAP': 17.95, 'BEANIE': 15.95, 'APRON': 19.95, 'NOTEBOOK': 12.95,
@@ -3852,8 +3855,12 @@ const BULK_PRODUCT_MATCHERS = {
   hoodie:    { kw: ['unisex heavy blend hooded sweatshirt','pullover hoodie','unisex fleece hoodie'], fallback: ['hoodie','pullover'] },
   mug:       { kw: ['white glossy mug','white ceramic mug'], fallback: ['mug','ceramic cup'] },
   poster:    { kw: ['enhanced matte paper poster','poster (in)'], fallback: ['poster','art print'] },
+  canvas:    { kw: ['canvas print','gallery wrapped canvas','stretched canvas'], fallback: ['canvas','gallery wrap'] },
+  framed:    { kw: ['framed poster','framed print','wood framed poster'], fallback: ['framed','frame'] },
   tote:      { kw: ['tote bag','heavy tote'], fallback: ['tote','canvas bag'] },
   phonecase: { kw: ['tough case for iphone','snap case for iphone'], fallback: ['phone case','iphone case'] },
+  pillow:    { kw: ['throw pillow','accent pillow'], fallback: ['pillow','cushion'] },
+  wallart:   { kw: ['metal print','acrylic print','wood print','poster hanger'], fallback: ['wall art','metal print','acrylic'] },
 }
 
 function findBestCatalogMatch(catalog, productTypeId) {
@@ -3885,12 +3892,16 @@ function BulkCreateTab({ user, artworks, profile }) {
   const [errorLog, setErrorLog] = useState([])
 
   const PRODUCT_TYPES = [
-    { id: 'tshirt',    label: 'T-Shirt',    icon: '👕', baseCost: 14.95 },
-    { id: 'hoodie',    label: 'Hoodie',     icon: '🧥', baseCost: 27.95 },
-    { id: 'mug',       label: 'Mug',        icon: '☕', baseCost: 9.95  },
-    { id: 'poster',    label: 'Poster',     icon: '🖼',  baseCost: 11.95 },
-    { id: 'tote',      label: 'Tote Bag',   icon: '🛍',  baseCost: 12.95 },
-    { id: 'phonecase', label: 'Phone Case', icon: '📱', baseCost: 14.95 },
+    { id: 'tshirt',    label: 'T-Shirt',        icon: '👕', baseCost: 14.95 },
+    { id: 'hoodie',    label: 'Hoodie',          icon: '🧥', baseCost: 27.95 },
+    { id: 'poster',    label: 'Poster',          icon: '🖼',  baseCost: 11.95 },
+    { id: 'canvas',    label: 'Canvas Print',    icon: '🎨', baseCost: 29.95 },
+    { id: 'framed',    label: 'Framed Print',    icon: '🖼',  baseCost: 34.95 },
+    { id: 'wallart',   label: 'Wall Art',        icon: '🏛',  baseCost: 24.95 },
+    { id: 'mug',       label: 'Mug',             icon: '☕', baseCost: 9.95  },
+    { id: 'tote',      label: 'Tote Bag',        icon: '🛍',  baseCost: 12.95 },
+    { id: 'pillow',    label: 'Throw Pillow',    icon: '🛋',  baseCost: 17.95 },
+    { id: 'phonecase', label: 'Phone Case',      icon: '📱', baseCost: 14.95 },
   ]
 
   useEffect(() => { loadCatalog() }, [])
@@ -5355,6 +5366,225 @@ function ResetPasswordPage() {
     </div>
   )
 }
+
+// ── Photo To Product ──────────────────────────────────────────
+// Lets users take/upload a photo → removes background → goes straight to Sell
+function PhotoToProduct({ user, onSignIn, onClose }) {
+  const [phase, setPhase]           = useState('capture') // capture | preview | removing | result | error
+  const [imageDataUrl, setImage]    = useState(null)
+  const [resultDataUrl, setResult]  = useState(null)
+  const [error, setError]           = useState('')
+  const [dragOver, setDragOver]     = useState(false)
+  const fileRef = useRef(null)
+  const videoRef = useRef(null)
+  const [cameraStream, setStream]   = useState(null)
+  const [usingCamera, setUsingCamera] = useState(false)
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => { if (cameraStream) cameraStream.getTracks().forEach(t => t.stop()) }
+  }, [cameraStream])
+
+  const handleFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) { setError('Please select an image file.'); return }
+    if (file.size > 20 * 1024 * 1024) { setError('Image must be under 20MB.'); return }
+    const reader = new FileReader()
+    reader.onload = (e) => { setImage(e.target.result); setPhase('preview') }
+    reader.readAsDataURL(file)
+  }
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }
+      })
+      setStream(stream)
+      setUsingCamera(true)
+      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = stream }, 100)
+    } catch { setError('Camera access denied. Please upload a photo instead.') }
+  }
+
+  const capturePhoto = () => {
+    const video = videoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width  = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d').drawImage(video, 0, 0)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+    cameraStream?.getTracks().forEach(t => t.stop())
+    setStream(null); setUsingCamera(false)
+    setImage(dataUrl); setPhase('preview')
+  }
+
+  const removeBackground = async () => {
+    if (!user) return onSignIn()
+    setPhase('removing'); setError('')
+    try {
+      const h = await getAuthHeader()
+      const res = await fetch('/api/remove-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ imageDataUrl }),
+        signal: AbortSignal.timeout(55000),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setResult(data.dataUrl); setPhase('result')
+      } else {
+        setError(data.error || 'Background removal failed'); setPhase('preview')
+      }
+    } catch (e) {
+      setError('Connection error — please try again.'); setPhase('preview')
+    }
+  }
+
+  const reset = () => {
+    setPhase('capture'); setImage(null); setResult(null); setError('')
+    cameraStream?.getTracks().forEach(t => t.stop()); setStream(null); setUsingCamera(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9100, background: 'rgba(8,11,20,0.96)', backdropFilter: 'blur(20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: `0 32px 100px rgba(0,0,0,0.7)` }}>
+
+        {/* Header */}
+        <div style={{ padding: '18px 24px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text }}>📸 Photo to Product</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Snap or upload → remove background → sell instantly</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        <div style={{ padding: 24 }}>
+          {error && (
+            <div style={{ background: `${C.red}18`, border: `1px solid ${C.red}44`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: C.red }}>
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Phase: capture */}
+          {phase === 'capture' && (
+            <div>
+              {usingCamera ? (
+                <div style={{ position: 'relative' }}>
+                  <video ref={videoRef} autoPlay playsInline muted
+                    style={{ width: '100%', borderRadius: 14, background: C.bg, display: 'block', maxHeight: 320, objectFit: 'cover' }} />
+                  <button onClick={capturePhoto}
+                    style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: '3px solid #fff', borderRadius: '50%', width: 60, height: 60, fontSize: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    📷
+                  </button>
+                  <button onClick={() => { cameraStream?.getTracks().forEach(t => t.stop()); setStream(null); setUsingCamera(false) }}
+                    style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.8)', border: 'none', borderRadius: 8, padding: '6px 12px', color: C.muted, fontSize: 12, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {/* Upload drop zone */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]) }}
+                    onClick={() => fileRef.current?.click()}
+                    style={{ border: `2px dashed ${dragOver ? C.accent : C.border}`, borderRadius: 16, padding: '36px 24px', textAlign: 'center', cursor: 'pointer', background: dragOver ? `${C.accent}08` : C.bg, transition: 'all 0.15s', marginBottom: 16 }}>
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>🖼</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>Drop a photo here or tap to upload</div>
+                    <div style={{ fontSize: 12, color: C.muted }}>JPG, PNG, HEIC · Max 20MB</div>
+                    <input ref={fileRef} type="file" accept="image/*,image/heic,image/heif" onChange={e => handleFile(e.target.files?.[0])} style={{ display: 'none' }} />
+                  </div>
+
+                  {/* Camera button */}
+                  {'mediaDevices' in navigator && (
+                    <button onClick={startCamera}
+                      style={{ width: '100%', background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.text, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      📷 Open Camera
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* What it does */}
+              <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+                {[['📸','Take or upload a photo'],['✨','AI removes the background'],['🛍','Instantly create a product']].map(([icon, text]) => (
+                  <div key={text} style={{ flex: 1, background: C.bg, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
+                    <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.4 }}>{text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Phase: preview */}
+          {phase === 'preview' && imageDataUrl && (
+            <div>
+              <img src={imageDataUrl} alt="Your photo" style={{ width: '100%', borderRadius: 14, maxHeight: 320, objectFit: 'contain', background: C.bg, display: 'block', marginBottom: 16 }} />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={reset}
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 14, cursor: 'pointer' }}>
+                  ← Retake
+                </button>
+                <button onClick={removeBackground}
+                  style={{ flex: 2, background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '12px', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                  ✨ Remove Background
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: C.muted, textAlign: 'center', marginTop: 10 }}>
+                Powered by GPT-Image-1 · Takes ~15-20 seconds
+              </p>
+            </div>
+          )}
+
+          {/* Phase: removing */}
+          {phase === 'removing' && (
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
+                {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 8 }}>Removing background...</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>GPT-Image-1 is cutting out your subject.<br />This takes about 15-20 seconds.</div>
+              <img src={imageDataUrl} alt="" style={{ width: 120, height: 120, objectFit: 'contain', borderRadius: 10, marginTop: 20, opacity: 0.5, filter: 'blur(2px)' }} />
+            </div>
+          )}
+
+          {/* Phase: result */}
+          {phase === 'result' && resultDataUrl && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Original</div>
+                  <img src={imageDataUrl} alt="Original" style={{ width: '100%', borderRadius: 10, maxHeight: 160, objectFit: 'contain', background: C.bg }} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: C.teal, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Background Removed ✓</div>
+                  <img src={resultDataUrl} alt="Result" style={{ width: '100%', borderRadius: 10, maxHeight: 160, objectFit: 'contain', background: 'repeating-conic-gradient(#1a1a2e 0% 25%, #0d0d1a 0% 50%) 0 0 / 16px 16px' }} />
+                </div>
+              </div>
+              <button onClick={() => { onClose(); /* open CreateProductModal with result */ window.dispatchEvent(new CustomEvent('dreamscape:photoProduct', { detail: { imageUrl: resultDataUrl } })) }}
+                style={{ width: '100%', background: `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
+                🛍 Create Product Now →
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={reset}
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
+                  Try Another Photo
+                </button>
+                <a href={resultDataUrl} download="dreamscape-cutout.png"
+                  style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', color: C.muted, fontSize: 13, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}>
+                  ↓ Download PNG
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DiscoverPage({ user, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
   // Logged-in users get the home feed; guests get the hero
@@ -5719,6 +5949,14 @@ function IsolatedCreatePage({ user, onSignIn }) {
 
 function CreatePage({ user, onSignIn }) {
   useMeta({ title: 'Create with Dream AI', description: 'Generate AI art with Dream AI — describe your vision and create stunning artwork.' })
+  const [photoProductImage, setPhotoProductImage] = useState(null)
+
+  useEffect(() => {
+    const handler = (e) => setPhotoProductImage(e.detail?.imageUrl || null)
+    window.addEventListener('dreamscape:openCreateModal', handler)
+    return () => window.removeEventListener('dreamscape:openCreateModal', handler)
+  }, [])
+
   return (
     <div style={{ padding: 'clamp(16px, 4vw, 40px) 16px', maxWidth: 700, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -5726,6 +5964,15 @@ function CreatePage({ user, onSignIn }) {
         <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7 }}>Describe your vision and Dream will craft the perfect prompt — then generate an image and sell it globally.</p>
       </div>
       <DreamChat user={user} onSignIn={onSignIn} />
+      {photoProductImage && user && (
+        <CreateProductModal
+          user={user}
+          imageUrl={photoProductImage}
+          title=""
+          onClose={() => setPhotoProductImage(null)}
+          onSuccess={() => setPhotoProductImage(null)}
+        />
+      )}
     </div>
   )
 }
@@ -6106,6 +6353,11 @@ function Navbar({ user, profile, signOut, onSignIn }) {
               )}
               <SystemStatus />
               <NotificationBell user={user} />
+              <button onClick={() => setShowPhotoToProduct(true)}
+                title="Photo to Product — snap, remove background, sell"
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: C.muted, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                📸
+              </button>
               <Link to="/orders" style={{ background: isActive('/orders') ? `${C.accent}20` : 'none', border: `1px solid ${isActive('/orders') ? C.accent + '55' : C.border}`, borderRadius: 8, padding: '6px 14px', color: isActive('/orders') ? C.accent : C.muted, fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>📦 Orders</Link>
 
               {/* Subscription tier badge */}
@@ -6857,6 +7109,21 @@ export default function App() {
   }, [])
   const [showAuth, setShowAuth] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showPhotoToProduct, setShowPhotoToProduct] = useState(false)
+
+  // Listen for photoProduct event from PhotoToProduct modal
+  useEffect(() => {
+    const handler = (e) => {
+      setShowPhotoToProduct(false)
+      // Small delay to let modal close animate
+      setTimeout(() => {
+        const event2 = new CustomEvent('dreamscape:openCreateModal', { detail: e.detail })
+        window.dispatchEvent(event2)
+      }, 150)
+    }
+    window.addEventListener('dreamscape:photoProduct', handler)
+    return () => window.removeEventListener('dreamscape:photoProduct', handler)
+  }, [])
   const needsProfileSetup = user && !profile?.username
 
   // Show onboarding for new users who just completed profile setup
@@ -7140,6 +7407,9 @@ export default function App() {
       <FloatingFeedback user={user} />
       {showOnboarding && user && (
         <OnboardingModal user={user} onClose={() => { setShowOnboarding(false); localStorage.setItem(`ds_onboarded_${user.id}`, '1') }} />
+      )}
+      {showPhotoToProduct && (
+        <PhotoToProduct user={user} onSignIn={() => setShowAuth(true)} onClose={() => setShowPhotoToProduct(false)} />
       )}
     </div>
   )
