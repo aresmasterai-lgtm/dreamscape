@@ -1865,6 +1865,65 @@ function EditArtworkModal({ art, onSave, onClose }) {
 }
 
 // ── Artwork Grid ──────────────────────────────────────────────
+
+// ── Artwork Watermark Overlay ─────────────────────────────────
+// Pure CSS overlay — no image manipulation, clean file for product creation
+function ArtworkWatermark({ text, style = 'corner', opacity = 40 }) {
+  const alpha = opacity / 100
+  const wStyle = {
+    position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10,
+    overflow: 'hidden', borderRadius: 'inherit',
+  }
+
+  if (style === 'diagonal') {
+    // Repeating diagonal text pattern
+    const repeatText = `${text}  ·  ${text}  ·  ${text}  ·  `
+    return (
+      <div style={wStyle}>
+        {[0,1,2,3,4].map(i => (
+          <div key={i} style={{
+            position: 'absolute',
+            left: '-20%', right: '-20%',
+            top: `${i * 22 - 5}%`,
+            transform: 'rotate(-25deg)',
+            fontSize: 11, fontWeight: 700,
+            color: `rgba(255,255,255,${alpha})`,
+            textShadow: `0 1px 3px rgba(0,0,0,${alpha * 0.8})`,
+            whiteSpace: 'nowrap', letterSpacing: 2,
+            fontFamily: "'DM Sans', sans-serif",
+            userSelect: 'none',
+          }}>
+            {repeatText}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Corner stamp (default)
+  return (
+    <div style={wStyle}>
+      <div style={{
+        position: 'absolute', bottom: 8, right: 8,
+        background: `rgba(8,11,20,${alpha * 0.9})`,
+        backdropFilter: 'blur(4px)',
+        border: `1px solid rgba(255,255,255,${alpha * 0.3})`,
+        borderRadius: 6,
+        padding: '3px 8px',
+        fontSize: 10, fontWeight: 700,
+        color: `rgba(255,255,255,${Math.min(alpha + 0.3, 1)})`,
+        letterSpacing: 0.5,
+        fontFamily: "'DM Sans', sans-serif",
+        userSelect: 'none',
+        maxWidth: '80%',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {text}
+      </div>
+    </div>
+  )
+}
+
 function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPublishToggle, onRefine, onDelete, onEdit }) {
   const navigate = useNavigate()
   const [expanded, setExpanded]   = useState(null)
@@ -1944,6 +2003,15 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
                     onBroken={isOwner ? null : (id) => setArtworks(prev => prev.filter(a => a.id !== id))}
                     resourceId={art.id} resourceType="artwork" />
                 : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: 40 }}>🎨</div>}
+
+              {/* Watermark overlay — shown on public art when creator has it enabled */}
+              {!isOwner && art.is_public && art.profiles?.watermark_enabled && (
+                <ArtworkWatermark
+                  text={art.profiles.watermark_text || `@${art.profiles.username}`}
+                  style={art.profiles.watermark_style || 'corner'}
+                  opacity={art.profiles.watermark_opacity || 40}
+                />
+              )}
 
               {/* Non-owner ⋯ kebab — always visible, works on mobile */}
               {art.image_url && !isOwner && (
@@ -2468,6 +2536,10 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
   const [storefrontActive, setStorefrontActive] = useState(profile?.storefront_active || false)
   const [emailNotifications, setEmailNotifications] = useState(profile?.email_notifications !== false)
   const [customDomain, setCustomDomain] = useState(profile?.custom_domain || '')
+  const [watermarkEnabled, setWatermarkEnabled] = useState(profile?.watermark_enabled || false)
+  const [watermarkText, setWatermarkText] = useState(profile?.watermark_text || '')
+  const [watermarkStyle, setWatermarkStyle] = useState(profile?.watermark_style || 'corner')
+  const [watermarkOpacity, setWatermarkOpacity] = useState(profile?.watermark_opacity || 40)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const isBizTier = ['merchant', 'brand', 'enterprise'].includes(profile?.subscription_tier)
@@ -2571,6 +2643,10 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
         storefront_active: storefrontActive,
         email_notifications: emailNotifications,
         custom_domain: customDomain.trim().toLowerCase().replace(/^https?:\/\//, '') || null,
+        watermark_enabled: watermarkEnabled,
+        watermark_text: watermarkText.trim() || null,
+        watermark_style: watermarkStyle,
+        watermark_opacity: watermarkOpacity,
         updated_at: new Date().toISOString(),
       }
       const { error: upsertErr } = await supabase.from('profiles').upsert(updates)
@@ -2694,6 +2770,74 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
                     {styleTags.split(',').map(t => t.trim()).filter(Boolean).map(tag => (
                       <span key={tag} style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 20, padding: '3px 10px', fontSize: 11, color: C.accent }}>{tag}</span>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Watermark Settings ── */}
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <label style={labelStyle}>Watermark</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 16px', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Show watermark on public artwork</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Adds your credit on images viewed in Gallery and profiles</div>
+                  </div>
+                  <button onClick={() => setWatermarkEnabled(v => !v)}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: watermarkEnabled ? C.accent : C.border, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                    <span style={{ position: 'absolute', top: 4, left: watermarkEnabled ? 22 : 4, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', display: 'block' }} />
+                  </button>
+                </div>
+
+                {watermarkEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Custom text */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Watermark Text</div>
+                      <input value={watermarkText} onChange={e => setWatermarkText(e.target.value)}
+                        placeholder={`@${profile?.username || 'username'} · Dreamscape`}
+                        maxLength={60} style={inputStyle} />
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Leave blank to use @{profile?.username}</div>
+                    </div>
+
+                    {/* Style */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Style</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {[['corner','📍 Corner stamp'],['diagonal','🔄 Diagonal repeat']].map(([val, label]) => (
+                          <button key={val} onClick={() => setWatermarkStyle(val)}
+                            style={{ flex: 1, background: watermarkStyle === val ? `${C.accent}20` : 'none', border: `1px solid ${watermarkStyle === val ? C.accent+'55' : C.border}`, borderRadius: 8, padding: '8px', color: watermarkStyle === val ? C.accent : C.muted, fontSize: 12, fontWeight: watermarkStyle === val ? 700 : 400, cursor: 'pointer' }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Opacity */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                        Opacity — {watermarkOpacity}%
+                      </div>
+                      <input type="range" min={10} max={80} step={5} value={watermarkOpacity} onChange={e => setWatermarkOpacity(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: C.accent }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
+                        <span>Subtle</span><span>Strong</span>
+                      </div>
+                    </div>
+
+                    {/* Live preview */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Preview</div>
+                      <div style={{ position: 'relative', height: 120, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                        {/* Fake artwork background */}
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, opacity: 0.3 }}>🎨</div>
+                        {/* Watermark overlay preview */}
+                        <ArtworkWatermark
+                          text={watermarkText.trim() || `@${profile?.username || 'username'}`}
+                          style={watermarkStyle}
+                          opacity={watermarkOpacity}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -4539,7 +4683,7 @@ function ProfilePage({ user, profile: initialProfile }) {
     const { data: followRows } = await supabase.from('follows').select('following_id').eq('follower_id', user.id)
     if (followRows?.length) {
       const ids = followRows.map(r => r.following_id)
-      const { data: feedArt } = await supabase.from('artwork').select('*, profiles!user_id(username, avatar_url)').in('user_id', ids).eq('is_public', true).order('created_at', { ascending: false }).limit(40)
+      const { data: feedArt } = await supabase.from('artwork').select('*, profiles!user_id(username, avatar_url, watermark_enabled, watermark_text, watermark_style, watermark_opacity)').in('user_id', ids).eq('is_public', true).order('created_at', { ascending: false }).limit(40)
       setFeedArtworks(feedArt || [])
     }
     setLoadingFeed(false)

@@ -465,7 +465,7 @@ export default function Gallery({ user, onSignIn }) {
     try {
       let query = supabase
         .from('artwork')
-        .select('*, profiles!user_id(id, username)')
+        .select('*, profiles!user_id(id, username, watermark_enabled, watermark_text, watermark_style, watermark_opacity)')
         .order('created_at', { ascending: false })
         .limit(120)
       if (tab === 'mine') {
