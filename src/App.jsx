@@ -51,26 +51,58 @@ async function getAuthHeader() {
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, isChunkError: false }
   }
   static getDerivedStateFromError(error) {
-    return { hasError: true, error }
+    // Detect stale chunk errors from Vite code-splitting after a new deploy
+    const isChunkError = error?.message?.includes('Failed to fetch dynamically imported module')
+      || error?.message?.includes('Importing a module script failed')
+      || error?.message?.includes('Loading chunk')
+      || error?.name === 'ChunkLoadError'
+    return { hasError: true, error, isChunkError }
   }
   componentDidCatch(error, info) {
     console.error('Page crashed:', error, info)
-    // Fire event so FloatingFeedback can auto-open with pre-filled context
+    // Auto-reload once for chunk errors — clears the stale cache
+    const isChunkError = error?.message?.includes('Failed to fetch dynamically imported module')
+      || error?.message?.includes('Importing a module script failed')
+      || error?.message?.includes('Loading chunk')
+      || error?.name === 'ChunkLoadError'
+    if (isChunkError) {
+      // Only auto-reload once — track with sessionStorage to avoid reload loops
+      const reloadKey = `ds_chunk_reload_${window.location.pathname}`
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, '1')
+        window.location.reload()
+        return
+      }
+    }
     window.dispatchEvent(new CustomEvent('dreamscape:error', {
       detail: { message: error?.message, page: window.location.pathname }
     }))
   }
   componentDidUpdate(prevProps) {
-    // Reset error when route changes
     if (prevProps.routeKey !== this.props.routeKey) {
-      this.setState({ hasError: false, error: null })
+      this.setState({ hasError: false, error: null, isChunkError: false })
     }
   }
   render() {
     if (this.state.hasError) {
+      if (this.state.isChunkError) {
+        return (
+          <div style={{ padding: '80px 20px', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🔄</div>
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: '#E8EAF0', marginBottom: 12 }}>New version available</h2>
+            <p style={{ color: '#6B7494', fontSize: 14, marginBottom: 24, maxWidth: 400, lineHeight: 1.7 }}>
+              Dreamscape was just updated. Reload to get the latest version.
+            </p>
+            <button onClick={() => window.location.reload()}
+              style={{ background: 'linear-gradient(135deg, #7C5CFC, #4B2FD0)', border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Reload Page ✦
+            </button>
+          </div>
+        )
+      }
       return (
         <div style={{ padding: '80px 20px', textAlign: 'center', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
@@ -81,7 +113,7 @@ class ErrorBoundary extends Component {
           <p style={{ color: '#6B7494', fontSize: 13, marginBottom: 24, maxWidth: 400 }}>
             A report has been pre-filled in the <strong style={{ color: '#F5C842' }}>🐛 Feedback</strong> button at the bottom-left — tap it to send and we'll fix it fast.
           </p>
-          <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }}
+          <button onClick={() => { this.setState({ hasError: false, error: null, isChunkError: false }); window.location.reload() }}
             style={{ background: 'linear-gradient(135deg, #7C5CFC, #4B2FD0)', border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
             Reload Page
           </button>
