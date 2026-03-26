@@ -246,21 +246,35 @@ async function uploadArtworkToStorage(userId, base64DataUrl, mimeType = 'image/p
 // Base64 dataUrls are passed through unchanged (can't be transformed).
 function imgUrl(src, width = 800, quality = 80) {
   if (!src) return src
-  if (src.startsWith('data:')) return src // base64 — can't transform
-  if (src.startsWith('blob:')) return src  // local blob — can't transform
-  // Netlify Image CDN — transforms any URL to WebP at specified width
-  return `/.netlify/images?url=${encodeURIComponent(src)}&w=${width}&q=${quality}&fm=webp`
+  if (src.startsWith('data:')) return src  // base64 — pass through
+  if (src.startsWith('blob:'))  return src  // local blob — pass through
+  // Only run through Netlify Image CDN for Supabase storage URLs
+  // External URLs (Printful CDN, etc.) serve directly — avoids CDN double-hop failures
+  if (src.includes('supabase.co/storage')) {
+    return `/.netlify/images?url=${encodeURIComponent(src)}&w=${width}&q=${quality}&fm=webp`
+  }
+  return src
 }
 
 // ── LazyImage — blur-up placeholder + lazy load ───────────────
-// Replaces every <img> on art/product cards for instant perceived performance.
 function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false, onBroken = null, resourceId = null, resourceType = null }) {
-  const [loaded, setLoaded]     = useState(false)
-  const [error, setError]       = useState(false)
-  const [reported, setReported] = useState(false)
-  const optimised = imgUrl(src, width, quality)
+  const [loaded, setLoaded]       = useState(false)
+  const [error, setError]         = useState(false)
+  const [reported, setReported]   = useState(false)
+  const [useFallback, setUseFallback] = useState(false) // true = skip CDN, use original
+  const optimised = (!useFallback && src && !src.startsWith('data:') && !src.startsWith('blob:'))
+    ? imgUrl(src, width, quality)
+    : src
 
   const handleError = async () => {
+    // Step 1: CDN transform failed — try the original URL first
+    if (!useFallback && optimised !== src) {
+      setUseFallback(true)
+      setLoaded(false)
+      return // let img re-render with original src
+    }
+
+    // Step 2: Original URL also failed — now it's truly broken
     setError(true)
     setLoaded(true)
     if (onBroken && resourceId && resourceType && !reported) {
@@ -1309,9 +1323,8 @@ function DreamChat({ user, onSignIn }) {
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
-  const ERROR_MSGS = ['Connection error. Please try again.', 'Sorry, something went wrong. Please try again.']
   const lastAiIndex = messages.reduce((last, msg, i) => {
-    if (msg.role === 'assistant' && i > 0 && !ERROR_MSGS.includes(msg.content)) return i
+    if (msg.role === 'assistant' && i > 0 && !msg.isError && !msg.isLimit) return i
     return last
   }, -1)
 
