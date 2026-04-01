@@ -1,0 +1,59 @@
+name: Dreamscape Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install anthropic playwright aiohttp pytest pytest-asyncio
+
+      - name: Run unit tests
+        run: |
+          cd dreamscape-tests
+          python -m pytest unit/test_functions.py -v --tb=short
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install anthropic playwright aiohttp
+          python -m playwright install chromium --with-deps
+
+      - name: Run full test swarm
+        run: |
+          cd dreamscape-tests
+          python orchestrator.py --url https://trydreamscape.com --report reports/ci-${{ github.run_number }}.json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.run_number }}
+          path: dreamscape-tests/reports/

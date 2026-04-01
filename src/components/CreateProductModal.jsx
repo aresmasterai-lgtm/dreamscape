@@ -65,8 +65,8 @@ function calcProfit(retail, base) {
 }
 
 function suggestPrice(base) {
-  // Aim for ~38% margin after all fees
-  const raw = (base + 0.30) / (1 - 0.038 - 0.10 - 0.029)
+  // Aim for ~38% gross margin
+  const raw = base / (1 - 0.38)
   // Round up to nearest .99
   return (Math.ceil(raw) - 0.01).toFixed(2)
 }

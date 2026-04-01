@@ -175,27 +175,37 @@ function imgUrl(src, w = 800, q = 80) {
 }
 
 // Blur-up lazy image with fallback retry on error
-function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false }) {
+function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priority = false, fallbackSrc = null }) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
   const [retried, setRetried] = useState(false)
+  const [useFallback, setUseFallback] = useState(false)
 
   const handleError = () => {
-    // On first error, try the raw URL directly (skip any transform)
+    // Step 1: CDN failed — try raw URL directly
     if (!retried && src && src !== imgUrl(src, width, quality)) {
       setRetried(true)
-      return // img src will update on re-render with retried=true
+      return
     }
+    // Step 2: Raw URL failed — try artwork fallback if available
+    if (!useFallback && fallbackSrc) {
+      setUseFallback(true)
+      setRetried(false)
+      setLoaded(false)
+      return
+    }
+    // Step 3: Everything failed — show unavailable state
     setError(true)
     setLoaded(true)
   }
 
-  const resolvedSrc = retried ? src : imgUrl(src, width, quality)
+  const activeSrc = useFallback ? fallbackSrc : src
+  const resolvedSrc = retried || useFallback ? activeSrc : imgUrl(activeSrc, width, quality)
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden', ...style }} onClick={onClick}>
       {!loaded && !error && <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />}
-      {src && !error && <img
+      {activeSrc && !error && <img
         src={resolvedSrc}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
@@ -205,10 +215,9 @@ function LazyImage({ src, alt, style, onClick, width = 800, quality = 80, priori
         onError={handleError}
         style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', display: 'block' }}
       />}
-      {error && (
+      {(error || !activeSrc) && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${C.accent}12`, gap: 8 }}>
-          <span style={{ fontSize: 32 }}>🛍</span>
-          <span style={{ fontSize: 10, color: C.muted }}>Image unavailable</span>
+          <span style={{ fontSize: 52 }}>{getEmoji('product')}</span>
         </div>
       )}
     </div>
@@ -519,10 +528,15 @@ function ShopView({ user, onSignIn }) {
     try {
       const { data } = await supabase
         .from('products')
-        .select('*, profiles!user_id(id, username)')
+        .select('*, profiles!user_id(id, username), artwork:artwork_id(image_url)')
         .or('broken_image.is.null,broken_image.eq.false').or('is_hidden.is.null,is_hidden.eq.false').order('created_at', { ascending: false })
         .limit(100)
-      setProducts(data || [])
+      // Flatten artwork image URL for easy access
+      const products_with_art = (data || []).map(p => ({
+        ...p,
+        artwork_image_url: p.artwork?.image_url || null,
+      }))
+      setProducts(products_with_art)
     } catch {}
     setLoading(false)
   }
@@ -856,8 +870,8 @@ function ProductCard({ product, user, onView, onLightbox, onBuy, buyingId, onEdi
       {/* Image area */}
       <div style={{ height: 200, background: `linear-gradient(135deg, ${C.accent}22, ${C.teal}22)`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '14px 14px 0 0' }}
         onClick={onLightbox}>
-        {product.mockup_url
-          ? <LazyImage src={product.mockup_url} alt={productAltTag(product)} width={400} priority={priority} style={{ width: '100%', height: '100%' }}
+        {product.mockup_url || product.artwork_image_url
+          ? <LazyImage src={product.mockup_url || product.artwork_image_url} alt={productAltTag(product)} width={400} priority={priority} fallbackSrc={product.artwork_image_url || null} style={{ width: '100%', height: '100%' }}
             onBroken={(id) => setProducts && setProducts(prev => prev.filter(p => p.id !== id))}
             resourceId={product.id}
             resourceType="product" />
