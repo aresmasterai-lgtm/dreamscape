@@ -1,0 +1,737 @@
+{
+  "knowledge": {
+    "routes": [
+      {
+        "path": "/",
+        "name": "Discover / Home Feed",
+        "auth": false
+      },
+      {
+        "path": "/gallery",
+        "name": "Gallery",
+        "auth": false
+      },
+      {
+        "path": "/marketplace",
+        "name": "Marketplace",
+        "auth": false
+      },
+      {
+        "path": "/create",
+        "name": "Create (Dream AI)",
+        "auth": true
+      },
+      {
+        "path": "/profile",
+        "name": "Profile",
+        "auth": true
+      },
+      {
+        "path": "/pricing",
+        "name": "Pricing",
+        "auth": false
+      },
+      {
+        "path": "/blog",
+        "name": "Blog",
+        "auth": false
+      },
+      {
+        "path": "/orders",
+        "name": "Orders",
+        "auth": true
+      }
+    ],
+    "api_endpoints": [
+      {
+        "path": "/api/health",
+        "method": "GET",
+        "auth": false
+      },
+      {
+        "path": "/api/generate-image",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/dream",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/printful",
+        "method": "GET",
+        "auth": true
+      },
+      {
+        "path": "/api/create-checkout",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/connect-status",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/notify-follow",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/team-invite",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/remove-background",
+        "method": "POST",
+        "auth": true
+      },
+      {
+        "path": "/api/payout-trigger",
+        "method": "POST",
+        "auth": true
+      }
+    ],
+    "components": [],
+    "test_users": {},
+    "base_url": "https://trydreamscape.com"
+  },
+  "results": [
+    {
+      "id": "unit_cost_tshirt",
+      "name": "getBaseCost: t-shirt",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$14.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.568898"
+    },
+    {
+      "id": "unit_cost_hoodie",
+      "name": "getBaseCost: hoodie",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$27.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.568921"
+    },
+    {
+      "id": "unit_cost_mug",
+      "name": "getBaseCost: mug",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$9.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.568948"
+    },
+    {
+      "id": "unit_cost_canvas",
+      "name": "getBaseCost: canvas print",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$29.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.568968"
+    },
+    {
+      "id": "unit_cost_framed",
+      "name": "getBaseCost: framed",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$34.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.568987"
+    },
+    {
+      "id": "unit_cost_acrylic",
+      "name": "getBaseCost: acrylic print",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$39.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569003"
+    },
+    {
+      "id": "unit_cost_poster",
+      "name": "getBaseCost: poster",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$11.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569026"
+    },
+    {
+      "id": "unit_cost_tote",
+      "name": "getBaseCost: tote bag",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$12.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569051"
+    },
+    {
+      "id": "unit_cost_sticker",
+      "name": "getBaseCost: sticker",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$4.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569075"
+    },
+    {
+      "id": "unit_cost_canvas_tote",
+      "name": "getBaseCost: canvas tote doesn't match canvas",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$12.95",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569097"
+    },
+    {
+      "id": "unit_profit_tshirt",
+      "name": "calcProfit: t-shirt at $29.99",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "earnings=$10.87 margin=36.2%",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569125"
+    },
+    {
+      "id": "unit_profit_canvas",
+      "name": "calcProfit: canvas at $59.99",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "earnings=$22.0 margin=36.7%",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569141"
+    },
+    {
+      "id": "unit_profit_below_cost",
+      "name": "calcProfit: retail below cost \u2192 negative",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "earnings=$-6.54 margin=-65.4%",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569156"
+    },
+    {
+      "id": "unit_split_basic",
+      "name": "calcSplit: basic order no royalty",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 0, 'creator_earnings': 19.84}",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569184"
+    },
+    {
+      "id": "unit_split_royalty",
+      "name": "calcSplit: order with 10% royalty",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 1.98, 'creator_earnings': 17.86}",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569204"
+    },
+    {
+      "id": "unit_split_cents",
+      "name": "calcSplit: amount converts from cents",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "{'retail': 50.0, 'stripe_fee': 1.75, 'dreamscape_fee': 5.0, 'artist_royalty': 0, 'creator_earnings': 31.25}",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569222"
+    },
+    {
+      "id": "unit_price_tshirt",
+      "name": "suggestPrice: t-shirt ~$23-25 (38% margin)",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$23.99",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569236"
+    },
+    {
+      "id": "unit_price_canvas",
+      "name": "suggestPrice: canvas ~$47-50 (38% margin)",
+      "category": "unit",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "$47.99",
+      "agent": "UnitTests",
+      "timestamp": "2026-04-01T22:41:09.569248"
+    },
+    {
+      "id": "health_api_green",
+      "name": "Health API returns ok status",
+      "category": "api",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 1511,
+      "error": "HTTP 401 \u2014 {'error': 'Authentication required'}",
+      "detail": null,
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:11.081870"
+    },
+    {
+      "id": "xss_prompt",
+      "name": "XSS in prompt field rejected",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 1582,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-01T22:41:11.152432"
+    },
+    {
+      "id": "oversized_payload",
+      "name": "Oversized JSON payload handled",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 214,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-01T22:41:11.667530"
+    },
+    {
+      "id": "gen_unauth_red",
+      "name": "Generate image without auth \u2192 blocked",
+      "category": "api",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 1200,
+      "error": null,
+      "detail": "Correctly returned HTTP 401",
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:12.282816"
+    },
+    {
+      "id": "options_preflight",
+      "name": "OPTIONS preflight returns CORS headers",
+      "category": "explorer",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 341,
+      "error": null,
+      "detail": "HTTP 200 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-01T22:41:12.310403"
+    },
+    {
+      "id": "malformed_json",
+      "name": "Malformed JSON body returns 400",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 340,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-01T22:41:12.952397"
+    },
+    {
+      "id": "wrong_content_type",
+      "name": "Wrong content-type on POST handled",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 930,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-01T22:41:14.183814"
+    },
+    {
+      "id": "rate_limit_red",
+      "name": "Rapid API calls trigger rate limit",
+      "category": "api",
+      "path": "red",
+      "status": "red",
+      "duration_ms": 4987,
+      "error": "35 rapid requests didn't trigger 429 \u2014 rate limiter may be missing",
+      "detail": null,
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:17.270620"
+    },
+    {
+      "id": "dream_api_no_prompt_red",
+      "name": "Dream API with empty messages \u2192 error",
+      "category": "api",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 122,
+      "error": null,
+      "detail": "Correctly returned 401",
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:17.393315"
+    },
+    {
+      "id": "home_load_green",
+      "name": "Home page loads with nav and content",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 4230,
+      "error": "nav=False content=True",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:18.311678"
+    },
+    {
+      "id": "team_seat_red",
+      "name": "Team invite over seat limit \u2192 rejected",
+      "category": "api",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 1005,
+      "error": null,
+      "detail": "Unauthenticated invite correctly blocked with 401",
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:18.399243"
+    },
+    {
+      "id": "cors_green",
+      "name": "CORS headers present on API routes",
+      "category": "api",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 137,
+      "error": null,
+      "detail": "ACAO: *",
+      "agent": "APIAgent",
+      "timestamp": "2026-04-01T22:41:18.537104"
+    },
+    {
+      "id": "gallery_load_green",
+      "name": "Gallery page loads",
+      "category": "frontend",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 1689,
+      "error": null,
+      "detail": "title=Dreamscape \u2014 AI Artist Platform",
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:20.019709"
+    },
+    {
+      "id": "gallery_tag_filter_green",
+      "name": "Gallery tag filter chips render",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 3613,
+      "error": "Tag filter chips not found \u2014 no artwork loaded or tags missing",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:23.646112"
+    },
+    {
+      "id": "marketplace_green",
+      "name": "Marketplace loads with products",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 3655,
+      "error": "No product cards found \u2014 marketplace may be empty or broken",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:27.320498"
+    },
+    {
+      "id": "marketplace_filter_green",
+      "name": "Marketplace Canvas filter works",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 3682,
+      "error": "Canvas filter button not found in product types",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:31.003649"
+    },
+    {
+      "id": "pricing_load_green",
+      "name": "Pricing page shows all tiers",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 1682,
+      "error": "free=False pro=True",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:32.705763"
+    },
+    {
+      "id": "blog_load_green",
+      "name": "Blog page loads",
+      "category": "frontend",
+      "path": "green",
+      "status": "green",
+      "duration_ms": 1648,
+      "error": null,
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:34.368741"
+    },
+    {
+      "id": "nav_links_green",
+      "name": "Nav links present and correct",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 1629,
+      "error": "Missing/wrong links: ['Gallery', 'Marketplace', 'Pricing']",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:35.997898"
+    },
+    {
+      "id": "product_share_green",
+      "name": "Product share page loads",
+      "category": "frontend",
+      "path": "green",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error": null,
+      "detail": "No products in marketplace to test",
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:39.609351"
+    },
+    {
+      "id": "404_redirect_red",
+      "name": "Unknown routes render app (SPA catch-all)",
+      "category": "frontend",
+      "path": "red",
+      "status": "red",
+      "duration_ms": 1645,
+      "error": "Unknown route didn't render the app",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:41.267152"
+    },
+    {
+      "id": "invalid_product_red",
+      "name": "Product page with bad ID shows 404 state",
+      "category": "frontend",
+      "path": "red",
+      "status": "red",
+      "duration_ms": 3638,
+      "error": "No 'not found' message shown for invalid product ID",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:44.922452"
+    },
+    {
+      "id": "broken_img_red",
+      "name": "Broken image uses fallback not permanent flag",
+      "category": "frontend",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 3102,
+      "error": null,
+      "detail": "Gallery loaded without broken image JS errors",
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:48.025261"
+    },
+    {
+      "id": "mobile_create_green",
+      "name": "Mobile create page loads",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 2352,
+      "error": "Chat input not found on mobile create page",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:50.510176"
+    },
+    {
+      "id": "mobile_nav_green",
+      "name": "Mobile hamburger menu visible",
+      "category": "frontend",
+      "path": "green",
+      "status": "red",
+      "duration_ms": 1174,
+      "error": "Mobile hamburger button not found",
+      "detail": null,
+      "agent": "UIAgent",
+      "timestamp": "2026-04-01T22:41:51.698309"
+    }
+  ],
+  "findings": [
+    {
+      "agent": "ExplorerAgent",
+      "severity": "info",
+      "title": "Executive Summary of Test Failures",
+      "detail": "",
+      "timestamp": "2026-04-01T22:41:14.485497"
+    },
+    {
+      "agent": "APIAgent",
+      "severity": "high",
+      "title": "Rate limiter not firing",
+      "detail": "35 rapid /api/dream requests returned no 429",
+      "timestamp": "2026-04-01T22:41:17.270686"
+    }
+  ],
+  "stats": {
+    "total": 43,
+    "green": 30,
+    "red": 12,
+    "skipped": 1,
+    "error": 0,
+    "start_time": 1775083269.568691,
+    "end_time": 1775083311.840595
+  },
+  "plan": [
+    {
+      "id": "gen_image_green",
+      "name": "Generate image successfully",
+      "path": "green",
+      "agent": "ExplorerAgent"
+    },
+    {
+      "id": "publish_art_green",
+      "name": "Publish artwork to gallery",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "sell_product_green",
+      "name": "Create product from artwork",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "marketplace_green",
+      "name": "Browse and filter marketplace",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "profile_load_green",
+      "name": "Profile page loads with artwork",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "gallery_load_green",
+      "name": "Gallery loads and filters by tag",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "health_api_green",
+      "name": "Health API returns ok status",
+      "path": "green",
+      "agent": "APIAgent"
+    },
+    {
+      "id": "pricing_load_green",
+      "name": "Pricing page renders all tiers",
+      "path": "green",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "dream_api_green",
+      "name": "Dream AI responds to message",
+      "path": "green",
+      "agent": "APIAgent"
+    },
+    {
+      "id": "gen_unauth_red",
+      "name": "Generate image without auth \u2192 blocked",
+      "path": "red",
+      "agent": "APIAgent"
+    },
+    {
+      "id": "broken_img_red",
+      "name": "Broken image triggers fallback not flag",
+      "path": "red",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "chunk_error_red",
+      "name": "Stale chunk triggers auto-reload",
+      "path": "red",
+      "agent": "ExplorerAgent"
+    },
+    {
+      "id": "invalid_product_red",
+      "name": "Product page with bad ID shows 404",
+      "path": "red",
+      "agent": "UIAgent"
+    },
+    {
+      "id": "team_seat_red",
+      "name": "Team invite over seat limit \u2192 rejected",
+      "path": "red",
+      "agent": "APIAgent"
+    },
+    {
+      "id": "rate_limit_red",
+      "name": "Rapid API calls trigger rate limit",
+      "path": "red",
+      "agent": "APIAgent"
+    }
+  ],
+  "generated_at": "2026-04-01T22:41:51.843067"
+}

@@ -70,35 +70,24 @@ class PlannerAgent(BaseAgent):
         await self.bb.set_knowledge("api_endpoints", self.API_ENDPOINTS)
         await self.bb.set_knowledge("base_url",      self.base_url)
 
-        # Use Claude to enrich the plan with risk analysis
-        plan_json = self.think_json(
-            f"""You are planning a test suite for Dreamscape (trydreamscape.com), an AI art + print-on-demand platform.
-
+        # Use built-in plan directly — Claude enrichment is optional
+        tasks = list(self.CRITICAL_FLOWS)
+        if self.client:
+            try:
+                plan_json = self.think_json(
+                    f"""You are planning a test suite for Dreamscape (trydreamscape.com).
 Known critical flows:
 {self._flows_summary()}
+Output a JSON array: {{"tasks": [{{"id":"...","name":"...","path":"green|red","agent":"...","priority":1-5,"risk":"...","assertion":"..."}}]}}""",
+                    system="You are a senior QA architect. Output only valid JSON."
+                )
+                if plan_json.get("tasks"):
+                    tasks = plan_json["tasks"]
+            except Exception as e:
+                self.log(f"⚠️  Claude enrichment skipped ({e}) — using built-in plan")
 
-Analyze these flows and for each one output a JSON array of test tasks:
-{{
-  "tasks": [
-    {{
-      "id": "<flow id>",
-      "name": "<flow name>",
-      "path": "green" or "red",
-      "agent": "<agent name>",
-      "priority": 1-5,
-      "risk": "why this could fail",
-      "assertion": "what success looks like"
-    }}
-  ]
-}}""",
-            system="You are a senior QA architect. Output only valid JSON."
-        )
-
-        tasks = plan_json.get("tasks", self.CRITICAL_FLOWS)
         await self.bb.set_plan(tasks)
         self.log(f"📋 Plan ready — {len(tasks)} test tasks across {len(self.ROUTES)} routes, {len(self.API_ENDPOINTS)} endpoints")
-
-        # Signal all agents plan is ready
         await self.bb.signal("PlannerAgent", "*", "plan_ready", {"task_count": len(tasks)})
 
     def _flows_summary(self) -> str:

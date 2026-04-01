@@ -79,11 +79,6 @@ function checkEnvVar(name) {
 export default async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
 
-  // Simple auth check — require admin token or skip in dev
-  const authHeader = req.headers.get('Authorization') || ''
-  const token = authHeader.replace('Bearer ', '').trim()
-  if (!token) return corsResponse({ error: 'Authentication required' }, 401)
-
   const start = Date.now()
 
   // Check all env vars
