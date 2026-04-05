@@ -1600,7 +1600,7 @@ Respond ONLY with a JSON object (no markdown, no backticks):
                 <a href={generatedImages[lastAiIndex]} download="dreamscape-art.png" target="_blank"
                   title="Download"
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', color: C.muted, fontSize: 12, cursor: 'pointer', textDecoration: 'none' }}>
-                  ↓
+                  Save
                 </a>
                 {/* Auto-save indicator */}
                 <span style={{ fontSize: 10, color: autoSavedIds[lastAiIndex] ? C.teal : C.muted, marginLeft: 'auto' }}>
@@ -2143,7 +2143,7 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
                       {[
                         { icon: '🔍', label: 'View Full', color: C.muted, action: (e) => openLightbox(e, art) },
                         ...((art.license === 'royalty' || art.license === 'free') ? [
-                          { icon: '🛍', label: 'Use This Art', color: C.accent, action: () => onReuse && onReuse(art) }
+                          { icon: '✦', label: 'Use This Art', color: C.accent, action: () => onReuse && onReuse(art) }
                         ] : []),
                       ].map((item, idx, arr) => (
                         <button key={item.label} onClick={(e) => { setMenuOpen(null); item.action(e) }}
@@ -2198,20 +2198,20 @@ function ArtworkGrid({ artworks, loading, isOwner = false, onSell, onReuse, onPu
                       {/* Refine */}
                       <button onClick={() => { setMenuOpen(null); onRefine && onRefine(art) }}
                         style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <span>✨</span> Refine in Dream
+                        ✦ Remix
                       </button>
 
                       {/* Sell */}
                       <button onClick={() => { setMenuOpen(null); onSell && onSell(art) }}
                         style={{ width: '100%', background: 'none', border: 'none', borderBottom: `1px solid ${C.border}`, padding: '10px 14px', color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <span>🛍</span> Sell This
+                        Sell This ✦
                       </button>
 
                       {/* Delete */}
                       {onDelete && (
                         <button onClick={() => { setMenuOpen(null); onDelete(art) }}
                           style={{ width: '100%', background: 'none', border: 'none', borderTop: `1px solid ${C.border}`, padding: '10px 14px', color: C.red, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 9, WebkitAppearance: 'none', appearance: 'none' }}>
-                          <span>🗑</span> Delete
+                          Delete
                         </button>
                       )}
                     </div>
@@ -2282,7 +2282,7 @@ function OnboardingModal({ user, onClose }) {
       skip: () => setStep(2),
     },
     {
-      icon: '🛍',
+      icon: '✦',
       title: 'Step 2 — Turn it into a product',
       body: "Once you've generated an image you love, hit Sell This to put it on a t-shirt, mug, poster, and hundreds more products — shipped worldwide.",
       action: 'Got it →',
@@ -4160,7 +4160,7 @@ function BulkCreateTab({ user, artworks, profile }) {
     { id: 'framed',    label: 'Framed Print',    icon: '🖼',  baseCost: 34.95 },
     { id: 'wallart',   label: 'Wall Art',        icon: '🏛',  baseCost: 24.95 },
     { id: 'mug',       label: 'Mug',             icon: '☕', baseCost: 9.95  },
-    { id: 'tote',      label: 'Tote Bag',        icon: '🛍',  baseCost: 12.95 },
+    { id: 'tote',      label: 'Tote Bag',        icon: '✦',  baseCost: 12.95 },
     { id: 'pillow',    label: 'Throw Pillow',    icon: '🛋',  baseCost: 17.95 },
     { id: 'phonecase', label: 'Phone Case',      icon: '📱', baseCost: 14.95 },
   ]
@@ -4898,7 +4898,7 @@ function ProfilePage({ user, profile: initialProfile }) {
 
   const tabs = [
     ['artwork', `🎨 Artwork (${loadingArt ? '…' : artworks.length})`],
-    ['shop', `🛍 Shop (${products.length})`],
+    ['shop', `Shop (${products.length})`],
     ...(isBizAccount ? [
       ['bulk', '⚡ Bulk Create'],
       ['analytics', '📊 Analytics'],
@@ -5494,7 +5494,7 @@ function ArtistProfilePage({ viewerUser }) {
   }
   const tabs = [
     ['artwork', `🎨 Artwork (${artworks.length})`],
-    ['shop', `🛍 Shop (${products.length})`],
+    ['shop', `Shop (${products.length})`],
     ['about', '✦ About'],
   ]
 
@@ -5826,7 +5826,7 @@ function PhotoToProduct({ user, onSignIn, onClose }) {
               </div>
               <button onClick={() => { onClose(); /* open CreateProductModal with result */ window.dispatchEvent(new CustomEvent('dreamscape:photoProduct', { detail: { imageUrl: resultDataUrl } })) }}
                 style={{ width: '100%', background: `linear-gradient(135deg, ${C.teal}, #00A884)`, border: 'none', borderRadius: 12, padding: '14px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
-                🛍 Create Product Now →
+                Create Product Now →
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={reset}
@@ -6085,7 +6085,7 @@ function HomeFeed({ user }) {
         </button>
         <button onClick={() => navigate('/marketplace')}
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.text, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          🛍 Marketplace
+          Marketplace
         </button>
         <button onClick={() => navigate('/gallery')}
           style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.text, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -7285,7 +7285,7 @@ function DreamWidget({ user, onSignIn }) {
   const NAV_LABELS = {
     '/create': '✦ Open Dream AI',
     '/gallery': '🎨 Visit Gallery',
-    '/marketplace': '🛍 Browse Marketplace',
+    '/marketplace': 'Browse Marketplace',
     '/pricing': '⭐ View Plans',
     '/blog': '📖 Read the Blog',
     '/profile': '👤 Your Profile',
