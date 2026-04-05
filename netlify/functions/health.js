@@ -101,14 +101,21 @@ export default async (req) => {
     checkStripe(process.env.STRIPE_SECRET_KEY),
   ])
 
-  const allOk = Object.values(envVars).every(v => v.status === 'ok')
-    && anthropic.status === 'ok'
-    && gemini.status === 'ok'
+  // Generation speed is only affected by AI services — Printful/Stripe are commerce services
+  // and their outages should not show "Slow" on image generation
+  const genOk = anthropic.status === 'ok' && gemini.status === 'ok'
+  const allOk = genOk
     && printful.status === 'ok'
     && stripe.status === 'ok'
+    && Object.values(envVars).every(v => v.status === 'ok')
+
+  // Granular status: ok | degraded (gen slow) | commerce_degraded (printful/stripe issue only)
+  const status = genOk
+    ? (allOk ? 'ok' : 'commerce_degraded')
+    : 'degraded'
 
   return corsResponse({
-    status: allOk ? 'ok' : 'degraded',
+    status,
     timestamp: new Date().toISOString(),
     responseMs: Date.now() - start,
     services: { anthropic, gemini, printful, stripe },

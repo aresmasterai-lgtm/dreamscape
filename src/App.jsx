@@ -6459,7 +6459,8 @@ function SystemStatus() {
       try {
         const res = await fetch('/api/health', { signal: AbortSignal.timeout(8000) })
         const data = await res.json()
-        setStatus(data.status === 'ok' ? 'ok' : 'degraded')
+        // commerce_degraded = Printful/Stripe issue only — don't show Slow badge
+        setStatus(data.status === 'ok' || data.status === 'commerce_degraded' ? 'ok' : 'degraded')
       } catch {
         setStatus('degraded')
       }
