@@ -493,90 +493,30 @@ function StarFieldDesktop() {
     <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: '#030508' }}>
       <style>{`
         @keyframes twinkle {
-          0%,100% { opacity: var(--op); transform: scale(1); }
-          40%      { opacity: calc(var(--op) * 0.3); }
-          70%      { opacity: calc(var(--op) * 2.8); transform: scale(1.5); filter: blur(0.3px); }
-        }
-        @keyframes nebulaFloat1 {
-          0%   { transform: translate(0px, 0px) scale(1) rotate(0deg); }
-          25%  { transform: translate(22px,-14px) scale(1.04) rotate(2deg); }
-          50%  { transform: translate(-16px, 20px) scale(0.97) rotate(-2deg); }
-          75%  { transform: translate(18px, 8px) scale(1.02) rotate(3deg); }
-          100% { transform: translate(0px, 0px) scale(1) rotate(0deg); }
-        }
-        @keyframes nebulaFloat2 {
-          0%   { transform: translate(0px, 0px) scale(1); }
-          33%  { transform: translate(-28px, 18px) scale(1.06); }
-          66%  { transform: translate(20px,-24px) scale(0.95); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        @keyframes nebulaFloat3 {
-          0%   { transform: translate(0px, 0px) rotate(0deg); }
-          50%  { transform: translate(12px,-30px) rotate(5deg); }
-          100% { transform: translate(0px, 0px) rotate(0deg); }
-        }
-        @keyframes nebulaBreath {
-          0%,100% { opacity: var(--nb); }
-          50%      { opacity: calc(var(--nb) * 1.3); }
+          0%,100% { opacity: var(--op); }
+          50%      { opacity: calc(var(--op) * 0.2); }
         }
         @keyframes planetFloat {
           0%,100% { transform: translateY(0px); }
-          50%      { transform: translateY(-10px); }
-        }
-        @keyframes moonPulse {
-          0%,100% { box-shadow: 0 0 24px rgba(180,160,255,0.35), 0 0 48px rgba(124,92,252,0.2), 0 0 90px rgba(124,92,252,0.08); }
-          50%      { box-shadow: 0 0 40px rgba(180,160,255,0.55), 0 0 80px rgba(124,92,252,0.35), 0 0 140px rgba(124,92,252,0.15); }
-        }
-        @keyframes chromaticBorder {
-          0%   { background-position: 0% 50%; }
-          50%  { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+          50%      { transform: translateY(-8px); }
         }
       `}</style>
 
-      {/* Layer 1 — Giant diffuse nebula base */}
-      <div style={{ '--nb': 0.9, position: 'absolute', top: '-30%', left: '-20%', width: '90%', height: '90%',
-        background: 'radial-gradient(ellipse 55% 60% at 40% 40%, rgba(88,28,220,0.55) 0%, rgba(124,92,252,0.4) 18%, rgba(75,47,208,0.25) 35%, rgba(99,60,200,0.12) 55%, transparent 72%)',
-        filter: 'blur(55px)', animation: 'nebulaFloat1 32s ease-in-out infinite, nebulaBreath 11s ease-in-out infinite' }} />
-      <div style={{ '--nb': 0.85, position: 'absolute', bottom: '-30%', right: '-25%', width: '95%', height: '85%',
-        background: 'radial-gradient(ellipse 50% 55% at 60% 55%, rgba(219,39,119,0.5) 0%, rgba(168,85,247,0.35) 20%, rgba(236,72,153,0.2) 40%, rgba(124,92,252,0.1) 60%, transparent 78%)',
-        filter: 'blur(50px)', animation: 'nebulaFloat2 40s ease-in-out infinite, nebulaBreath 14s ease-in-out infinite 3s' }} />
+      {/* Static nebula — 3 blobs, no animation, GPU-friendly */}
+      <div style={{ position: 'absolute', top: '-20%', left: '-15%', width: '80%', height: '80%',
+        background: 'radial-gradient(ellipse 55% 60% at 40% 40%, rgba(88,28,220,0.45) 0%, rgba(124,92,252,0.28) 35%, transparent 70%)',
+        filter: 'blur(60px)' }} />
+      <div style={{ position: 'absolute', bottom: '-20%', right: '-20%', width: '80%', height: '75%',
+        background: 'radial-gradient(ellipse 50% 55% at 60% 55%, rgba(219,39,119,0.35) 0%, rgba(168,85,247,0.2) 40%, transparent 75%)',
+        filter: 'blur(60px)' }} />
+      <div style={{ position: 'absolute', top: '20%', left: '20%', width: '60%', height: '55%',
+        background: 'radial-gradient(ellipse 45% 50% at 52% 48%, rgba(0,212,170,0.18) 0%, rgba(124,92,252,0.08) 60%, transparent 80%)',
+        filter: 'blur(50px)' }} />
 
-      {/* Layer 2 — Mid-ground nebula detail */}
-      <div style={{ '--nb': 0.7, position: 'absolute', top: '15%', left: '20%', width: '70%', height: '65%',
-        background: 'radial-gradient(ellipse 45% 50% at 52% 48%, rgba(0,212,170,0.28) 0%, rgba(6,182,212,0.2) 22%, rgba(14,165,233,0.12) 45%, rgba(124,92,252,0.08) 65%, transparent 80%)',
-        filter: 'blur(45px)', animation: 'nebulaFloat3 25s ease-in-out infinite' }} />
-      <div style={{ '--nb': 0.8, position: 'absolute', top: '20%', left: '-8%', width: '40%', height: '70%',
-        background: 'radial-gradient(ellipse 40% 70% at 35% 50%, rgba(109,40,217,0.5) 0%, rgba(124,92,252,0.32) 25%, rgba(91,33,182,0.18) 50%, transparent 72%)',
-        filter: 'blur(40px)', animation: 'nebulaFloat1 20s ease-in-out infinite reverse, nebulaBreath 9s ease-in-out infinite 1s' }} />
-      <div style={{ '--nb': 0.65, position: 'absolute', top: '-15%', right: '-10%', width: '60%', height: '65%',
-        background: 'radial-gradient(ellipse 55% 45% at 55% 38%, rgba(14,165,233,0.45) 0%, rgba(0,212,170,0.28) 25%, rgba(56,189,248,0.15) 50%, rgba(124,92,252,0.08) 68%, transparent 82%)',
-        filter: 'blur(38px)', animation: 'nebulaFloat2 28s ease-in-out infinite reverse' }} />
-      <div style={{ '--nb': 0.55, position: 'absolute', bottom: '-15%', left: '-5%', width: '55%', height: '50%',
-        background: 'radial-gradient(ellipse 50% 45% at 42% 62%, rgba(245,158,11,0.28) 0%, rgba(251,146,60,0.2) 22%, rgba(236,72,153,0.15) 45%, transparent 70%)',
-        filter: 'blur(42px)', animation: 'nebulaFloat3 22s ease-in-out infinite, nebulaBreath 16s ease-in-out infinite 4s' }} />
-
-      {/* Layer 3 — Fine nebula detail */}
-      <div style={{ '--nb': 0.9, position: 'absolute', top: '8%', left: '32%', width: '28%', height: '28%',
-        background: 'radial-gradient(ellipse 60% 55% at 50% 45%, rgba(167,139,250,0.55) 0%, rgba(139,92,246,0.35) 20%, rgba(124,92,252,0.15) 45%, transparent 65%)',
-        filter: 'blur(22px)', animation: 'nebulaFloat1 18s ease-in-out infinite 2s, nebulaBreath 7s ease-in-out infinite' }} />
-      <div style={{ '--nb': 0.75, position: 'absolute', top: '38%', right: '5%', width: '32%', height: '35%',
-        background: 'radial-gradient(ellipse 55% 60% at 58% 45%, rgba(34,211,238,0.45) 0%, rgba(6,182,212,0.28) 25%, rgba(0,212,170,0.12) 50%, transparent 68%)',
-        filter: 'blur(25px)', animation: 'nebulaFloat2 15s ease-in-out infinite 1s, nebulaBreath 8s ease-in-out infinite 2s' }} />
-      <div style={{ '--nb': 0.7, position: 'absolute', top: '52%', left: '18%', width: '26%', height: '30%',
-        background: 'radial-gradient(ellipse 50% 55% at 45% 50%, rgba(244,114,182,0.48) 0%, rgba(236,72,153,0.3) 22%, rgba(168,85,247,0.15) 48%, transparent 65%)',
-        filter: 'blur(20px)', animation: 'nebulaFloat3 19s ease-in-out infinite reverse, nebulaBreath 10s ease-in-out infinite 3s' }} />
-      <div style={{ '--nb': 0.6, position: 'absolute', top: '28%', left: '45%', width: '20%', height: '22%',
-        background: 'radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.12) 0%, rgba(196,181,253,0.18) 30%, rgba(167,243,252,0.1) 55%, transparent 72%)',
-        filter: 'blur(16px)', animation: 'nebulaFloat1 12s ease-in-out infinite 4s' }} />
-      <div style={{ '--nb': 0.5, position: 'absolute', top: '44%', left: '-5%', width: '80%', height: '18%',
-        background: 'radial-gradient(ellipse 80% 40% at 40% 50%, rgba(30,64,175,0.22) 0%, rgba(29,78,216,0.12) 40%, transparent 70%)',
-        filter: 'blur(30px)', animation: 'nebulaFloat2 35s ease-in-out infinite 2s' }} />
-
-      {/* Moon */}
-      <div style={{ position: 'absolute', top: '5%', right: '7%', width: 58, height: 58, borderRadius: '50%',
+      {/* Moon — static, no pulse animation */}
+      <div style={{ position: 'absolute', top: '5%', right: '7%', width: 52, height: 52, borderRadius: '50%',
         background: 'radial-gradient(circle at 36% 32%, rgba(255,255,255,0.95) 0%, #e8e0ff 12%, #c4b5fd 30%, #a78bfa 52%, #7c3aed 75%, #4c1d95 100%)',
-        animation: 'moonPulse 6s ease-in-out infinite, planetFloat 11s ease-in-out infinite' }}>
+        boxShadow: '0 0 24px rgba(180,160,255,0.3), 0 0 48px rgba(124,92,252,0.15)' }}>
         <div style={{ position: 'absolute', top: '18%', left: '12%', width: 10, height: 8, borderRadius: '50%', background: 'rgba(109,40,217,0.3)', filter: 'blur(2px)' }} />
         <div style={{ position: 'absolute', top: '55%', left: '28%', width: 6, height: 6, borderRadius: '50%', background: 'rgba(109,40,217,0.25)', filter: 'blur(1.5px)' }} />
         <div style={{ position: 'absolute', top: '8%', right: '4%', width: '65%', height: '82%', borderRadius: '50%', background: 'rgba(10,5,30,0.4)', filter: 'blur(4px)' }} />
@@ -584,7 +524,7 @@ function StarFieldDesktop() {
       </div>
 
       {/* Planet 1 — teal ringed */}
-      <div style={{ position: 'absolute', bottom: '10%', left: '4%', animation: 'planetFloat 14s ease-in-out infinite 2s' }}>
+      <div style={{ position: 'absolute', bottom: '10%', left: '4%', style={{ opacity: 0.9 }} }}>
         <div style={{ position: 'relative', width: 50, height: 50 }}>
           <div style={{ width: 50, height: 50, borderRadius: '50%',
             background: 'radial-gradient(circle at 33% 28%, rgba(103,232,249,0.9) 0%, #06b6d4 25%, #0891b2 50%, #0e7490 75%, #083344 100%)',
@@ -605,44 +545,30 @@ function StarFieldDesktop() {
       <div style={{ position: 'absolute', top: '24%', left: '2%', width: 18, height: 18, borderRadius: '50%',
         background: 'radial-gradient(circle at 35% 30%, #e9d5ff 0%, #a855f7 45%, #6b21a8 80%, #3b0764 100%)',
         boxShadow: '0 0 10px rgba(168,85,247,0.55), 0 0 20px rgba(168,85,247,0.2)',
-        animation: 'planetFloat 8s ease-in-out infinite 1s' }} />
+         }} />
 
       {/* Planet 3 — tiny warm */}
       <div style={{ position: 'absolute', top: '68%', right: '12%', width: 10, height: 10, borderRadius: '50%',
         background: 'radial-gradient(circle at 38% 35%, #fde68a 0%, #f59e0b 50%, #b45309 100%)',
         boxShadow: '0 0 8px rgba(245,158,11,0.5)',
-        animation: 'planetFloat 6s ease-in-out infinite 3s' }} />
+         }} />
 
-      {/* Point stars */}
-      {STARS.map(s => (
+      {/* Point stars — reduced count, no box-shadow glow */}
+      {STARS.slice(0, 40).map(s => (
         <div key={s.id} style={{
           position: 'absolute',
           top: `${s.top}%`, left: `${s.left}%`,
-          width: s.size, height: s.size,
+          width: Math.min(s.size, 4), height: Math.min(s.size, 4),
           borderRadius: '50%',
           background: s.color,
           '--op': s.opacity,
           opacity: s.opacity,
-          boxShadow: `0 0 ${s.size * 2.5}px ${s.color}`,
-          animation: `twinkle ${s.dur}s ease-in-out infinite`,
+          animation: `twinkle ${s.dur * 2}s ease-in-out infinite`,
           animationDelay: `${s.delay}s`,
         }} />
       ))}
 
-      {/* Sparkle glyphs */}
-      {SPARKLES.map(s => (
-        <div key={`sp${s.id}`} style={{
-          position: 'absolute',
-          top: `${s.top}%`, left: `${s.left}%`,
-          fontSize: `${s.size}px`,
-          color: s.color,
-          opacity: s.opacity,
-          textShadow: '0 0 10px currentColor, 0 0 20px currentColor',
-          animation: `twinkle ${s.dur}s ease-in-out infinite`,
-          animationDelay: `${s.delay}s`,
-          userSelect: 'none', lineHeight: 1,
-        }}>✦</div>
-      ))}
+
     </div>
   )
 }
@@ -7517,13 +7443,9 @@ export default function App() {
           50%  { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        @keyframes cardGlow {
-          0%,100% { box-shadow: 0 0 20px rgba(124,92,252,0.12), 0 4px 24px rgba(4,6,15,0.5); }
-          50%      { box-shadow: 0 0 35px rgba(124,92,252,0.22), 0 4px 32px rgba(4,6,15,0.5); }
-        }
         @keyframes dreamPulse {
-          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.7), 0 4px 24px rgba(124,92,252,0.5), 0 0 16px rgba(0,212,170,0.2); }
-          50%     { box-shadow: 0 0 0 12px rgba(124,92,252,0), 0 4px 40px rgba(124,92,252,0.7), 0 0 32px rgba(0,212,170,0.35); }
+          0%,100% { box-shadow: 0 0 0 0 rgba(124,92,252,0.7), 0 4px 24px rgba(124,92,252,0.5); }
+          50%     { box-shadow: 0 0 0 12px rgba(124,92,252,0), 0 4px 40px rgba(124,92,252,0.7); }
         }
         @keyframes generatePulse {
           0%   { box-shadow: 0 0 0 0 rgba(0,212,170,0.7), 0 0 12px rgba(124,92,252,0.4); }
@@ -7531,21 +7453,8 @@ export default function App() {
           100% { box-shadow: 0 0 0 0 rgba(0,212,170,0), 0 0 12px rgba(124,92,252,0.4); }
         }
         @keyframes avatarRing {
-          0%   { background-position: 0% 50%; box-shadow: 0 0 12px rgba(124,92,252,0.5), 0 0 24px rgba(0,212,170,0.2); }
-          50%  { background-position: 100% 50%; box-shadow: 0 0 20px rgba(0,212,170,0.6), 0 0 36px rgba(255,107,157,0.25); }
-          100% { background-position: 0% 50%; box-shadow: 0 0 12px rgba(124,92,252,0.5), 0 0 24px rgba(0,212,170,0.2); }
-        }
-        @keyframes navGlow {
-          0%,100% { opacity: 0.5; }
-          50%      { opacity: 1; }
-        }
-        @keyframes btnGlow {
-          0%,100% { box-shadow: 0 0 12px rgba(124,92,252,0.35), 0 4px 16px rgba(4,6,15,0.4); }
-          50%      { box-shadow: 0 0 24px rgba(124,92,252,0.6), 0 4px 24px rgba(4,6,15,0.5); }
-        }
-        @keyframes tealBtnGlow {
-          0%,100% { box-shadow: 0 0 12px rgba(0,212,170,0.35), 0 4px 16px rgba(4,6,15,0.4); }
-          50%      { box-shadow: 0 0 24px rgba(0,212,170,0.6), 0 4px 24px rgba(4,6,15,0.5); }
+          0%,100% { background-position: 0% 50%; }
+          50%     { background-position: 100% 50%; }
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -7556,62 +7465,43 @@ export default function App() {
         /* ── Image protection ── */
         img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }
 
-        /* ── Navbar bottom chromatic edge ── */
+        /* ── Navbar bottom chromatic edge — static gradient, no animation ── */
         nav::after {
           content: '';
           position: absolute;
           bottom: 0; left: 0; right: 0;
           height: 1px;
           background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.6) 20%, rgba(0,212,170,0.7) 50%, rgba(255,107,157,0.5) 80%, transparent 100%);
-          background-size: 200% 100%;
-          animation: chromaticBorder 5s ease-in-out infinite, navGlow 4s ease-in-out infinite;
         }
 
-        /* ── Cards — vivid chromatic glow ── */
+        /* ── Cards — static border, animate ONLY on hover ── */
         .ds-card {
           position: relative;
           border-radius: 16px;
           background: ${C.card};
-          border: 1px solid transparent;
-          transition: transform 0.2s, box-shadow 0.3s;
-          animation: cardGlow 5s ease-in-out infinite;
-        }
-        .ds-card::before {
-          content: '';
-          position: absolute;
-          inset: -1px;
-          border-radius: 17px;
-          background: linear-gradient(135deg, rgba(124,92,252,0.7), rgba(0,212,170,0.45), rgba(255,107,157,0.45), rgba(245,200,66,0.3), rgba(124,92,252,0.7));
-          background-size: 300% 300%;
-          animation: chromaticBorder 5s ease-in-out infinite;
-          z-index: -1;
-          opacity: 0.75;
-          filter: blur(0.5px);
-        }
-        .ds-card::after {
-          content: '';
-          position: absolute;
-          inset: -4px;
-          border-radius: 20px;
-          background: linear-gradient(135deg, rgba(124,92,252,0.35), rgba(0,212,170,0.2), rgba(255,107,157,0.2), rgba(124,92,252,0.35));
-          background-size: 300% 300%;
-          animation: chromaticBorder 5s ease-in-out infinite reverse;
-          z-index: -2;
-          opacity: 0.5;
-          filter: blur(8px);
+          border: 1px solid rgba(124,92,252,0.25);
+          box-shadow: 0 2px 12px rgba(4,6,15,0.4);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+          contain: layout style;
         }
         .ds-card:hover {
-          transform: translateY(-3px);
-          animation: none;
-          box-shadow: 0 0 0 1px rgba(124,92,252,0.5), 0 12px 40px rgba(4,6,15,0.6), 0 0 50px rgba(124,92,252,0.3), 0 0 80px rgba(0,212,170,0.1);
+          transform: translateY(-2px);
+          border-color: rgba(124,92,252,0.6);
+          box-shadow: 0 8px 32px rgba(4,6,15,0.6), 0 0 24px rgba(124,92,252,0.2);
         }
-        .ds-card:hover::before { opacity: 1; filter: blur(1px); }
-        .ds-card:hover::after  { opacity: 0.8; filter: blur(12px); }
+        .ds-card:active {
+          transform: translateY(0px) scale(0.99);
+        }
 
-        /* ── Modals — floating glow frame ── */
+        /* ── Modals ── */
         .ds-modal {
           border: 1px solid rgba(124,92,252,0.4) !important;
-          box-shadow: 0 0 0 1px rgba(124,92,252,0.2), 0 24px 80px rgba(4,6,15,0.8), 0 0 60px rgba(124,92,252,0.2), 0 0 100px rgba(0,212,170,0.08) !important;
+          box-shadow: 0 0 0 1px rgba(124,92,252,0.15), 0 24px 80px rgba(4,6,15,0.8) !important;
+        }
+
+        /* ── Respect reduced motion preference ── */
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
 
         /* ── Input focus glow ── */
