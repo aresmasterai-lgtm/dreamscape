@@ -324,23 +324,58 @@ Reply with ONLY a valid JSON object, no markdown:
         const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
         const data = await res.json()
         const variants = data.variants || []
-        const colorMap = {}
-        for (const v of variants) {
-          const name = v.color || 'Default'
-          if (!colorMap[name]) colorMap[name] = { name, hex: v.color_code || '#888', variantIds: [], image: v.image || p.image || '' }
-          colorMap[name].variantIds.push(v.id)
-          if (v.image && !colorMap[name].image) colorMap[name].image = v.image
+
+        // Detect variant type: color-based (apparel) or size-based (wall art/canvas)
+        const hasColors = variants.some(v => v.color && v.color.trim())
+        const variantMap = {}
+
+        if (hasColors) {
+          // ── Color variants (T-shirts, hoodies, mugs etc.) ────
+          for (const v of variants) {
+            const name = v.color || 'Default'
+            if (!variantMap[name]) variantMap[name] = {
+              name, hex: v.color_code || '#888',
+              variantIds: [], image: v.image || p.image || '',
+              isSize: false,
+            }
+            variantMap[name].variantIds.push(v.id)
+            if (v.image && !variantMap[name].image) variantMap[name].image = v.image
+          }
+        } else {
+          // ── Size variants (canvas prints, posters, wall art) ─
+          for (const v of variants) {
+            const name = v.size || v.name || `Option ${v.id}`
+            if (!variantMap[name]) variantMap[name] = {
+              name, hex: '#7C5CFC',
+              variantIds: [], image: v.image || p.image || '',
+              isSize: true,
+            }
+            variantMap[name].variantIds.push(v.id)
+          }
         }
-        const colors = Object.values(colorMap)
-        setAvailableColors(colors)
-        const white = colors.find(c => c.name.toLowerCase() === 'white')
-        const black = colors.find(c => c.name.toLowerCase() === 'black')
-        const defaults = [white, black].filter(Boolean)
-        if (!defaults.length) defaults.push(...colors.slice(0, 2))
-        setSelectedColors(defaults.map(c => c.name))
-        const preview = white || defaults[0]
-        if (preview) setPreviewColor(preview)
-        setSelected({ ...p, variants })
+
+        const options = Object.values(variantMap)
+        setAvailableColors(options)
+
+        // Smart defaults
+        if (hasColors) {
+          const white = options.find(c => c.name.toLowerCase() === 'white')
+          const black = options.find(c => c.name.toLowerCase() === 'black')
+          const defaults = [white, black].filter(Boolean)
+          if (!defaults.length) defaults.push(...options.slice(0, 2))
+          setSelectedColors(defaults.map(c => c.name))
+          if (defaults[0]) setPreviewColor(defaults[0])
+        } else {
+          // For size variants, select the most popular sizes by default
+          const popularSizes = ['11×14','12×16','16×20','18×24','24×36','12×12','16×16']
+          const defaults = options.filter(o =>
+            popularSizes.some(s => o.name.replace(/\s/g,'').includes(s.replace(/\s/g,'')))
+          )
+          const selected_defaults = defaults.length ? defaults : options.slice(0, 3)
+          setSelectedColors(selected_defaults.map(c => c.name))
+          if (options[0]) setPreviewColor(options[0])
+        }
+        setSelected({ ...p, variants, isWallArt: !hasColors })
       }
     } catch (e) { console.error('selectProduct error:', e.message) }
     setVariantLoading(false)
@@ -352,10 +387,20 @@ Reply with ONLY a valid JSON object, no markdown:
   }
 
   const selectPopularColors = () => {
-    const popular = availableColors.filter(c =>
-      ['white','black','navy','gray','grey','heather gray','sport grey','charcoal','dark heather'].some(k => c.name.toLowerCase().includes(k))
-    )
-    setSelectedColors((popular.length ? popular : availableColors.slice(0, 3)).map(c => c.name))
+    const isWallArt = availableColors[0]?.isSize
+    if (isWallArt) {
+      // Popular wall art sizes
+      const popularSizes = ['11×14','12×16','16×20','18×24','24×36','12×12','16×16']
+      const popular = availableColors.filter(o =>
+        popularSizes.some(s => o.name.replace(/\s/g,'').includes(s.replace(/\s/g,'')))
+      )
+      setSelectedColors((popular.length ? popular : availableColors.slice(0, 3)).map(c => c.name))
+    } else {
+      const popular = availableColors.filter(c =>
+        ['white','black','navy','gray','grey','heather gray','sport grey','charcoal','dark heather'].some(k => c.name.toLowerCase().includes(k))
+      )
+      setSelectedColors((popular.length ? popular : availableColors.slice(0, 3)).map(c => c.name))
+    }
   }
 
   const generateMockup = async () => {
@@ -699,15 +744,15 @@ Reply with ONLY a valid JSON object, no markdown:
                 </div>
               </div>
 
-              {/* Wall art / canvas have size variants not color variants */}
-              {availableColors.length > 0 && availableColors[0]?.name === 'Default' && (
+              {/* Wall art/canvas: size variants. Apparel: color variants. */}
+              {availableColors.length > 0 && availableColors[0]?.isSize && (
                 <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.teal, marginBottom: 10 }}>
-                  ✦ This product comes in sizes — select the sizes you want to offer
+                  ✦ This product comes in sizes — select which sizes to offer in your shop
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  {availableColors[0]?.name === 'Default' ? `${availableColors.length} sizes available` : `${availableColors.length} colors available`}
+                  {availableColors[0]?.isSize ? `${availableColors.length} sizes available` : `${availableColors.length} colors available`}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[['All', () => setSelectedColors(availableColors.map(c => c.name))], ['Popular', selectPopularColors], ['Clear', () => setSelectedColors([])]].map(([label, fn]) => (
