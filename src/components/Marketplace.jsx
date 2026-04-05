@@ -332,7 +332,7 @@ function ImageLightbox({ image, onClose }) {
         ✕
       </button>
 
-      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease', padding: isMobile ? '60px 0 0' : 0 }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative', maxWidth: 860, width: '100%', animation: 'lbIn 0.18s ease', padding: isMobile ? '60px 0 0' : 0 }}>
         <img src={image.src} alt={image.alt}
           style={{ width: '100%', borderRadius: isMobile ? 0 : 16, boxShadow: isMobile ? 'none' : `0 0 80px ${C.accent}33`, display: 'block', maxHeight: isMobile ? '70vh' : '78vh', objectFit: 'contain', background: C.panel }} />
         {(image.title || image.caption) && (
@@ -571,8 +571,10 @@ function ShopView({ user, onSignIn }) {
     if (!user) return onSignIn()
     setBuyingId(product.id)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authHeader = session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}
       const res = await fetch('/api/create-checkout', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           productName: product.title,
           variantName: '',

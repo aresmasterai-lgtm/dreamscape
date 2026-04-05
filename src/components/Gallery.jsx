@@ -168,14 +168,14 @@ function ImageLightbox({ image, onClose, onSell, onDownload, isOwn = false }) {
           {onSell && (
             <button onClick={onSell}
               style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: isMobile ? '12px 20px' : '10px 22px', color: '#fff', fontSize: isMobile ? 14 : 13, fontWeight: 700, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
-              \ud83d\udecd Sell This
+              Sell This ✦
             </button>
           )}
           {isOwn && (
             <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
               onClick={e => e.stopPropagation()}
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: isMobile ? '12px 20px' : '10px 18px', color: C.muted, fontSize: isMobile ? 14 : 13, cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              \u2193 Download
+              Download
             </a>
           )}
           {!onSell && !isOwn && isMobile && (
@@ -205,7 +205,7 @@ function ArtCard({ art, isOwn, onLightbox, onSell, onUseAgain, onDelete, onEdit 
     ? [
         { icon: '✏️', label: 'Edit Details', action: () => onEdit(art), color: C.text },
         { icon: '🔍', label: 'View Full',    action: () => onLightbox(art), color: C.muted },
-        { icon: '🛍', label: 'Sell This',    action: () => onSell(art), color: C.accent },
+        { icon: '✦', label: 'Sell This',    action: () => onSell(art), color: C.accent },
         { icon: '↻',  label: 'Use Again',    action: () => onUseAgain(art), color: C.teal },
         { icon: '🗑', label: 'Delete',       action: () => onDelete(art), color: C.red },
       ]
