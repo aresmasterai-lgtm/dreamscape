@@ -109,7 +109,7 @@
       "error": null,
       "detail": "$14.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151381"
+      "timestamp": "2026-04-05T07:27:59.634706"
     },
     {
       "id": "unit_cost_hoodie",
@@ -121,7 +121,7 @@
       "error": null,
       "detail": "$27.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151400"
+      "timestamp": "2026-04-05T07:27:59.634734"
     },
     {
       "id": "unit_cost_mug",
@@ -133,7 +133,7 @@
       "error": null,
       "detail": "$9.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151419"
+      "timestamp": "2026-04-05T07:27:59.634757"
     },
     {
       "id": "unit_cost_canvas",
@@ -145,7 +145,7 @@
       "error": null,
       "detail": "$29.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151435"
+      "timestamp": "2026-04-05T07:27:59.634776"
     },
     {
       "id": "unit_cost_framed",
@@ -157,7 +157,7 @@
       "error": null,
       "detail": "$34.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151450"
+      "timestamp": "2026-04-05T07:27:59.634794"
     },
     {
       "id": "unit_cost_acrylic",
@@ -169,7 +169,7 @@
       "error": null,
       "detail": "$39.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151465"
+      "timestamp": "2026-04-05T07:27:59.634811"
     },
     {
       "id": "unit_cost_poster",
@@ -181,7 +181,7 @@
       "error": null,
       "detail": "$11.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151485"
+      "timestamp": "2026-04-05T07:27:59.634829"
     },
     {
       "id": "unit_cost_tote",
@@ -193,7 +193,7 @@
       "error": null,
       "detail": "$12.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151506"
+      "timestamp": "2026-04-05T07:27:59.634856"
     },
     {
       "id": "unit_cost_sticker",
@@ -205,7 +205,7 @@
       "error": null,
       "detail": "$4.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151527"
+      "timestamp": "2026-04-05T07:27:59.634885"
     },
     {
       "id": "unit_cost_canvas_tote",
@@ -217,7 +217,7 @@
       "error": null,
       "detail": "$12.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151545"
+      "timestamp": "2026-04-05T07:27:59.634907"
     },
     {
       "id": "unit_profit_tshirt",
@@ -229,7 +229,7 @@
       "error": null,
       "detail": "earnings=$10.87 margin=36.2%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151568"
+      "timestamp": "2026-04-05T07:27:59.634933"
     },
     {
       "id": "unit_profit_canvas",
@@ -241,7 +241,7 @@
       "error": null,
       "detail": "earnings=$22.0 margin=36.7%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151582"
+      "timestamp": "2026-04-05T07:27:59.634964"
     },
     {
       "id": "unit_profit_below_cost",
@@ -253,7 +253,7 @@
       "error": null,
       "detail": "earnings=$-6.54 margin=-65.4%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151595"
+      "timestamp": "2026-04-05T07:27:59.634981"
     },
     {
       "id": "unit_split_basic",
@@ -265,7 +265,7 @@
       "error": null,
       "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 0, 'creator_earnings': 19.84}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151619"
+      "timestamp": "2026-04-05T07:27:59.635010"
     },
     {
       "id": "unit_split_royalty",
@@ -277,7 +277,7 @@
       "error": null,
       "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 1.98, 'creator_earnings': 17.86}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151636"
+      "timestamp": "2026-04-05T07:27:59.635086"
     },
     {
       "id": "unit_split_cents",
@@ -289,7 +289,7 @@
       "error": null,
       "detail": "{'retail': 50.0, 'stripe_fee': 1.75, 'dreamscape_fee': 5.0, 'artist_royalty': 0, 'creator_earnings': 31.25}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151652"
+      "timestamp": "2026-04-05T07:27:59.635114"
     },
     {
       "id": "unit_price_tshirt",
@@ -301,7 +301,7 @@
       "error": null,
       "detail": "$23.99",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151664"
+      "timestamp": "2026-04-05T07:27:59.635132"
     },
     {
       "id": "unit_price_canvas",
@@ -313,7 +313,7 @@
       "error": null,
       "detail": "$47.99",
       "agent": "UnitTests",
-      "timestamp": "2026-04-05T07:06:11.151674"
+      "timestamp": "2026-04-05T07:27:59.635145"
     },
     {
       "id": "xss_prompt",
@@ -321,11 +321,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 721,
+      "duration_ms": 310,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-05T07:06:11.873782"
+      "timestamp": "2026-04-05T07:27:59.946238"
     },
     {
       "id": "health_api_green",
@@ -333,11 +333,11 @@
       "category": "api",
       "path": "green",
       "status": "green",
-      "duration_ms": 806,
+      "duration_ms": 497,
       "error": null,
       "detail": "status=commerce_degraded services=['anthropic', 'gemini', 'printful', 'stripe']",
       "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:11.958380"
+      "timestamp": "2026-04-05T07:28:00.135608"
     },
     {
       "id": "gen_unauth_red",
@@ -345,11 +345,11 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 349,
+      "duration_ms": 168,
       "error": null,
       "detail": "Correctly returned HTTP 401",
       "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:12.308182"
+      "timestamp": "2026-04-05T07:28:00.304534"
     },
     {
       "id": "oversized_payload",
@@ -357,11 +357,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 244,
+      "duration_ms": 358,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-05T07:06:12.419622"
+      "timestamp": "2026-04-05T07:28:00.606615"
     },
     {
       "id": "options_preflight",
@@ -369,11 +369,11 @@
       "category": "explorer",
       "path": "green",
       "status": "green",
-      "duration_ms": 296,
+      "duration_ms": 274,
       "error": null,
       "detail": "HTTP 200 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-05T07:06:13.016505"
+      "timestamp": "2026-04-05T07:28:01.182203"
     },
     {
       "id": "malformed_json",
@@ -381,11 +381,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 128,
+      "duration_ms": 153,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-05T07:06:13.445803"
+      "timestamp": "2026-04-05T07:28:01.635808"
     },
     {
       "id": "wrong_content_type",
@@ -393,11 +393,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 326,
+      "duration_ms": 333,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-05T07:06:14.073607"
+      "timestamp": "2026-04-05T07:28:02.270198"
     },
     {
       "id": "home_load_green",
@@ -405,35 +405,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 4929,
+      "duration_ms": 3095,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:18.243686"
-    },
-    {
-      "id": "rate_limit_red",
-      "name": "Rapid API calls trigger rate limit",
-      "category": "api",
-      "path": "red",
-      "status": "red",
-      "duration_ms": 7754,
-      "error": "35 rapid requests didn't trigger 429 \u2014 rate limiter may be missing",
-      "detail": null,
-      "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:20.063033"
-    },
-    {
-      "id": "dream_api_no_prompt_red",
-      "name": "Dream API with empty messages \u2192 error",
-      "category": "api",
-      "path": "red",
-      "status": "green",
-      "duration_ms": 142,
-      "error": null,
-      "detail": "Correctly returned 401",
-      "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:20.206122"
+      "timestamp": "2026-04-05T07:28:03.964897"
     },
     {
       "id": "gallery_load_green",
@@ -441,11 +417,35 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2259,
+      "duration_ms": 2148,
       "error": null,
       "detail": "title=Dreamscape \u2014 AI Artist Platform",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:20.517582"
+      "timestamp": "2026-04-05T07:28:06.132916"
+    },
+    {
+      "id": "rate_limit_red",
+      "name": "Rapid API calls trigger rate limit",
+      "category": "api",
+      "path": "red",
+      "status": "red",
+      "duration_ms": 8277,
+      "error": "35 rapid requests didn't trigger 429 \u2014 rate limiter may be missing",
+      "detail": null,
+      "agent": "APIAgent",
+      "timestamp": "2026-04-05T07:28:08.582770"
+    },
+    {
+      "id": "dream_api_no_prompt_red",
+      "name": "Dream API with empty messages \u2192 error",
+      "category": "api",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 141,
+      "error": null,
+      "detail": "Correctly returned 401",
+      "agent": "APIAgent",
+      "timestamp": "2026-04-05T07:28:08.724581"
     },
     {
       "id": "team_seat_red",
@@ -453,11 +453,11 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 370,
+      "duration_ms": 208,
       "error": null,
       "detail": "Unauthenticated invite correctly blocked with 401",
       "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:20.576887"
+      "timestamp": "2026-04-05T07:28:08.933389"
     },
     {
       "id": "cors_green",
@@ -465,11 +465,11 @@
       "category": "api",
       "path": "green",
       "status": "green",
-      "duration_ms": 179,
+      "duration_ms": 132,
       "error": null,
       "detail": "ACAO: *",
       "agent": "APIAgent",
-      "timestamp": "2026-04-05T07:06:20.756654"
+      "timestamp": "2026-04-05T07:28:09.066366"
     },
     {
       "id": "gallery_tag_filter_green",
@@ -477,11 +477,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3280,
+      "duration_ms": 3152,
       "error": null,
       "detail": "Buttons: ['Sign In', 'Join Free \u2726', '\u2630', '\u2726 All', '\ud83c\udfa8 My Art', '\u2726 Create New', '\u2726', '\ud83d\udc1b\\nFeedback']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:23.992550"
+      "timestamp": "2026-04-05T07:28:09.369879"
     },
     {
       "id": "marketplace_green",
@@ -489,11 +489,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3229,
+      "duration_ms": 3203,
       "error": null,
       "detail": "cards=15",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:27.229686"
+      "timestamp": "2026-04-05T07:28:12.583517"
     },
     {
       "id": "marketplace_filter_green",
@@ -501,11 +501,11 @@
       "category": "frontend",
       "path": "green",
       "status": "red",
-      "duration_ms": 3275,
+      "duration_ms": 3238,
       "error": "No product type filters. Buttons: ['Sign In', 'Join Free \u2726', '\u2630', '\ud83d\uded2 Shop', '\ud83d\udecd\ufe0f Create Products', '\u2726', '\ud83d\udc1b\\nFeedback']",
       "detail": "Found filters: []",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:30.554816"
+      "timestamp": "2026-04-05T07:28:15.933765"
     },
     {
       "id": "pricing_load_green",
@@ -513,11 +513,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2191,
+      "duration_ms": 2861,
       "error": null,
       "detail": "Found: ['Free', 'Starter', 'Pro', 'Studio']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:32.777215"
+      "timestamp": "2026-04-05T07:28:18.846543"
     },
     {
       "id": "blog_load_green",
@@ -525,11 +525,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3469,
+      "duration_ms": 2759,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:36.253240"
+      "timestamp": "2026-04-05T07:28:21.612987"
     },
     {
       "id": "nav_links_green",
@@ -537,11 +537,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 4356,
+      "duration_ms": 2627,
       "error": null,
       "detail": "Found: ['Gallery', 'Marketplace', 'Create', 'Pricing']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:40.633080"
+      "timestamp": "2026-04-05T07:28:24.287168"
     },
     {
       "id": "invalid_product_red",
@@ -549,11 +549,11 @@
       "category": "frontend",
       "path": "red",
       "status": "green",
-      "duration_ms": 3394,
+      "duration_ms": 3251,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:44.032596"
+      "timestamp": "2026-04-05T07:28:27.546144"
     },
     {
       "id": "404_redirect_red",
@@ -561,11 +561,11 @@
       "category": "frontend",
       "path": "red",
       "status": "green",
-      "duration_ms": 2191,
+      "duration_ms": 2121,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:46.228807"
+      "timestamp": "2026-04-05T07:28:29.674282"
     },
     {
       "id": "mobile_create_green",
@@ -573,11 +573,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3821,
+      "duration_ms": 3503,
       "error": null,
       "detail": "Unauthed users see sign-in correctly",
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:50.241609"
+      "timestamp": "2026-04-05T07:28:33.402434"
     },
     {
       "id": "mobile_nav_green",
@@ -585,11 +585,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2166,
+      "duration_ms": 2153,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-05T07:06:52.490055"
+      "timestamp": "2026-04-05T07:28:35.575847"
     }
   ],
   "findings": [
@@ -598,14 +598,14 @@
       "severity": "high",
       "title": "Rate limiter not firing",
       "detail": "35 rapid /api/dream requests returned no 429",
-      "timestamp": "2026-04-05T07:06:20.063126"
+      "timestamp": "2026-04-05T07:28:08.582845"
     },
     {
       "agent": "UIAgent",
       "severity": "medium",
       "title": "7 console errors",
       "detail": "Failed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 406 ()",
-      "timestamp": "2026-04-05T07:06:52.498040"
+      "timestamp": "2026-04-05T07:28:35.587589"
     }
   ],
   "stats": {
@@ -614,8 +614,8 @@
     "red": 2,
     "skipped": 0,
     "error": 0,
-    "start_time": 1775372771.151198,
-    "end_time": 1775372812.5669591
+    "start_time": 1775374079.634468,
+    "end_time": 1775374115.6636999
   },
   "plan": [
     {
@@ -709,5 +709,5 @@
       "agent": "APIAgent"
     }
   ],
-  "generated_at": "2026-04-05T07:06:52.572558"
+  "generated_at": "2026-04-05T07:28:35.666134"
 }

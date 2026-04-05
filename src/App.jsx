@@ -1594,7 +1594,7 @@ Respond ONLY with a JSON object (no markdown, no backticks):
                 {/* Sell */}
                 <button onClick={() => setCreateProductImage(generatedImages[lastAiIndex])}
                   style={{ background: `${C.accent}20`, border: `1px solid ${C.accent}44`, borderRadius: 8, padding: '6px 12px', color: C.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 Sell
+                  Sell ✦
                 </button>
                 {/* Download */}
                 <a href={generatedImages[lastAiIndex]} download="dreamscape-art.png" target="_blank"
@@ -2284,7 +2284,7 @@ function OnboardingModal({ user, onClose }) {
     {
       icon: '🛍',
       title: 'Step 2 — Turn it into a product',
-      body: "Once you've generated an image you love, hit Sell This to put it on a t-shirt, mug, poster, or more. Printful handles printing and shipping.",
+      body: "Once you've generated an image you love, hit Sell This to put it on a t-shirt, mug, poster, and hundreds more products — shipped worldwide.",
       action: 'Got it →',
       onAction: () => setStep(3),
       skip: () => setStep(3),

@@ -65,13 +65,10 @@ function calcProfit(retail, base) {
 }
 
 function suggestPrice(base) {
-  // Aim for ~38% gross margin
   const raw = base / (1 - 0.38)
-  // Round up to nearest .99
   return (Math.ceil(raw) - 0.01).toFixed(2)
 }
 
-// ── Broad category keywords matching Printful's naming ────────
 const CATEGORIES = [
   { label: 'T-Shirts',      icon: '👕', kw: ['t-shirt','tee','jersey','cotton tee','unisex t','classic t','heavy t','bella','next level','soft style','ring spun','comfort colors'] },
   { label: 'Hoodies',       icon: '🧥', kw: ['hoodie','sweatshirt','pullover','crewneck','crew neck','fleece','quarter zip'] },
@@ -81,7 +78,7 @@ const CATEGORIES = [
   { label: 'Framed Prints', icon: '🖼',  kw: ['framed poster','framed print','wood framed','framed art','framed canvas'] },
   { label: 'Wall Art',      icon: '🏛',  kw: ['metal print','acrylic print','wood print','dibond','aluminum print','poster hanger','wall art'] },
   { label: 'Phone Cases',   icon: '📱', kw: ['phone case','iphone','samsung','snap case','tough case','clear case','galaxy'] },
-  { label: 'Tote Bags',     icon: '🛍',  kw: ['tote','canvas bag','grocery bag','shopping bag'] },
+  { label: 'Tote Bags',     icon: '👜',  kw: ['tote','canvas bag','grocery bag','shopping bag'] },
   { label: 'Pillows',       icon: '🛋',  kw: ['pillow','cushion','throw pillow','accent pillow'] },
   { label: 'Tank Tops',     icon: '👙', kw: ['tank','racerback','sleeveless','muscle shirt','jersey tank'] },
   { label: 'Stickers',      icon: '✨', kw: ['sticker','decal','die cut','vinyl sticker','kiss cut'] },
@@ -98,7 +95,6 @@ function matchesCategory(p, cat) {
   return cat.kw.some(kw => model.includes(kw) || type.includes(kw))
 }
 
-// ── Spinner ───────────────────────────────────────────────────
 function Spinner({ label }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '32px 0' }}>
@@ -111,7 +107,6 @@ function Spinner({ label }) {
   )
 }
 
-// ── Steps: Product → Colors → Details → Done (4 steps, no placement) ──
 const STEPS = ['Product', 'Colors', 'Details', 'Done']
 
 export default function CreateProductModal({ user, imageUrl, artworkId, title: defaultTitle, onClose, onSuccess }) {
@@ -119,15 +114,13 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [step, setStep] = useState(imageUrl?.startsWith('data:') ? 0 : 1)
   const [hostedImageUrl, setHostedImageUrl] = useState(imageUrl?.startsWith('data:') ? '' : (imageUrl || ''))
 
-  // Step 1 — product selection
-  const [catalog, setCatalog]           = useState([])
+  const [catalog, setCatalog]               = useState([])
   const [catalogLoading, setCatalogLoading] = useState(true)
-  const [selected, setSelected]         = useState(null)
+  const [selected, setSelected]             = useState(null)
   const [variantLoading, setVariantLoading] = useState(false)
-  const [search, setSearch]             = useState('')
+  const [search, setSearch]                 = useState('')
   const [activeCategory, setActiveCategory] = useState(null)
 
-  // Step 2 — colors
   const [availableColors, setAvailableColors] = useState([])
   const [selectedColors, setSelectedColors]   = useState([])
   const [previewColor, setPreviewColor]       = useState(null)
@@ -135,14 +128,13 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const [mockupUrl, setMockupUrl]             = useState('')
   const mockupPollRef = useRef(null)
 
-  // Step 3 — details
-  const [title, setTitle]           = useState(defaultTitle || '')
+  const [title, setTitle]               = useState(defaultTitle || '')
   const [titleTouched, setTitleTouched] = useState(false)
-  const [description, setDescription] = useState('')
-  const [price, setPrice]           = useState('')
-  const [tags, setTags]             = useState('')
-  const [creating, setCreating]     = useState(false)
-  const [error, setError]           = useState('')
+  const [description, setDescription]   = useState('')
+  const [price, setPrice]               = useState('')
+  const [tags, setTags]                 = useState('')
+  const [creating, setCreating]         = useState(false)
+  const [error, setError]               = useState('')
   const [aiDetailsLoading, setAiDetailsLoading] = useState(false)
 
   const inp = { width: '100%', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
@@ -154,21 +146,18 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     return () => { if (mockupPollRef.current) clearTimeout(mockupPollRef.current) }
   }, [])
 
-  // Auto-title when product selected
   useEffect(() => {
     if (selected && !titleTouched) setTitle(`${defaultTitle || 'My Design'} — ${selected.model}`)
   }, [selected])
 
-  // Auto-suggest price when product selected
   useEffect(() => {
     if (selected && !price) setPrice(suggestPrice(getBaseCost(selected.model)))
   }, [selected])
 
-  // Auto-generate product details when reaching step 3
   useEffect(() => {
     if (step !== 3 || aiDetailsLoading) return
     const hasDetails = titleTouched || description.trim() || tags.trim()
-    if (hasDetails) return // Don't overwrite what user already typed
+    if (hasDetails) return
     generateProductDetails()
   }, [step])
 
@@ -179,37 +168,30 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const { data: { session } } = await supabase.auth.getSession()
       const artPrompt   = defaultTitle || 'AI generated artwork'
       const productType = selected.type || selected.model || 'product'
-
       const res = await fetch('/api/dream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({
           messages: [{
             role: 'user',
-            content: `You are a product copywriter for an AI art print-on-demand store. Generate listing details for a ${productType} featuring this artwork: "${artPrompt}".
-
-Reply with ONLY a valid JSON object, no markdown, no explanation:
+            content: `You are a product copywriter for an AI art store. Generate listing details for a ${productType} featuring this artwork: "${artPrompt}".
+Reply with ONLY a valid JSON object, no markdown:
 {"title":"catchy product title max 80 chars","description":"2 engaging sentences about this product","tags":"tag1,tag2,tag3,tag4,tag5"}`
           }]
         })
       })
-
       const data = await res.json()
       const replyText = data.reply || data.generationPrompt || ''
-
-      // Extract JSON — handle cases where Dream wraps it in text
       const jsonMatch = replyText.match(/\{[^{}]*"title"[^{}]*"description"[^{}]*"tags"[^{}]*\}/)
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0])
-          if (parsed.title)       { setTitle(parsed.title);       setTitleTouched(true) }
-          if (parsed.description)   setDescription(parsed.description)
-          if (parsed.tags)          setTags(parsed.tags)
+          if (parsed.title)       { setTitle(parsed.title); setTitleTouched(true) }
+          if (parsed.description) setDescription(parsed.description)
+          if (parsed.tags)        setTags(parsed.tags)
         } catch {}
       }
-    } catch (e) {
-      console.log('AI details generation failed:', e.message)
-    }
+    } catch (e) { console.log('AI details failed:', e.message) }
     setAiDetailsLoading(false)
   }
 
@@ -236,11 +218,8 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
       const h = await getAuthHeader()
       const res  = await fetch('/api/printful?action=catalog&offset=0', { headers: h })
       const data = await res.json()
-      // Skip items that don't print well with AI artwork (embroidery, structured accessories)
       const SKIP = ['embroidered','embroidery','structured cap','snapback','baseball cap','bucket hat','trucker hat','dad hat','socks','underwear','leggings','swimwear','mask','apron']
-      const filtered = (data.products || []).filter(p =>
-        !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw))
-      )
+      const filtered = (data.products || []).filter(p => !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw)))
       setCatalog(filtered)
     } catch {}
     setCatalogLoading(false)
@@ -259,8 +238,6 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
       const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`, { headers: h })
       const data = await res.json()
       const variants = data.variants || []
-
-      // Build color map
       const colorMap = {}
       for (const v of variants) {
         const name = v.color || 'Default'
@@ -270,8 +247,6 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
       }
       const colors = Object.values(colorMap)
       setAvailableColors(colors)
-
-      // Smart defaults: White + Black if available, else first two
       const white = colors.find(c => c.name.toLowerCase() === 'white')
       const black = colors.find(c => c.name.toLowerCase() === 'black')
       const defaults = [white, black].filter(Boolean)
@@ -285,16 +260,13 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
   }
 
   const toggleColor = (color) => {
-    setSelectedColors(prev =>
-      prev.includes(color.name) ? prev.filter(c => c !== color.name) : [...prev, color.name]
-    )
+    setSelectedColors(prev => prev.includes(color.name) ? prev.filter(c => c !== color.name) : [...prev, color.name])
     setPreviewColor(color)
   }
 
   const selectPopularColors = () => {
     const popular = availableColors.filter(c =>
-      ['white','black','navy','gray','grey','heather gray','sport grey','charcoal','dark heather']
-        .some(k => c.name.toLowerCase().includes(k))
+      ['white','black','navy','gray','grey','heather gray','sport grey','charcoal','dark heather'].some(k => c.name.toLowerCase().includes(k))
     )
     setSelectedColors((popular.length ? popular : availableColors.slice(0, 3)).map(c => c.name))
   }
@@ -303,8 +275,8 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
     if (!previewColor || !hostedImageUrl || !selected) return
     setMockupStatus('generating')
     try {
-      const h    = await getAuthHeader()
-      const res  = await fetch('/api/printful?action=mockupCreate', {
+      const h   = await getAuthHeader()
+      const res = await fetch('/api/printful?action=mockupCreate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
         body: JSON.stringify({ catalogProductId: selected.id, variantIds: previewColor.variantIds.slice(0, 3), imageUrl: hostedImageUrl }),
@@ -318,8 +290,8 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
   const pollMockup = async (taskKey, productId, attempt = 0) => {
     if (attempt > 20) { setMockupStatus('failed'); return }
     try {
-      const h    = await getAuthHeader()
-      const res  = await fetch(`/api/printful?action=mockupStatus&taskKey=${encodeURIComponent(taskKey)}`, { headers: h })
+      const h   = await getAuthHeader()
+      const res = await fetch(`/api/printful?action=mockupStatus&taskKey=${encodeURIComponent(taskKey)}`, { headers: h })
       const data = await res.json()
       if (data.status === 'completed') {
         const url = data.mockups?.[0]?.mockup_url || data.mockups?.[0]?.url || ''
@@ -332,9 +304,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
       } else {
         mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
       }
-    } catch {
-      mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
-    }
+    } catch { mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000) }
   }
 
   const handleCreate = async () => {
@@ -345,18 +315,15 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
     const base   = getBaseCost(selected.model)
     const profit = calcProfit(price, base)
     if (profit && profit.earnings <= 0)
-      return setError(`Price too low — minimum $${(profit.breakEven + 0.01).toFixed(2)} to cover costs.`)
+      return setError(`Price too low — minimum $${(profit.breakEven + 0.01).toFixed(2)} to break even.`)
     setError(''); setCreating(true)
     try {
       const { data: prof } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
       const tier  = prof?.subscription_tier || 'free'
       const limit = await checkProductLimit(user.id, tier)
-      if (!limit.allowed) {
-        setError(`You've reached your ${limit.limit} product limit on the ${tier} plan.`)
-        setCreating(false); return
-      }
-      const h    = await getAuthHeader()
-      const colorObjs   = availableColors.filter(c => selectedColors.includes(c.name))
+      if (!limit.allowed) { setError(`You've reached your ${limit.limit} product limit on the ${tier} plan.`); setCreating(false); return }
+      const h          = await getAuthHeader()
+      const colorObjs  = availableColors.filter(c => selectedColors.includes(c.name))
       const allVariants = colorObjs.flatMap(c => c.variantIds)
       const res  = await fetch('/api/printful?action=create', {
         method: 'POST',
@@ -364,7 +331,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
         body: JSON.stringify({ title, description, variantIds: allVariants, imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Printful error')
+      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Creation failed')
       const printfulId = data.id || data.sync_product?.id || ''
       const tagList    = tags.split(',').map(t => t.trim()).filter(Boolean)
       const { data: inserted } = await supabase.from('products').insert({
@@ -376,7 +343,6 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
         mockup_url: mockupUrl || hostedImageUrl,
         tags: tagList,
       }).select().single()
-      // Generate mockup in background if not already done
       if (!mockupUrl && colorObjs[0]) {
         const mRes = await fetch('/api/printful?action=mockupCreate', {
           method: 'POST', headers: { 'Content-Type': 'application/json', ...h },
@@ -390,19 +356,14 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
     setCreating(false)
   }
 
-  // ── Filtered catalog ──────────────────────────────────────────
   const filtered = (() => {
     const q = search.trim().toLowerCase()
-    if (q) {
-      return catalog.filter(p => {
-        const model = (p.model || '').toLowerCase()
-        const type  = (p.type  || '').toLowerCase()
-        // Direct match
-        if (model.includes(q) || type.includes(q)) return true
-        // Match via any category keyword
-        return CATEGORIES.some(cat => cat.kw.some(kw => kw.includes(q)) && matchesCategory(p, cat))
-      })
-    }
+    if (q) return catalog.filter(p => {
+      const model = (p.model || '').toLowerCase()
+      const type  = (p.type  || '').toLowerCase()
+      if (model.includes(q) || type.includes(q)) return true
+      return CATEGORIES.some(cat => cat.kw.some(kw => kw.includes(q)) && matchesCategory(p, cat))
+    })
     if (activeCategory) {
       const cat = CATEGORIES.find(c => c.label === activeCategory)
       return cat ? catalog.filter(p => matchesCategory(p, cat)) : []
@@ -413,7 +374,6 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
   const base   = selected ? getBaseCost(selected.model) : null
   const profit = base ? calcProfit(price, base) : null
   const profitColor = !profit ? C.muted : profit.earnings <= 0 ? C.red : profit.margin < 20 ? C.gold : C.teal
-
   const progressPct = step === 0 ? 5 : ((step - 1) / 3) * 100
 
   return (
@@ -425,7 +385,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
         <div style={{ padding: '18px 24px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, margin: 0 }}>
-              {step === 4 ? '✦ Product Created!' : 'Create a Product'}
+              {step === 4 ? '✦ Product Live!' : 'Sell Your Art'}
             </h3>
             {step < 4 && <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 20, cursor: 'pointer' }}>✕</button>}
           </div>
@@ -447,7 +407,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px 20px' }}>
 
           {/* Step 0: Uploading */}
-          {step === 0 && <Spinner label="Uploading your artwork..." />}
+          {step === 0 && <Spinner label="Preparing your artwork..." />}
 
           {/* Step 1: Product */}
           {step === 1 && (
@@ -455,23 +415,21 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
               {hostedImageUrl && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
                   <img src={hostedImageUrl} alt="Artwork" style={{ width: 40, height: 40, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
-                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Artwork ready — what would you like to print on?</div>
+                  <div style={{ fontSize: 12, color: C.text, fontWeight: 600 }}>Artwork ready — choose what to print it on</div>
                 </div>
               )}
 
-              {/* Search */}
               <div style={{ position: 'relative', marginBottom: 12 }}>
-                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>🔍</span>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: 14 }}>🔍</span>
                 <input value={search} onChange={e => { setSearch(e.target.value); if (e.target.value) setActiveCategory(null) }}
-                  placeholder='Search — "shirt", "mug", "all-over print", "phone case"...'
+                  placeholder='Search products — "shirt", "mug", "canvas", "phone case"...'
                   style={{ ...inp, paddingLeft: 34 }} />
                 {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 14 }}>✕</button>}
               </div>
 
-              {/* Category chips with item counts */}
               {!search && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Browse by type</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Browse by category</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {CATEGORIES.map(cat => {
                       const count = catalog.filter(p => matchesCategory(p, cat)).length
@@ -489,13 +447,12 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                 </div>
               )}
 
-              {/* Results */}
-              {catalogLoading ? <Spinner label="Loading catalog..." /> :
+              {catalogLoading ? <Spinner label="Loading products..." /> :
                !activeCategory && !search ? (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <div style={{ fontSize: 36, marginBottom: 8 }}>👆</div>
-                  <div style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 4 }}>Pick a category or search above</div>
-                  <div style={{ fontSize: 12, color: C.muted }}>{catalog.length}+ products from Printful</div>
+                <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                  <div style={{ fontSize: 40, marginBottom: 10 }}>✦</div>
+                  <div style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 6 }}>Choose a category or search above</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{catalog.length}+ products available worldwide</div>
                 </div>
               ) : filtered.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
@@ -522,14 +479,13 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? C.accent : C.text, marginBottom: 2 }}>{p.model}</div>
-                            <div style={{ fontSize: 11, color: C.muted }}>Base ~${base.toFixed(2)} · Suggest ${suggestPrice(base)}</div>
+                            <div style={{ fontSize: 11, color: C.muted }}>Base ~${base.toFixed(2)} · Suggested ${suggestPrice(base)}</div>
                           </div>
                           {variantLoading && isSel
                             ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.accent}`, borderTopColor: 'transparent', animation: 'cpspin 0.7s linear infinite', flexShrink: 0 }} />
                             : <div style={{ width: 22, height: 22, borderRadius: '50%', background: isSel ? C.accent : 'none', border: `2px solid ${isSel ? C.accent : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', flexShrink: 0 }}>
                                 {isSel ? '✓' : ''}
-                              </div>
-                          }
+                              </div>}
                         </div>
                       )
                     })}
@@ -543,14 +499,12 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
           {/* Step 2: Colors */}
           {step === 2 && (
             <div>
-              {/* Product chip */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', marginBottom: 14 }}>
                 {selected?.image && <img src={selected.image} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} />}
                 <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.text }}>{selected?.model}</div>
                 <button onClick={() => { setStep(1); setSelected(null) }} style={{ background: 'none', border: 'none', fontSize: 11, color: C.muted, cursor: 'pointer' }}>Change ↩</button>
               </div>
 
-              {/* Mockup preview */}
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', marginBottom: 16 }}>
                 <div style={{ minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', background: '#f5f5f5' }}>
                   {mockupStatus === 'generating' && (
@@ -559,14 +513,13 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                     </div>
                   )}
                   {mockupStatus === 'done' && mockupUrl
-                    ? <img src={mockupUrl} alt="Mockup" style={{ maxHeight: 220, maxWidth: '100%', objectFit: 'contain', display: 'block' }} />
+                    ? <img src={mockupUrl} alt="Preview" style={{ maxHeight: 220, maxWidth: '100%', objectFit: 'contain', display: 'block' }} />
                     : previewColor?.image
                     ? <img src={previewColor.image} alt={previewColor.name} style={{ maxHeight: 180, maxWidth: '100%', objectFit: 'contain', opacity: 0.85 }} />
                     : <div style={{ textAlign: 'center', padding: 24, color: C.muted }}>
                         <div style={{ fontSize: 32, marginBottom: 6 }}>🎨</div>
                         <div style={{ fontSize: 12 }}>Select a color to preview</div>
-                      </div>
-                  }
+                      </div>}
                 </div>
                 <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 12, color: C.text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -581,23 +534,18 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                 </div>
               </div>
 
-              {/* Colors */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  {availableColors.length} colors — select all to offer
+                  {availableColors.length} colors available
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {[
-                    ['All', () => setSelectedColors(availableColors.map(c => c.name))],
-                    ['Popular', selectPopularColors],
-                    ['Clear', () => setSelectedColors([])],
-                  ].map(([label, fn]) => (
+                  {[['All', () => setSelectedColors(availableColors.map(c => c.name))], ['Popular', selectPopularColors], ['Clear', () => setSelectedColors([])]].map(([label, fn]) => (
                     <button key={label} onClick={fn} style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, padding: '3px 9px', color: C.muted, fontSize: 11, cursor: 'pointer' }}>{label}</button>
                   ))}
                 </div>
               </div>
 
-              {variantLoading ? <Spinner label="Loading colors..." /> : (
+              {variantLoading ? <Spinner label="Loading options..." /> : (
                 <>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {availableColors.map(color => {
@@ -626,7 +574,6 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
           {/* Step 3: Details */}
           {step === 3 && (
             <div>
-              {/* Mini summary + AI Fill button */}
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 8, overflow: 'hidden', background: '#f0f0f0', flexShrink: 0 }}>
                   <img src={mockupUrl || hostedImageUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -636,42 +583,34 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                   <div style={{ fontSize: 11, color: C.muted }}>{selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}: {selectedColors.slice(0, 4).join(', ')}{selectedColors.length > 4 ? ` +${selectedColors.length - 4}` : ''}</div>
                 </div>
                 <button onClick={generateProductDetails} disabled={aiDetailsLoading}
-                  title="Let Dream AI write your title, description and tags"
                   style={{ background: aiDetailsLoading ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 8, padding: '7px 12px', color: '#fff', fontSize: 11, fontWeight: 700, cursor: aiDetailsLoading ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
                   {aiDetailsLoading ? '✦ Writing...' : '✦ AI Fill'}
                 </button>
               </div>
 
-              {/* AI loading banner */}
               {aiDetailsLoading && (
                 <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: C.accent, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ animation: 'pulse 1s ease-in-out infinite' }}>✦</span>
-                  Dream AI is writing your product title, description and tags...
+                  Writing your title, description and tags...
                 </div>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Title */}
                 <div>
                   <label style={lbl}>Product Title</label>
-                  <input value={title} onChange={e => { setTitle(e.target.value); setTitleTouched(true) }}
-                    maxLength={100} style={inp} placeholder="e.g. Cosmic Eagle All-Over Print T-Shirt" />
-                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Include art style + product type for better discoverability</div>
+                  <input value={title} onChange={e => { setTitle(e.target.value); setTitleTouched(true) }} maxLength={100} style={inp} placeholder="e.g. Cosmic Eagle All-Over Print T-Shirt" />
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Include the art style + product type for best discoverability</div>
                 </div>
 
-                {/* Description */}
                 <div>
                   <label style={lbl}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
                   <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} maxLength={500}
-                    style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }}
-                    placeholder="What makes this product special?" />
+                    style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} placeholder="What makes this product special?" />
                 </div>
 
-                {/* Tags */}
                 <div>
                   <label style={lbl}>Style Tags</label>
-                  <input value={tags} onChange={e => setTags(e.target.value)}
-                    placeholder="e.g. cyberpunk, neon, squirrel, fantasy" style={inp} />
+                  <input value={tags} onChange={e => setTags(e.target.value)} placeholder="e.g. cyberpunk, neon, fantasy, dark art" style={inp} />
                   {tags.trim() && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
                       {tags.split(',').map(t => t.trim()).filter(Boolean).map((t, i) => (
@@ -681,20 +620,18 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                   )}
                 </div>
 
-                {/* Price + live profit calculator */}
                 <div>
-                  <label style={lbl}>Retail Price (USD)</label>
+                  <label style={lbl}>Your Price (USD)</label>
                   <div style={{ position: 'relative', marginBottom: 10 }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13 }}>$</span>
-                    <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="5" step="0.01"
-                      style={{ ...inp, paddingLeft: 26 }} />
+                    <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="5" step="0.01" style={{ ...inp, paddingLeft: 26 }} />
                   </div>
                   {base && (
                     <div style={{ background: C.card, border: `1px solid ${profit && profit.earnings <= 0 ? C.red+'44' : C.border}`, borderRadius: 12, padding: '12px 16px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 6 }}>
                         {[
-                          ['Printful cost', `$${base.toFixed(2)}`, C.muted],
-                          ['Fees (10% + ~3%)', price ? `$${((parseFloat(price)||0)*0.13+0.30).toFixed(2)}` : '—', C.muted],
+                          ['Production cost', `$${base.toFixed(2)}`, C.muted],
+                          ['Platform fees', price ? `$${((parseFloat(price)||0)*0.13+0.30).toFixed(2)}` : '—', C.muted],
                           ['Your earnings', profit ? `$${profit.earnings.toFixed(2)}` : '—', profitColor],
                         ].map(([label, val, color]) => (
                           <div key={label} style={{ textAlign: 'center' }}>
@@ -707,7 +644,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
                         {profit && profit.earnings <= 0
                           ? `⚠️ Raise price to at least $${(profit.breakEven + 0.01).toFixed(2)} to make a profit`
                           : profit ? `${profit.margin.toFixed(0)}% margin · Suggested: $${suggestPrice(base)}`
-                          : `Suggested price: $${suggestPrice(base)}`}
+                          : `Suggested: $${suggestPrice(base)}`}
                       </div>
                     </div>
                   )}
@@ -722,17 +659,17 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
           {step === 4 && (
             <div style={{ padding: '32px 0', textAlign: 'center' }}>
               <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
-              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 8 }}>Product Created!</h3>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 24, color: C.text, marginBottom: 8 }}>Product Live!</h3>
               <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 6 }}>
-                <strong style={{ color: C.text }}>{title}</strong> is now live with {selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''}.
+                <strong style={{ color: C.text }}>{title}</strong> is now available in {selectedColors.length} color{selectedColors.length !== 1 ? 's' : ''} and ready to ship worldwide.
               </p>
               {mockupStatus === 'generating' && (
-                <p style={{ fontSize: 12, color: C.gold, marginBottom: 16 }}>✦ Mockup preview is still generating — it'll appear shortly.</p>
+                <p style={{ fontSize: 12, color: C.gold, marginBottom: 16 }}>✦ Product image is generating — it'll appear shortly.</p>
               )}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
                 <button onClick={() => { onSuccess?.(); navigate('/marketplace') }}
                   style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '11px 22px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 View in Marketplace
+                  View in Marketplace
                 </button>
                 <button onClick={() => { onSuccess?.(); navigate('/profile') }}
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 22px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
@@ -772,7 +709,7 @@ Reply with ONLY a valid JSON object, no markdown, no explanation:
             {step === 3 && (
               <button onClick={handleCreate} disabled={creating}
                 style={{ background: creating ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: creating ? 'not-allowed' : 'pointer' }}>
-                {creating ? '⏳ Creating...' : 'Create Product ✦'}
+                {creating ? 'Creating...' : 'Publish Product ✦'}
               </button>
             )}
           </div>
