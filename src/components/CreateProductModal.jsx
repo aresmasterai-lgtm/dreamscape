@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+// Module-level catalog cache — avoids re-fetching 300 products every modal open
+let _catalogCache = null
+let _catalogCacheTime = 0
+const CATALOG_TTL = 30 * 60 * 1000 // 30 minutes
+
 async function getAuthHeader() {
   try {
     const { data: { session } } = await supabase.auth.getSession()
@@ -69,30 +74,67 @@ function suggestPrice(base) {
   return (Math.ceil(raw) - 0.01).toFixed(2)
 }
 
-const CATEGORIES = [
-  { label: 'T-Shirts',      icon: '👕', kw: ['t-shirt','tee','jersey','cotton tee','unisex t','classic t','heavy t','bella','next level','soft style','ring spun','comfort colors'] },
-  { label: 'Hoodies',       icon: '🧥', kw: ['hoodie','sweatshirt','pullover','crewneck','crew neck','fleece','quarter zip'] },
-  { label: 'Mugs',          icon: '☕', kw: ['mug','cup','ceramic','latte','travel mug'] },
-  { label: 'Posters',       icon: '🖼',  kw: ['poster','matte poster','glossy poster','photo print'] },
-  { label: 'Canvas Prints', icon: '🎨', kw: ['canvas print','gallery wrapped canvas','stretched canvas','canvas wrap','canvas art'] },
-  { label: 'Framed Prints', icon: '🖼',  kw: ['framed poster','framed print','wood framed','framed art','framed canvas'] },
-  { label: 'Wall Art',      icon: '🏛',  kw: ['metal print','acrylic print','wood print','dibond','aluminum print','poster hanger','wall art'] },
-  { label: 'Phone Cases',   icon: '📱', kw: ['phone case','iphone','samsung','snap case','tough case','clear case','galaxy'] },
-  { label: 'Tote Bags',     icon: '👜',  kw: ['tote','canvas bag','grocery bag','shopping bag'] },
-  { label: 'Pillows',       icon: '🛋',  kw: ['pillow','cushion','throw pillow','accent pillow'] },
-  { label: 'Tank Tops',     icon: '👙', kw: ['tank','racerback','sleeveless','muscle shirt','jersey tank'] },
-  { label: 'Stickers',      icon: '✨', kw: ['sticker','decal','die cut','vinyl sticker','kiss cut'] },
-  { label: 'Hats',          icon: '🧢', kw: ['hat','cap','beanie','snapback','trucker','dad hat','bucket hat','fitted'] },
-  { label: 'Blankets',      icon: '🛏',  kw: ['blanket','throw','sherpa','fleece blanket'] },
-  { label: 'Kids',          icon: '👶', kw: ['kids','youth','toddler','baby','onesie','children','infant','romper'] },
-  { label: 'Long Sleeve',   icon: '👔', kw: ['long sleeve','longsleeve','long-sleeve'] },
-  { label: 'All-Over',      icon: '🎨', kw: ['all-over','allover','aop','cut & sew','sublimation'] },
+// ── Hierarchical category system ─────────────────────────────
+const CATEGORY_GROUPS = [
+  {
+    group: 'Wall Art & Prints',
+    icon: 'WA',
+    description: 'Best for AI artwork',
+    featured: true,
+    categories: [
+      { label: 'Canvas Prints',  icon: 'CA', kw: ['canvas print','gallery wrapped','stretched canvas','canvas wrap','canvas art'] },
+      { label: 'Framed Prints',  icon: 'FR', kw: ['framed poster','framed print','wood framed','framed art','framed canvas'] },
+      { label: 'Metal Prints',   icon: 'MT', kw: ['metal print','aluminum print','dibond','chromaluxe'] },
+      { label: 'Acrylic Prints', icon: 'AC', kw: ['acrylic print','acrylic'] },
+      { label: 'Wood Prints',    icon: 'WD', kw: ['wood print','wood art'] },
+      { label: 'Posters',        icon: 'PO', kw: ['poster','matte poster','glossy poster','photo print','art print'] },
+    ]
+  },
+  {
+    group: 'Apparel',
+    icon: 'AP',
+    categories: [
+      { label: 'T-Shirts',    icon: 'TS', kw: ['t-shirt','tee','jersey','cotton tee','unisex t','classic t','heavy t','bella','next level','soft style','ring spun','comfort colors'] },
+      { label: 'Hoodies',     icon: 'HD', kw: ['hoodie','sweatshirt','pullover','crewneck','crew neck','fleece','quarter zip'] },
+      { label: 'Long Sleeve', icon: 'LS', kw: ['long sleeve','longsleeve','long-sleeve'] },
+      { label: 'Tank Tops',   icon: 'TK', kw: ['tank','racerback','sleeveless','muscle shirt','jersey tank'] },
+      { label: 'All-Over',    icon: 'AO', kw: ['all-over','allover','aop','cut & sew','sublimation'] },
+      { label: 'Kids',        icon: 'KD', kw: ['kids','youth','toddler','baby','onesie','children','infant','romper'] },
+    ]
+  },
+  {
+    group: 'Home & Living',
+    icon: 'HL',
+    categories: [
+      { label: 'Pillows',   icon: 'PI', kw: ['pillow','cushion','throw pillow','accent pillow'] },
+      { label: 'Blankets',  icon: 'BL', kw: ['blanket','throw','sherpa','fleece blanket'] },
+      { label: 'Mugs',      icon: 'MG', kw: ['mug','cup','ceramic','latte','travel mug'] },
+      { label: 'Tapestries',icon: 'TP', kw: ['tapestry','wall hanging','wall tapestry'] },
+    ]
+  },
+  {
+    group: 'Accessories',
+    icon: 'ACC',
+    categories: [
+      { label: 'Phone Cases', icon: 'PC', kw: ['phone case','iphone','samsung','snap case','tough case','clear case','galaxy'] },
+      { label: 'Tote Bags',   icon: 'TB', kw: ['tote','canvas bag','grocery bag','shopping bag'] },
+      { label: 'Hats',        icon: 'HT', kw: ['hat','cap','beanie','snapback','trucker','dad hat','bucket hat','fitted'] },
+      { label: 'Stickers',    icon: 'ST', kw: ['sticker','decal','die cut','vinyl sticker','kiss cut'] },
+    ]
+  },
 ]
+
+// Flat list for backward compat
+const CATEGORIES = CATEGORY_GROUPS.flatMap(g => g.categories)
 
 function matchesCategory(p, cat) {
   const model = (p.model || '').toLowerCase()
   const type  = (p.type  || '').toLowerCase()
   return cat.kw.some(kw => model.includes(kw) || type.includes(kw))
+}
+
+function matchesGroup(p, group) {
+  return group.categories.some(cat => matchesCategory(p, cat))
 }
 
 function Spinner({ label }) {
@@ -215,13 +257,22 @@ Reply with ONLY a valid JSON object, no markdown:
   const loadCatalog = async () => {
     setCatalogLoading(true)
     try {
+      // Use module-level cache — catalog rarely changes
+      const now = Date.now()
+      if (_catalogCache && (now - _catalogCacheTime) < CATALOG_TTL) {
+        setCatalog(_catalogCache)
+        setCatalogLoading(false)
+        return
+      }
       const h = await getAuthHeader()
-      const res  = await fetch('/api/printful?action=catalog&offset=0', { headers: h })
+      const res  = await fetch('/api/printful?action=catalog', { headers: h })
       const data = await res.json()
       const SKIP = ['embroidered','embroidery','structured cap','snapback','baseball cap','bucket hat','trucker hat','dad hat','socks','underwear','leggings','swimwear','mask','apron']
       const filtered = (data.products || []).filter(p => !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw)))
+      _catalogCache = filtered
+      _catalogCacheTime = now
       setCatalog(filtered)
-    } catch {}
+    } catch (e) { console.error('Catalog load failed:', e.message) }
     setCatalogLoading(false)
   }
 
@@ -429,30 +480,79 @@ Reply with ONLY a valid JSON object, no markdown:
 
               {!search && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Browse by category</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {CATEGORIES.map(cat => {
-                      const count = catalog.filter(p => matchesCategory(p, cat)).length
-                      if (!count) return null
-                      const isActive = activeCategory === cat.label
-                      return (
-                        <button key={cat.label} onClick={() => setActiveCategory(isActive ? null : cat.label)}
-                          style={{ background: isActive ? `${C.accent}22` : C.bg, border: `1.5px solid ${isActive ? C.accent+'88' : C.border}`, borderRadius: 20, padding: '5px 12px', color: isActive ? C.accent : C.text, fontSize: 12, fontWeight: isActive ? 700 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}>
-                          {cat.icon} {cat.label}
-                          <span style={{ fontSize: 10, color: isActive ? C.accent : C.muted, marginLeft: 2 }}>({count})</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {CATEGORY_GROUPS.map(group => {
+                    const groupCount = catalog.filter(p => matchesGroup(p, group)).length
+                    if (!groupCount) return null
+                    const isGroupActive = group.categories.some(c => activeCategory === c.label)
+                    return (
+                      <div key={group.group} style={{ marginBottom: 14 }}>
+                        {/* Group header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: group.featured ? C.accent : C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
+                            {group.featured ? '✦ ' : ''}{group.group}
+                          </div>
+                          <div style={{ fontSize: 10, color: C.muted }}>({groupCount})</div>
+                          <div style={{ flex: 1, height: 1, background: C.border }} />
+                        </div>
+                        {/* Category chips within group */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {group.categories.map(cat => {
+                            const count = catalog.filter(p => matchesCategory(p, cat)).length
+                            if (!count) return null
+                            const isActive = activeCategory === cat.label
+                            return (
+                              <button key={cat.label} onClick={() => setActiveCategory(isActive ? null : cat.label)}
+                                style={{ background: isActive ? `${C.accent}22` : C.bg, border: `1.5px solid ${isActive ? C.accent+'88' : C.border}`, borderRadius: 20, padding: '5px 14px', color: isActive ? C.accent : C.text, fontSize: 12, fontWeight: isActive ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+                                {cat.label}
+                                <span style={{ fontSize: 10, color: isActive ? C.accent : C.muted, marginLeft: 5 }}>({count})</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 
               {catalogLoading ? <Spinner label="Loading products..." /> :
                !activeCategory && !search ? (
-                <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                  <div style={{ fontSize: 40, marginBottom: 10 }}>✦</div>
-                  <div style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 6 }}>Choose a category or search above</div>
-                  <div style={{ fontSize: 12, color: C.muted }}>{catalog.length}+ products available worldwide</div>
+                <div>
+                  {/* Featured: Best products for AI artwork */}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                    ✦ Best for AI Artwork
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                    {[
+                      { label: 'Canvas Prints', icon: '🎨', desc: 'Gallery-quality wall art', kw: 'canvas print' },
+                      { label: 'Framed Prints', icon: '🖼', desc: 'Ready to hang', kw: 'framed' },
+                      { label: 'Metal Prints', icon: '✨', desc: 'Ultra-vivid & modern', kw: 'metal print' },
+                      { label: 'Posters',       icon: '📜', desc: 'Affordable & sharp', kw: 'poster' },
+                      { label: 'Acrylic Prints',icon: '💎', desc: 'Luxury glass-like finish', kw: 'acrylic' },
+                      { label: 'T-Shirts',      icon: '👕', desc: 'All-over print or centered', kw: 't-shirt' },
+                    ].map(item => {
+                      const cat = CATEGORIES.find(c => c.label === item.label || c.label.startsWith(item.label.split(' ')[0]))
+                      const count = cat ? catalog.filter(p => matchesCategory(p, cat)).length
+                        : catalog.filter(p => (p.model||'').toLowerCase().includes(item.kw)).length
+                      return (
+                        <button key={item.label} onClick={() => {
+                          const match = CATEGORIES.find(c => c.label === item.label)
+                          if (match) setActiveCategory(match.label)
+                          else setSearch(item.kw)
+                        }} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = C.accent+'66'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = C.border}>
+                          <div style={{ fontSize: 22, marginBottom: 4 }}>{item.icon}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>{item.label}</div>
+                          <div style={{ fontSize: 10, color: C.muted }}>{item.desc}</div>
+                          {count > 0 && <div style={{ fontSize: 10, color: C.accent, marginTop: 4 }}>{count} options</div>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ textAlign: 'center', paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 12, color: C.muted }}>{catalog.length} total products · shipped worldwide</div>
+                  </div>
                 </div>
               ) : filtered.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
@@ -534,9 +634,15 @@ Reply with ONLY a valid JSON object, no markdown:
                 </div>
               </div>
 
+              {/* Wall art / canvas have size variants not color variants */}
+              {availableColors.length > 0 && availableColors[0]?.name === 'Default' && (
+                <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.teal, marginBottom: 10 }}>
+                  ✦ This product comes in sizes — select the sizes you want to offer
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  {availableColors.length} colors available
+                  {availableColors[0]?.name === 'Default' ? `${availableColors.length} sizes available` : `${availableColors.length} colors available`}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[['All', () => setSelectedColors(availableColors.map(c => c.name))], ['Popular', selectPopularColors], ['Clear', () => setSelectedColors([])]].map(([label, fn]) => (

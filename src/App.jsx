@@ -1744,14 +1744,14 @@ function ImageLightbox({ image, onClose, onSell, onDownload, onRefine, onPublish
             )}
             {onSell && (
               <button onClick={onSell} style={btnStyle('#fff', `linear-gradient(135deg, ${C.accent}, #4B2FD0)`)}>
-                🛍 Sell This
+                Sell This ✦
               </button>
             )}
             {onDelete && (
               <a href={image.src} download={`${image.title || 'dreamscape-art'}.png`} target="_blank" rel="noreferrer"
                 onClick={e => e.stopPropagation()}
                 style={btnStyle(C.muted)}>
-                ↓ Download
+                Download
               </a>
             )}
             {onDelete && (
@@ -5244,7 +5244,7 @@ function ProfilePage({ user, profile: initialProfile }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
                 <button onClick={() => { setSellTarget(reuseTarget); setReuseTarget(null) }}
                   style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 12, padding: '12px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  🛍 Sell This
+                  Sell This ✦
                 </button>
                 <button onClick={() => { navigate('/create'); setReuseTarget(null) }}
                   style={{ background: `${C.teal}20`, border: `1px solid ${C.teal}44`, borderRadius: 12, padding: '12px', color: C.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -5254,7 +5254,7 @@ function ProfilePage({ user, profile: initialProfile }) {
                 {user && reuseTarget.user_id === user.id && (
                   <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
                     style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
-                    ↓ Download
+                    Download
                   </a>
                 )}
                 <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }}
@@ -5835,7 +5835,7 @@ function PhotoToProduct({ user, onSignIn, onClose }) {
                 </button>
                 <a href={resultDataUrl} download="dreamscape-cutout.png"
                   style={{ flex: 1, background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px', color: C.muted, fontSize: 13, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}>
-                  ↓ Download PNG
+                  Download PNG
                 </a>
               </div>
             </div>

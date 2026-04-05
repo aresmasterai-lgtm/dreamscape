@@ -45,18 +45,41 @@ export default async (req) => {
 
     // GET catalog products
     if (req.method === 'GET' && action === 'catalog') {
-      const offset = parseInt(url.searchParams.get('offset') || '0')
-      const res = await fetch(`${BASE}/products?limit=100&offset=${offset}`, { headers: authHeaders })
-      const data = await res.json()
-      if (!res.ok) {
-        return new Response(JSON.stringify({ error: data?.error?.message || 'Printful API error', raw: data }), {
-          status: res.status, headers: { 'Content-Type': 'application/json' },
-        })
+      // Fetch ALL pages of the Printful catalog (300+ products)
+      // Canvas, Wall Art, Framed Prints are typically in pages 2-3
+      let allProducts = []
+      let offset = 0
+      const limit = 100
+      let hasMore = true
+
+      while (hasMore) {
+        const res = await fetch(`${BASE}/products?limit=${limit}&offset=${offset}`, { headers: authHeaders })
+        const data = await res.json()
+        if (!res.ok) {
+          return new Response(JSON.stringify({ error: data?.error?.message || 'Printful API error' }), {
+            status: res.status, headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        const page = (data.result || []).map(p => ({
+          id: p.id, model: p.model, type: p.type, image: p.image, variants: p.variants || [],
+        }))
+        allProducts = allProducts.concat(page)
+        const total = data.paging?.total || 0
+        offset += limit
+        hasMore = offset < total && page.length === limit
       }
-      const products = (data.result || []).map(p => ({
-        id: p.id, model: p.model, type: p.type, image: p.image, variants: p.variants || [],
-      }))
-      return new Response(JSON.stringify({ products, paging: data.paging || {} }), {
+
+      // Sort: put Wall Art, Canvas, Framed first — these are highest-margin for AI artwork
+      const PRIORITY_TYPES = ['canvas','framed','metal','acrylic','wood','poster','wall art']
+      allProducts.sort((a, b) => {
+        const aScore = PRIORITY_TYPES.findIndex(k => (a.model || '').toLowerCase().includes(k))
+        const bScore = PRIORITY_TYPES.findIndex(k => (b.model || '').toLowerCase().includes(k))
+        const aP = aScore === -1 ? 99 : aScore
+        const bP = bScore === -1 ? 99 : bScore
+        return aP - bP
+      })
+
+      return new Response(JSON.stringify({ products: allProducts, total: allProducts.length }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       })
     }
