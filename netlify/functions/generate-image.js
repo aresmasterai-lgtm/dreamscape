@@ -1,4 +1,4 @@
-import { requireAuth, checkRateLimit, corsResponse, optionsResponse } from './auth-middleware.js'
+import { requireAuth, checkRateLimit, checkRateLimitAsync, corsResponse, optionsResponse } from './auth-middleware.js'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Model resolution cache ────────────────────────────────────
@@ -236,7 +236,7 @@ export default async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
   try {
     const { user, profile, supabase } = await requireAuth(req)
-    if (!checkRateLimit(`gen:${user.id}`, 10)) return corsResponse({ error: 'Too many requests — slow down.' }, 429)
+    if (!(await checkRateLimitAsync(`gen:${user.id}`, 10))) return corsResponse({ error: 'Too many requests — slow down.' }, 429)
 
     const tier = profile?.subscription_tier || 'free'
     const limitCheck = await checkServerLimit(user.id, tier, supabase)

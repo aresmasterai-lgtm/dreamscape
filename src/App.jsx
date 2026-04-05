@@ -246,12 +246,17 @@ async function uploadArtworkToStorage(userId, base64DataUrl, mimeType = 'image/p
 // Base64 dataUrls are passed through unchanged (can't be transformed).
 function imgUrl(src, width = 800, quality = 80) {
   if (!src) return src
-  if (src.startsWith('data:')) return src  // base64 — pass through
-  if (src.startsWith('blob:'))  return src  // local blob — pass through
-  // Only run through Netlify Image CDN for Supabase storage URLs
-  // External URLs (Printful CDN, etc.) serve directly — avoids CDN double-hop failures
-  if (src.includes('supabase.co/storage')) {
-    return `/.netlify/images?url=${encodeURIComponent(src)}&w=${width}&q=${quality}&fm=webp`
+  if (src.startsWith('data:')) return src   // base64 — pass through
+  if (src.startsWith('blob:'))  return src   // local blob — pass through
+  if (src.startsWith('/.netlify/')) return src // already transformed
+  // Only transform Supabase storage URLs — everything else serves directly
+  // Netlify Image CDN returns 400 for URLs it can't fetch (auth-protected, malformed, etc.)
+  if (src.includes('supabase.co/storage') && src.includes('/public/')) {
+    try {
+      return `/.netlify/images?url=${encodeURIComponent(src)}&w=${width}&q=${quality}&fm=webp`
+    } catch {
+      return src // malformed URL — serve directly
+    }
   }
   return src
 }

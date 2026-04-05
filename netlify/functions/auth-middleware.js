@@ -15,7 +15,32 @@ export function optionsResponse() {
   return new Response('', { status: 200, headers: CORS })
 }
 
-const rateLimitMap = new Map()
+// ── Rate limiting — Supabase-backed (persists across cold starts) ─
+// Falls back to in-memory if Supabase unavailable
+const _memRateLimit = new Map()
+
+export async function checkRateLimitAsync(key, maxPerMinute = 20) {
+  try {
+    const supabase = makeSupabase()
+    const now = new Date()
+    const windowStart = new Date(now - 60_000)
+
+    // Upsert: increment count if within window, else reset
+    const { data, error } = await supabase.rpc('upsert_rate_limit', {
+      p_key: key,
+      p_max: maxPerMinute,
+      p_window_start: windowStart.toISOString(),
+    })
+    if (error) throw error
+    return data !== false // function returns false when limit exceeded
+  } catch {
+    // Fallback to in-memory if DB unavailable
+    return checkRateLimit(key, maxPerMinute)
+  }
+}
+
+// Sync fallback (still used where async isn't wired in yet)
+const rateLimitMap = _memRateLimit
 export function checkRateLimit(key, maxPerMinute = 20) {
   const now = Date.now()
   const windowMs = 60_000

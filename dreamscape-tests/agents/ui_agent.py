@@ -51,6 +51,8 @@ class UIAgent(BaseAgent):
             )
             mobile_ctx.set_default_timeout(25000)
             mobile_page = await mobile_ctx.new_page()
+            # Inject age gate bypass BEFORE any navigation — runs on every page load
+            await mobile_ctx.add_init_script("localStorage.setItem('ds_age_verified', '2000-01-01')")
             await self._test_mobile_create_page(mobile_page)
             await self._test_mobile_nav(mobile_page)
             await mobile_ctx.close()
@@ -66,9 +68,11 @@ class UIAgent(BaseAgent):
 
     async def _go(self, page: Page, path: str, wait: int = 2000):
         await page.goto(f"{self.base_url}{path}", wait_until="domcontentloaded")
+        # Bypass age gate — set localStorage key so the gate doesn't block tests
         await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
-        btn = await page.query_selector("button:has-text('Continue')")
-        if btn:
+        # If age gate is still showing, reload to apply the bypass
+        continue_btn = await page.query_selector("button:has-text('Continue')")
+        if continue_btn:
             await page.reload(wait_until="domcontentloaded")
             await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
         await page.wait_for_timeout(wait)
@@ -217,6 +221,11 @@ class UIAgent(BaseAgent):
         t = time.monotonic()
         try:
             await page.goto(f"{self.base_url}/create", wait_until="domcontentloaded")
+            await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
+            continue_btn = await page.query_selector("button:has-text('Continue')")
+            if continue_btn:
+                await page.reload(wait_until="domcontentloaded")
+                await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
             await page.wait_for_timeout(3000)
             ms = int((time.monotonic() - t) * 1000)
             inp = await page.query_selector("input[type='text'], input:not([type]), textarea")
@@ -239,6 +248,11 @@ class UIAgent(BaseAgent):
         t = time.monotonic()
         try:
             await page.goto(f"{self.base_url}/", wait_until="domcontentloaded")
+            await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
+            continue_btn = await page.query_selector("button:has-text('Continue')")
+            if continue_btn:
+                await page.reload(wait_until="domcontentloaded")
+                await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
             await page.wait_for_timeout(2000)
             ms = int((time.monotonic() - t) * 1000)
             h = (await page.query_selector(".mobile-menu-btn") or
