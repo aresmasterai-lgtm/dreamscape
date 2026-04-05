@@ -263,25 +263,28 @@ function imgUrl(src, width = 800, quality = 80) {
 
 // ── LazyImage — blur-up placeholder + lazy load ───────────────
 function LazyImage({ src, alt, style, className, onClick, width = 800, quality = 80, priority = false, onBroken = null, resourceId = null, resourceType = null }) {
-  const [loaded, setLoaded]       = useState(false)
-  const [error, setError]         = useState(false)
+  const [phase, setPhase]         = useState('loading')  // loading | thumb | full | error
   const [reported, setReported]   = useState(false)
-  const [useFallback, setUseFallback] = useState(false) // true = skip CDN, use original
-  const optimised = (!useFallback && src && !src.startsWith('data:') && !src.startsWith('blob:'))
-    ? imgUrl(src, width, quality)
-    : src
+  const [useFallback, setUseFallback] = useState(false)
+
+  const isExternal = src && !src.startsWith('data:') && !src.startsWith('blob:')
+  const thumbSrc   = (!useFallback && isExternal) ? imgUrl(src, 40, 60)  : src  // tiny blur placeholder
+  const fullSrc    = (!useFallback && isExternal) ? imgUrl(src, width, quality) : src
+
+  const handleThumbLoad = () => {
+    if (phase === 'loading') setPhase('thumb')
+  }
+
+  const handleFullLoad = () => setPhase('full')
 
   const handleError = async () => {
-    // Step 1: CDN transform failed — try the original URL first
-    if (!useFallback && optimised !== src) {
+    if (!useFallback && isExternal) {
+      // CDN failed — try raw URL
       setUseFallback(true)
-      setLoaded(false)
-      return // let img re-render with original src
+      setPhase('loading')
+      return
     }
-
-    // Step 2: Original URL also failed — now it's truly broken
-    setError(true)
-    setLoaded(true)
+    setPhase('error')
     if (onBroken && resourceId && resourceType && !reported) {
       setReported(true)
       try {
@@ -300,23 +303,56 @@ function LazyImage({ src, alt, style, className, onClick, width = 800, quality =
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden', pointerEvents: onClick ? 'auto' : 'none', ...style }} onClick={onClick}>
-      {!loaded && !error && (
+      {/* Shimmer — only while nothing has loaded yet */}
+      {phase === 'loading' && (
         <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite' }} />
       )}
-      {src && !error && (
-        <img
-          src={optimised}
-          alt={alt}
-          className={className}
-          loading={priority ? 'eager' : 'lazy'}
-          decoding="async"
-          fetchpriority={priority ? 'high' : 'low'}
-          onLoad={() => setLoaded(true)}
-          onError={handleError}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity 0.3s ease', display: 'block' }}
-        />
+
+      {src && phase !== 'error' && (
+        <>
+          {/* Phase 1: tiny 40px thumb — loads almost instantly, gives blur preview feel */}
+          <img
+            src={thumbSrc}
+            alt=""
+            aria-hidden="true"
+            loading={priority ? 'eager' : 'lazy'}
+            fetchpriority={priority ? 'high' : 'auto'}
+            onLoad={handleThumbLoad}
+            onError={handleError}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              filter: 'blur(12px)',
+              transform: 'scale(1.08)', // hide blur edges
+              opacity: phase === 'thumb' ? 1 : 0,
+              transition: 'opacity 0.15s ease',
+              display: 'block',
+            }}
+          />
+          {/* Phase 2: full-res — crossfades over the blur once ready */}
+          <img
+            src={fullSrc}
+            alt={alt}
+            className={className}
+            loading={priority ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchpriority={priority ? 'high' : 'low'}
+            onLoad={handleFullLoad}
+            onError={handleError}
+            style={{
+              position: 'relative',
+              width: '100%', height: '100%',
+              objectFit: 'cover',
+              opacity: phase === 'full' ? 1 : 0,
+              transition: 'opacity 0.4s ease',
+              display: 'block',
+            }}
+          />
+        </>
       )}
-      {error && (
+
+      {phase === 'error' && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: `${C.accent}10`, gap: 6 }}>
           <span style={{ fontSize: 20, opacity: 0.35 }}>✦</span>
           <span style={{ fontSize: 10, color: C.muted, opacity: 0.5 }}>Unavailable</span>
