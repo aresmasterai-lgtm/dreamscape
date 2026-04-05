@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, Component, lazy, Suspense } from 'react'
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
-import { useAuth } from './lib/auth'
+import { useAuth } from './lib/auth.jsx'
 import { supabase } from './lib/supabase'
 
 // ── Code-split routes — only loaded when visited ──────────────
