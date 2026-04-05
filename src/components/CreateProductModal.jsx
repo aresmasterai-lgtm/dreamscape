@@ -265,13 +265,14 @@ Reply with ONLY a valid JSON object, no markdown:
         return
       }
       const h = await getAuthHeader()
-      const res  = await fetch('/api/printful?action=catalog', { headers: h })
+      // Unified catalog — merges Printful + Printify products
+      const res  = await fetch('/api/catalog', { headers: h })
       const data = await res.json()
-      const SKIP = ['embroidered','embroidery','structured cap','snapback','baseball cap','bucket hat','trucker hat','dad hat','socks','underwear','leggings','swimwear','mask','apron']
-      const filtered = (data.products || []).filter(p => !SKIP.some(kw => (p.model || '').toLowerCase().includes(kw)))
-      _catalogCache = filtered
+      const products = data.products || []
+      console.log(`[Catalog] ${products.length} products (${data.sources?.printful || 0} Printful + ${data.sources?.printify || 0} Printify)`)
+      _catalogCache = products
       _catalogCacheTime = now
-      setCatalog(filtered)
+      setCatalog(products)
     } catch (e) { console.error('Catalog load failed:', e.message) }
     setCatalogLoading(false)
   }
@@ -285,28 +286,63 @@ Reply with ONLY a valid JSON object, no markdown:
     setMockupStatus('idle')
     setVariantLoading(true)
     try {
-      const h    = await getAuthHeader()
-      const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.id}`, { headers: h })
-      const data = await res.json()
-      const variants = data.variants || []
-      const colorMap = {}
-      for (const v of variants) {
-        const name = v.color || 'Default'
-        if (!colorMap[name]) colorMap[name] = { name, hex: v.color_code || '#888', variantIds: [], image: v.image || p.image || '' }
-        colorMap[name].variantIds.push(v.id)
-        if (v.image && !colorMap[name].image) colorMap[name].image = v.image
+      const h = await getAuthHeader()
+
+      if (p.provider === 'printify') {
+        // ── Printify variant loading ─────────────────────────
+        const res  = await fetch(`/api/printify?action=catalog&blueprint_id=${p.raw_id}`, { headers: h })
+        const data = await res.json()
+        // Printify variants are per print provider — use first provider
+        const provider = data.providers?.[0]
+        const providerId = provider?.id
+        if (providerId) {
+          const vRes  = await fetch(`/api/printify?action=variants&blueprint_id=${p.raw_id}&provider_id=${providerId}`, { headers: h })
+          const vData = await vRes.json()
+          const variants = vData.variants || []
+          // Group by color
+          const colorMap = {}
+          for (const v of variants) {
+            const colorOpt = v.options?.find(o => o.type === 'color') || v.options?.[0]
+            const name = colorOpt?.value || v.title || 'Default'
+            const hex  = colorOpt?.colors?.[0] || '#888'
+            if (!colorMap[name]) colorMap[name] = { name, hex, variantIds: [], image: p.image || '' }
+            colorMap[name].variantIds.push(v.id)
+          }
+          const colors = Object.values(colorMap)
+          setAvailableColors(colors)
+          const white = colors.find(c => c.name.toLowerCase().includes('white'))
+          const black = colors.find(c => c.name.toLowerCase().includes('black'))
+          const defaults = [white, black].filter(Boolean)
+          if (!defaults.length) defaults.push(...colors.slice(0, 2))
+          setSelectedColors(defaults.map(c => c.name))
+          const preview = white || defaults[0]
+          if (preview) setPreviewColor(preview)
+          setSelected({ ...p, variants, printify_provider_id: providerId })
+        }
+      } else {
+        // ── Printful variant loading (default) ───────────────
+        const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
+        const data = await res.json()
+        const variants = data.variants || []
+        const colorMap = {}
+        for (const v of variants) {
+          const name = v.color || 'Default'
+          if (!colorMap[name]) colorMap[name] = { name, hex: v.color_code || '#888', variantIds: [], image: v.image || p.image || '' }
+          colorMap[name].variantIds.push(v.id)
+          if (v.image && !colorMap[name].image) colorMap[name].image = v.image
+        }
+        const colors = Object.values(colorMap)
+        setAvailableColors(colors)
+        const white = colors.find(c => c.name.toLowerCase() === 'white')
+        const black = colors.find(c => c.name.toLowerCase() === 'black')
+        const defaults = [white, black].filter(Boolean)
+        if (!defaults.length) defaults.push(...colors.slice(0, 2))
+        setSelectedColors(defaults.map(c => c.name))
+        const preview = white || defaults[0]
+        if (preview) setPreviewColor(preview)
+        setSelected({ ...p, variants })
       }
-      const colors = Object.values(colorMap)
-      setAvailableColors(colors)
-      const white = colors.find(c => c.name.toLowerCase() === 'white')
-      const black = colors.find(c => c.name.toLowerCase() === 'black')
-      const defaults = [white, black].filter(Boolean)
-      if (!defaults.length) defaults.push(...colors.slice(0, 2))
-      setSelectedColors(defaults.map(c => c.name))
-      const preview = white || defaults[0]
-      if (preview) setPreviewColor(preview)
-      setSelected({ ...p, variants })
-    } catch {}
+    } catch (e) { console.error('selectProduct error:', e.message) }
     setVariantLoading(false)
   }
 
@@ -376,28 +412,55 @@ Reply with ONLY a valid JSON object, no markdown:
       const h          = await getAuthHeader()
       const colorObjs  = availableColors.filter(c => selectedColors.includes(c.name))
       const allVariants = colorObjs.flatMap(c => c.variantIds)
-      const res  = await fetch('/api/printful?action=create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ title, description, variantIds: allVariants, imageUrl: hostedImageUrl }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Creation failed')
-      const printfulId = data.id || data.sync_product?.id || ''
-      const tagList    = tags.split(',').map(t => t.trim()).filter(Boolean)
+      const isPrintify = selected.provider === 'printify'
+      let externalProductId = ''
+
+      if (isPrintify) {
+        // ── Create via Printify ───────────────────────────────
+        const res = await fetch('/api/printify?action=create_product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({
+            blueprint_id: selected.raw_id,
+            print_provider_id: selected.printify_provider_id,
+            variants: colorObjs.flatMap(c => c.variantIds.map(id => ({ id, price: Math.round(parseFloat(price) * 100) }))),
+            image_url: hostedImageUrl,
+            title, description,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Printify creation failed')
+        externalProductId = data.product_id || ''
+      } else {
+        // ── Create via Printful (default) ─────────────────────
+        const res = await fetch('/api/printful?action=create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({ title, description, variantIds: allVariants, imageUrl: hostedImageUrl }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Creation failed')
+        externalProductId = String(data.id || data.sync_product?.id || '')
+      }
+
+      const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)
       const { data: inserted } = await supabase.from('products').insert({
         user_id: user.id, artwork_id: artworkId || null,
         title, description, product_type: selected.type,
         price: parseFloat(price),
-        printful_product_id: String(printfulId),
-        printful_variant_ids: allVariants.map(String),
+        printful_product_id: isPrintify ? null : externalProductId,
+        printify_product_id: isPrintify ? externalProductId : null,
+        printful_variant_ids: isPrintify ? [] : allVariants.map(String),
+        fulfillment_provider: selected.provider,
         mockup_url: mockupUrl || hostedImageUrl,
         tags: tagList,
       }).select().single()
-      if (!mockupUrl && colorObjs[0]) {
+
+      // Generate mockup for Printful products
+      if (!isPrintify && !mockupUrl && colorObjs[0]) {
         const mRes = await fetch('/api/printful?action=mockupCreate', {
           method: 'POST', headers: { 'Content-Type': 'application/json', ...h },
-          body: JSON.stringify({ catalogProductId: selected.id, variantIds: colorObjs[0].variantIds.slice(0, 3), imageUrl: hostedImageUrl }),
+          body: JSON.stringify({ catalogProductId: selected.raw_id || selected.id, variantIds: colorObjs[0].variantIds.slice(0, 3), imageUrl: hostedImageUrl }),
         })
         const mData = await mRes.json()
         if (mData.task_key) pollMockup(mData.task_key, inserted?.id, 0)
@@ -579,7 +642,9 @@ Reply with ONLY a valid JSON object, no markdown:
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? C.accent : C.text, marginBottom: 2 }}>{p.model}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{ fontSize: 11, color: C.muted }}>Base ~${base.toFixed(2)} · Suggested ${suggestPrice(base)}</div>
+                          </div>
                           </div>
                           {variantLoading && isSel
                             ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.accent}`, borderTopColor: 'transparent', animation: 'cpspin 0.7s linear infinite', flexShrink: 0 }} />

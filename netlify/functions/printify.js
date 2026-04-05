@@ -152,9 +152,31 @@ export default async (req) => {
     }
 
     if (action === 'shops') {
-      // Get connected Printify shops
       const shops = await printifyFetch('/shops.json', {}, apiKey)
       return corsResponse({ shops })
+    }
+
+    if (action === 'variants') {
+      // Get variants for a blueprint + print provider combination
+      const blueprintId = url.searchParams.get('blueprint_id')
+      const providerId  = url.searchParams.get('provider_id')
+      if (!blueprintId || !providerId) return corsResponse({ error: 'Missing blueprint_id or provider_id' }, 400)
+      const data = await printifyFetch(`/catalog/blueprints/${blueprintId}/print_providers/${providerId}/variants.json`, {}, apiKey)
+      return corsResponse({ variants: data.variants || data || [] })
+    }
+
+    if (action === 'best_provider') {
+      // Auto-select best (cheapest) print provider for a blueprint
+      const blueprintId = url.searchParams.get('blueprint_id')
+      if (!blueprintId) return corsResponse({ error: 'Missing blueprint_id' }, 400)
+      const providers = await printifyFetch(`/catalog/blueprints/${blueprintId}/print_providers.json`, {}, apiKey)
+      // Sort by shipping speed and rating — prefer US-based providers
+      const sorted = (providers || []).sort((a, b) => {
+        const aUS = (a.location?.country || '').includes('US') ? -1 : 1
+        const bUS = (b.location?.country || '').includes('US') ? -1 : 1
+        return aUS - bUS
+      })
+      return corsResponse({ provider: sorted[0] || null, all: sorted })
     }
 
     return corsResponse({ error: `Unknown action: ${action}` }, 400)
