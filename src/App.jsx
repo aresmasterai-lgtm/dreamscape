@@ -496,10 +496,6 @@ function StarFieldDesktop() {
           0%,100% { opacity: var(--op); }
           50%      { opacity: calc(var(--op) * 0.2); }
         }
-        @keyframes planetFloat {
-          0%,100% { transform: translateY(0px); }
-          50%      { transform: translateY(-8px); }
-        }
       `}</style>
 
       {/* Static nebula — 3 blobs, no animation, GPU-friendly */}
@@ -524,7 +520,7 @@ function StarFieldDesktop() {
       </div>
 
       {/* Planet 1 — teal ringed */}
-      <div style={{ position: 'absolute', bottom: '10%', left: '4%', style={{ opacity: 0.9 }} }}>
+      <div style={{ position: 'absolute', bottom: '10%', left: '4%', opacity: 0.9 }}>
         <div style={{ position: 'relative', width: 50, height: 50 }}>
           <div style={{ width: 50, height: 50, borderRadius: '50%',
             background: 'radial-gradient(circle at 33% 28%, rgba(103,232,249,0.9) 0%, #06b6d4 25%, #0891b2 50%, #0e7490 75%, #083344 100%)',
@@ -7465,38 +7461,91 @@ export default function App() {
         /* ── Image protection ── */
         img { -webkit-user-drag: none; user-drag: none; user-select: none; -webkit-user-select: none; }
 
-        /* ── Navbar bottom chromatic edge — static gradient, no animation ── */
+        /* ── Navbar — neon bottom glow line ── */
         nav::after {
           content: '';
           position: absolute;
           bottom: 0; left: 0; right: 0;
           height: 1px;
-          background: linear-gradient(90deg, transparent 0%, rgba(124,92,252,0.6) 20%, rgba(0,212,170,0.7) 50%, rgba(255,107,157,0.5) 80%, transparent 100%);
+          background: linear-gradient(90deg, transparent 5%, rgba(124,92,252,0.9) 25%, rgba(0,212,170,1) 50%, rgba(124,92,252,0.9) 75%, transparent 95%);
+          box-shadow: 0 0 8px rgba(0,212,170,0.6), 0 0 20px rgba(124,92,252,0.3);
         }
 
-        /* ── Cards — static border, animate ONLY on hover ── */
+        /* ── Cards — static neon border glow (no animation) ── */
         .ds-card {
           position: relative;
           border-radius: 16px;
           background: ${C.card};
-          border: 1px solid rgba(124,92,252,0.25);
-          box-shadow: 0 2px 12px rgba(4,6,15,0.4);
-          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+          border: 1px solid rgba(124,92,252,0.7);
+          box-shadow:
+            0 0 4px  rgba(124,92,252,0.6),
+            0 0 14px rgba(124,92,252,0.25),
+            0 0 30px rgba(124,92,252,0.1),
+            inset 0 0 6px rgba(124,92,252,0.04),
+            0 4px 24px rgba(4,6,15,0.55);
+          transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
           contain: layout style;
         }
         .ds-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(124,92,252,0.6);
-          box-shadow: 0 8px 32px rgba(4,6,15,0.6), 0 0 24px rgba(124,92,252,0.2);
+          transform: translateY(-3px);
+          border-color: rgba(124,92,252,1);
+          box-shadow:
+            0 0 6px  rgba(124,92,252,0.9),
+            0 0 20px rgba(124,92,252,0.5),
+            0 0 45px rgba(124,92,252,0.22),
+            0 0 70px rgba(0,212,170,0.1),
+            inset 0 0 10px rgba(124,92,252,0.07),
+            0 10px 36px rgba(4,6,15,0.65);
         }
         .ds-card:active {
-          transform: translateY(0px) scale(0.99);
+          transform: translateY(0px) scale(0.985);
         }
 
-        /* ── Modals ── */
+        /* ── Teal accent cards (e.g. products) ── */
+        .ds-card-teal {
+          border-color: rgba(0,212,170,0.5);
+          box-shadow:
+            0 0 0 1px rgba(0,212,170,0.12),
+            0 0 8px rgba(0,212,170,0.25),
+            0 0 20px rgba(0,212,170,0.1),
+            0 4px 24px rgba(4,6,15,0.5);
+        }
+        .ds-card-teal:hover {
+          border-color: rgba(0,212,170,0.8);
+          box-shadow:
+            0 0 0 1px rgba(0,212,170,0.25),
+            0 0 12px rgba(0,212,170,0.5),
+            0 0 32px rgba(0,212,170,0.2),
+            0 8px 32px rgba(4,6,15,0.6);
+        }
+
+        /* ── Modals — stronger neon frame ── */
         .ds-modal {
-          border: 1px solid rgba(124,92,252,0.4) !important;
-          box-shadow: 0 0 0 1px rgba(124,92,252,0.15), 0 24px 80px rgba(4,6,15,0.8) !important;
+          border: 1px solid rgba(124,92,252,0.8) !important;
+          box-shadow:
+            0 0 6px  rgba(124,92,252,0.7),
+            0 0 20px rgba(124,92,252,0.35),
+            0 0 50px rgba(124,92,252,0.15),
+            0 0 80px rgba(0,212,170,0.06),
+            inset 0 0 20px rgba(124,92,252,0.04),
+            0 24px 80px rgba(4,6,15,0.9) !important;
+        }
+
+        /* ── Neon input focus ── */
+        input:not([type='range']):not([type='checkbox']):focus,
+        textarea:focus, select:focus {
+          outline: none !important;
+          border-color: rgba(124,92,252,0.8) !important;
+          box-shadow:
+            0 0 0 1px rgba(124,92,252,0.3),
+            0 0 8px rgba(124,92,252,0.4),
+            0 0 20px rgba(124,92,252,0.15) !important;
+        }
+
+        /* ── Neon nav border ── */
+        nav {
+          border-bottom: 1px solid rgba(124,92,252,0.3);
+          box-shadow: 0 1px 0 rgba(124,92,252,0.15), 0 4px 20px rgba(4,6,15,0.5);
         }
 
         /* ── Respect reduced motion preference ── */
@@ -7504,23 +7553,35 @@ export default function App() {
           *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
 
-        /* ── Input focus glow ── */
+        /* ── Input focus — neon glow ── */
         input:not([type='range']):not([type='checkbox']):focus,
         textarea:focus,
         select:focus {
           outline: none !important;
-          border-color: rgba(124,92,252,0.7) !important;
-          box-shadow: 0 0 0 3px rgba(124,92,252,0.15), 0 0 16px rgba(124,92,252,0.25) !important;
+          border-color: rgba(124,92,252,0.8) !important;
+          box-shadow:
+            0 0 0 1px rgba(124,92,252,0.4),
+            0 0 8px rgba(124,92,252,0.35),
+            0 0 20px rgba(124,92,252,0.15) !important;
         }
 
-        /* ── Primary gradient button glow ── */
+        /* ── Primary gradient buttons — static neon glow ── */
         button[style*="linear-gradient(135deg, #7C5CFC"],
         button[style*="linear-gradient(135deg, ${C.accent}"] {
-          animation: btnGlow 3s ease-in-out infinite;
+          box-shadow:
+            0 0 8px  rgba(124,92,252,0.5),
+            0 0 20px rgba(124,92,252,0.25),
+            0 4px 16px rgba(4,6,15,0.4);
+          transition: box-shadow 0.16s ease, transform 0.16s ease;
         }
         button[style*="linear-gradient(135deg, #7C5CFC"]:hover,
         button[style*="linear-gradient(135deg, ${C.accent}"]:hover {
-          animation: none;
+          box-shadow:
+            0 0 12px rgba(124,92,252,0.8),
+            0 0 32px rgba(124,92,252,0.4),
+            0 0 60px rgba(0,212,170,0.15),
+            0 6px 24px rgba(4,6,15,0.5);
+          transform: translateY(-1px);
           box-shadow: 0 0 30px rgba(124,92,252,0.6), 0 0 60px rgba(124,92,252,0.2), 0 4px 20px rgba(4,6,15,0.5) !important;
           filter: brightness(1.1);
         }
