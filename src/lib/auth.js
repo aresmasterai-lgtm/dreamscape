@@ -1,7 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { supabase } from './supabase'
 
+const AuthContext = createContext({})
+
+export function AuthProvider({ children }) {
+  const auth = useAuthInternal()
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>
+}
+
 export function useAuth() {
+  return useContext(AuthContext)
+}
+
+function useAuthInternal() {
   const [user, setUser]       = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
