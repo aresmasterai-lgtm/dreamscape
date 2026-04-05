@@ -66,6 +66,11 @@ class UIAgent(BaseAgent):
 
     async def _go(self, page: Page, path: str, wait: int = 2000):
         await page.goto(f"{self.base_url}{path}", wait_until="domcontentloaded")
+        await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
+        btn = await page.query_selector("button:has-text('Continue')")
+        if btn:
+            await page.reload(wait_until="domcontentloaded")
+            await page.evaluate("() => { try { localStorage.setItem('ds_age_verified', '2000-01-01') } catch(e) {} }")
         await page.wait_for_timeout(wait)
 
     async def _test_home_loads(self, page: Page):

@@ -1227,19 +1227,50 @@ function DreamChat({ user, onSignIn }) {
         // Auto-save to artwork — upload to Storage first so we store a URL not raw base64
         if (user) {
           const promptText = typeof prompt === 'string' ? prompt : ''
-          // Derive a smart title from the prompt — take first 6 words, title-case them
-          const smartTitle = promptText
-            ? promptText.split(' ').slice(0, 6).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') + (promptText.split(' ').length > 6 ? '...' : '')
-            : 'AI Artwork'
-          // Try to upload to Supabase Storage for efficient CDN delivery
-          const storageUrl = await uploadArtworkToStorage(user.id, imageDataUrl, data.mimeType || 'image/png')
-          const finalImageUrl = storageUrl || imageDataUrl // fall back to base64 if upload fails
+
+          // Upload image and get metadata in parallel — faster save
+          const [storageUrl, artMeta] = await Promise.all([
+            uploadArtworkToStorage(user.id, imageDataUrl, data.mimeType || 'image/png'),
+            (async () => {
+              // Ask Claude to generate a title, description, and tags from the prompt
+              try {
+                const authHdr = await getAuthHeader()
+                const metaRes = await fetch('/api/dream', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHdr },
+                  body: JSON.stringify({
+                    messages: [{
+                      role: 'user',
+                      content: `Given this AI art generation prompt: "${promptText.slice(0, 400)}"
+
+Respond ONLY with a JSON object (no markdown, no backticks):
+{"title":"3-6 word evocative title","description":"1-2 sentence description of the artwork","tags":["tag1","tag2","tag3"]}`
+                    }],
+                    _metaMode: true,
+                  })
+                })
+                const metaData = await metaRes.json()
+                const raw = metaData?.reply || metaData?.content || ''
+                const clean = raw.replace(/\`\`\`json|\`\`\`/g, '').trim()
+                return JSON.parse(clean)
+              } catch {
+                return null
+              }
+            })(),
+          ])
+
+          const finalImageUrl = storageUrl || imageDataUrl
+          const smartTitle = artMeta?.title
+            || (promptText ? promptText.split(' ').slice(0, 6).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') + (promptText.split(' ').length > 6 ? '...' : '') : 'AI Artwork')
+          const smartDesc  = artMeta?.description || ''
+          const smartTags  = Array.isArray(artMeta?.tags) ? artMeta.tags.slice(0, 5) : []
+
           const { data: savedArt } = await supabase.from('artwork').insert({
             user_id: user.id,
             title: smartTitle,
-            prompt: promptText,
+            prompt: smartDesc || promptText,
             image_url: finalImageUrl,
-            style_tags: [],
+            style_tags: smartTags,
             is_public: false,
           }).select().single()
           if (savedArt && mountedRef.current) {
@@ -5840,6 +5871,11 @@ function HeroLanding({ onSignIn }) {
 }
 
 // ── Home Feed (logged-in users) ───────────────────────────────
+// ── Feed cache — persists across tab switches / React remounts ──
+// Data is kept for 5 min so switching back to Discover never re-fetches
+const _feedCache = { data: null, userId: null, ts: 0 }
+const FEED_TTL   = 5 * 60 * 1000
+
 function HomeFeed({ user }) {
   const navigate = useNavigate()
   const [feedTab, setFeedTab]           = useState('following')
@@ -5854,7 +5890,22 @@ function HomeFeed({ user }) {
   const [lightbox, setLightbox]         = useState(null)
   const [createTarget, setCreateTarget] = useState(null)
 
-  useEffect(() => { loadAll() }, [user.id])
+  useEffect(() => {
+    // Use cache if data exists, matches this user, and is fresh (< 5 min)
+    const now = Date.now()
+    if (_feedCache.data && _feedCache.userId === user.id && (now - _feedCache.ts) < FEED_TTL) {
+      const c = _feedCache.data
+      setFollowingIds(new Set(c.followingIds))
+      setFollowingArt(c.followingArt)
+      setTrendingArt(c.trendingArt)
+      setSuggested(c.suggested)
+      setNewProducts(c.newProducts)
+      setLoadingFeed(false)
+      setLoadingTrend(false)
+      return
+    }
+    loadAll()
+  }, [user.id])
 
   const loadAll = async () => {
     setLoadingFeed(true)
@@ -5916,6 +5967,16 @@ function HomeFeed({ user }) {
           .order('created_at', { ascending: false })
           .limit(6)
         setNewProducts(prods || [])
+        // Write to cache so tab switches are instant
+        _feedCache.data = {
+          followingIds: ids,
+          followingArt: followRes.data || [],
+          trendingArt: trendRes.data || [],
+          suggested: unique,
+          newProducts: prods || [],
+        }
+        _feedCache.userId = user.id
+        _feedCache.ts = Date.now()
       }
     } catch (err) {
       console.error('HomeFeed loadAll error:', err.message)
@@ -5964,8 +6025,8 @@ function HomeFeed({ user }) {
       )}
 
       {/* Greeting */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: C.text, marginBottom: 4 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(22px, 5vw, 28px)', color: C.text, marginBottom: 4 }}>
           Welcome back ✦
         </h1>
         <p style={{ color: C.muted, fontSize: 14 }}>
@@ -5975,11 +6036,41 @@ function HomeFeed({ user }) {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 32, alignItems: 'start' }}>
+      {/* Mobile Quick Actions — horizontal scrollable row */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: 2 }}>
+        <button onClick={() => navigate('/create')}
+          style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '9px 16px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          ✦ Create
+        </button>
+        <button onClick={() => navigate('/marketplace')}
+          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.text, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          🛍 Marketplace
+        </button>
+        <button onClick={() => navigate('/gallery')}
+          style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 16px', color: C.text, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          🎨 Gallery
+        </button>
+      </div>
+
+      {/* Responsive layout — sidebar beside feed on desktop, stacked on mobile */}
+      <style>{`
+        @media (min-width: 768px) {
+          .ds-home-grid { display: grid !important; grid-template-columns: 1fr 280px !important; gap: 28px !important; }
+          .ds-home-sidebar { display: flex !important; }
+          .ds-home-sidebar-mobile { display: none !important; }
+        }
+        @media (max-width: 767px) {
+          .ds-home-grid { display: block !important; }
+          .ds-home-sidebar { display: none !important; }
+          .ds-home-sidebar-mobile { display: flex !important; }
+        }
+      `}</style>
+
+      <div className="ds-home-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 28, alignItems: 'start' }}>
         {/* Main feed */}
         <div>
           {/* Feed tabs */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 0 }}>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: `1px solid ${C.border}` }}>
             {[['following', '✦ Following'], ['trending', '🔥 Trending']].map(([id, label]) => (
               <button key={id} onClick={() => setFeedTab(id)}
                 style={{ background: 'none', border: 'none', borderBottom: `2px solid ${feedTab === id ? C.accent : 'transparent'}`, padding: '8px 18px', color: feedTab === id ? C.accent : C.muted, fontSize: 13, fontWeight: feedTab === id ? 700 : 400, cursor: 'pointer', marginBottom: -1 }}>
@@ -5991,12 +6082,12 @@ function HomeFeed({ user }) {
           {isLoading ? (
             <Spinner label="Loading feed..." />
           ) : activeArt.length === 0 ? (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '48px 32px', textAlign: 'center' }}>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '40px 24px', textAlign: 'center' }}>
               {feedTab === 'following' ? (
                 <>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
-                  <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, color: C.text, marginBottom: 8 }}>Your following feed is empty</h3>
-                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 20 }}>Follow some creators to see their latest artwork here. Check out the suggested artists →</p>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>✦</div>
+                  <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: C.text, marginBottom: 8 }}>Your following feed is empty</h3>
+                  <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 16 }}>Follow some creators to see their latest artwork here.</p>
                   <button onClick={() => setFeedTab('trending')}
                     style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     Browse Trending →
@@ -6004,8 +6095,7 @@ function HomeFeed({ user }) {
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>🎨</div>
-                  <p style={{ color: C.muted, fontSize: 14, marginBottom: 20 }}>No artwork yet — be the first to create!</p>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>🎨</div>
                   <button onClick={() => navigate('/create')}
                     style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 24px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     Start Creating ✦
@@ -6017,7 +6107,6 @@ function HomeFeed({ user }) {
             <div style={{ columns: 'auto 220px', columnGap: 12 }}>
               {activeArt.map(art => (
                 <div key={art.id} style={{ breakInside: 'avoid', marginBottom: 12 }}>
-                  {/* Creator header above each artwork */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <div onClick={() => navigate(`/u/${art.profiles?.username}`)}
                       style={{ width: 24, height: 24, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}>
@@ -6034,7 +6123,6 @@ function HomeFeed({ user }) {
                       {new Date(art.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
-                  {/* Artwork card */}
                   <div style={{ borderRadius: 12, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
                     onClick={() => setLightbox({ src: art.image_url, alt: art.title || 'AI artwork', title: art.title, username: art.profiles?.username, art })}>
                     <LazyImage src={art.image_url} alt={art.title || 'AI artwork'} width={400}
@@ -6049,31 +6137,58 @@ function HomeFeed({ user }) {
               ))}
             </div>
           )}
+
+          {/* Mobile-only sidebar sections — appear BELOW feed on small screens */}
+          <div className="ds-home-sidebar-mobile" style={{ display: 'none', flexDirection: 'column', gap: 16, marginTop: 24 }}>
+            {newProducts.length > 0 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>🛍 New from people you follow</div>
+                <div style={{ display: 'flex', gap: 10, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: 4 }}>
+                  {newProducts.map(p => (
+                    <div key={p.id} onClick={() => navigate(`/product/${p.id}`)}
+                      style={{ flexShrink: 0, width: 120, cursor: 'pointer' }}>
+                      <div style={{ width: 120, height: 120, borderRadius: 10, background: C.border, overflow: 'hidden', marginBottom: 6 }}>
+                        {p.mockup_url && <img src={p.mockup_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</div>
+                      <div style={{ fontSize: 12, color: C.teal, fontWeight: 700 }}>${parseFloat(p.price || 0).toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {suggested.length > 0 && (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>✦ Suggested Creators</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {suggested.slice(0, 3).map(creator => (
+                    <div key={creator.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div onClick={() => navigate(`/u/${creator.username}`)}
+                        style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}>
+                        {creator.avatar_url
+                          ? <img src={creator.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#fff' }}>{(creator.username || '?')[0].toUpperCase()}</div>
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{creator.display_name || creator.username}</div>
+                        <div style={{ fontSize: 10, color: C.muted }}>@{creator.username}</div>
+                      </div>
+                      <button onClick={() => toggleFollow(creator.id)} disabled={!!togglingId}
+                        style={{ background: followingIds.has(creator.id) ? 'none' : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: `1px solid ${followingIds.has(creator.id) ? C.border : 'transparent'}`, borderRadius: 8, padding: '5px 12px', color: followingIds.has(creator.id) ? C.muted : '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                        {togglingId === creator.id ? '...' : followingIds.has(creator.id) ? '✓' : '+ Follow'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, position: 'sticky', top: 20 }}>
-
-          {/* Quick actions */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>Quick Actions</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => navigate('/create')}
-                style={{ background: `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 16px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }}>
-                ✦ Create New Artwork
-              </button>
-              <button onClick={() => navigate('/marketplace')}
-                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.text, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
-                🛍 Browse Marketplace
-              </button>
-              <button onClick={() => navigate('/gallery')}
-                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', color: C.text, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
-                🎨 Explore Gallery
-              </button>
-            </div>
-          </div>
-
-          {/* New products from following */}
+        {/* Desktop-only right sidebar */}
+        <div className="ds-home-sidebar" style={{ flexDirection: 'column', gap: 20, position: 'sticky', top: 20 }}>
           {newProducts.length > 0 && (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>🛍 New from people you follow</div>
@@ -6094,7 +6209,6 @@ function HomeFeed({ user }) {
             </div>
           )}
 
-          {/* Suggested creators */}
           {suggested.length > 0 && (
             <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>✦ Suggested Creators</div>
