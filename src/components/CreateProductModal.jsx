@@ -74,6 +74,64 @@ function suggestPrice(base) {
   return (Math.ceil(raw) - 0.01).toFixed(2)
 }
 
+// ── Color name → hex (for Printify which doesn't return hex codes) ────────────
+const COLOR_HEX = {
+  'black': '#1a1a1a', 'white': '#ffffff', 'navy': '#1b2a4a', 'navy blue': '#1b2a4a',
+  'royal blue': '#1a4fcc', 'blue': '#2563eb', 'light blue': '#93c5fd', 'baby blue': '#bfdbfe',
+  'red': '#dc2626', 'burgundy': '#7f1d1d', 'maroon': '#7f1d1d', 'crimson': '#b91c1c',
+  'green': '#16a34a', 'forest green': '#166534', 'military green': '#4a5c2a', 'sage': '#84a98c',
+  'kelly green': '#15803d', 'mint': '#a7f3d0', 'olive': '#a16207',
+  'grey': '#6b7280', 'gray': '#6b7280', 'light grey': '#d1d5db', 'dark grey': '#374151',
+  'charcoal': '#374151', 'heather grey': '#9ca3af', 'sport grey': '#9ca3af',
+  'heather gray': '#9ca3af', 'athletic heather': '#9ca3af', 'dark heather': '#4b5563',
+  'yellow': '#eab308', 'gold': '#d97706', 'mustard': '#b45309',
+  'orange': '#ea580c', 'coral': '#f87171', 'salmon': '#fca5a5',
+  'pink': '#ec4899', 'light pink': '#fbcfe8', 'hot pink': '#db2777', 'fuchsia': '#c026d3',
+  'purple': '#7c3aed', 'lavender': '#c4b5fd', 'violet': '#8b5cf6', 'plum': '#6b21a8',
+  'brown': '#78350f', 'tan': '#d6b896', 'beige': '#e8d5b7', 'sand': '#d4c5a9',
+  'cream': '#fef3c7', 'ivory': '#fffbeb', 'natural': '#fef3c7',
+  'teal': '#0d9488', 'turquoise': '#06b6d4', 'cyan': '#22d3ee', 'aqua': '#06b6d4',
+  'silver': '#94a3b8', 'ice grey': '#e2e8f0',
+}
+function getColorHex(name) {
+  if (!name) return '#888888'
+  const k = name.toLowerCase().trim()
+  if (COLOR_HEX[k]) return COLOR_HEX[k]
+  for (const [key, val] of Object.entries(COLOR_HEX)) {
+    if (k.includes(key) || key.includes(k)) return val
+  }
+  return '#888888'
+}
+
+// ── Build color map from Printify variants ────────────────────────────────────
+function buildPrintifyColors(variants, fallbackImage = '') {
+  const SIZES = ['xs','s','m','l','xl','2xl','3xl','4xl','5xl','one size','os']
+  const colorMap = {}
+  for (const v of variants) {
+    let colorName = null
+    // Try options array first
+    if (Array.isArray(v.options)) {
+      const colorOpt = v.options.find(o =>
+        (o.type || '').toLowerCase() === 'color' ||
+        (o.title || '').toLowerCase().includes('color')
+      )
+      colorName = colorOpt?.title || colorOpt?.value || null
+    }
+    // Fallback: parse from variant title e.g. "XS / Black"
+    if (!colorName && v.title) {
+      const parts = v.title.split('/').map(s => s.trim())
+      const nonSize = parts.find(p => !SIZES.includes(p.toLowerCase()))
+      colorName = nonSize || parts[parts.length - 1]
+    }
+    if (!colorName) colorName = 'Default'
+    if (!colorMap[colorName]) {
+      colorMap[colorName] = { name: colorName, hex: getColorHex(colorName), variantIds: [], image: fallbackImage }
+    }
+    colorMap[colorName].variantIds.push(v.id)
+  }
+  return Object.values(colorMap)
+}
+
 // ── Hierarchical category system ─────────────────────────────
 const CATEGORY_GROUPS = [
   {
@@ -124,7 +182,6 @@ const CATEGORY_GROUPS = [
   },
 ]
 
-// Flat list for backward compat
 const CATEGORIES = CATEGORY_GROUPS.flatMap(g => g.categories)
 
 function matchesCategory(p, cat) {
@@ -257,7 +314,6 @@ Reply with ONLY a valid JSON object, no markdown:
   const loadCatalog = async () => {
     setCatalogLoading(true)
     try {
-      // Use module-level cache — catalog rarely changes
       const now = Date.now()
       if (_catalogCache && (now - _catalogCacheTime) < CATALOG_TTL) {
         setCatalog(_catalogCache)
@@ -265,7 +321,6 @@ Reply with ONLY a valid JSON object, no markdown:
         return
       }
       const h = await getAuthHeader()
-      // Unified catalog — merges Printful + Printify products
       const res  = await fetch('/api/catalog', { headers: h })
       const data = await res.json()
       const products = data.products || []
@@ -277,6 +332,7 @@ Reply with ONLY a valid JSON object, no markdown:
     setCatalogLoading(false)
   }
 
+  // ── selectProduct — provider-aware variant/color loading ──────────────────
   const selectProduct = async (p) => {
     setSelected(p)
     setAvailableColors([])
@@ -289,48 +345,49 @@ Reply with ONLY a valid JSON object, no markdown:
       const h = await getAuthHeader()
 
       if (p.provider === 'printify') {
-        // ── Printify variant loading ─────────────────────────
-        const res  = await fetch(`/api/printify?action=catalog&blueprint_id=${p.raw_id}`, { headers: h })
+        // ── Printify: call catalogProduct which returns pre-built colors ──
+        const blueprintId = p.raw_id || String(p.id).replace('printify_', '')
+        const res  = await fetch(`/api/printify?action=catalogProduct&id=${blueprintId}`, { headers: h })
         const data = await res.json()
-        // Printify variants are per print provider — use first provider
-        const provider = data.providers?.[0]
-        const providerId = provider?.id
-        if (providerId) {
-          const vRes  = await fetch(`/api/printify?action=variants&blueprint_id=${p.raw_id}&provider_id=${providerId}`, { headers: h })
-          const vData = await vRes.json()
-          const variants = vData.variants || []
-          // Group by color
-          const colorMap = {}
-          for (const v of variants) {
-            const colorOpt = v.options?.find(o => o.type === 'color') || v.options?.[0]
-            const name = colorOpt?.value || v.title || 'Default'
-            const hex  = colorOpt?.colors?.[0] || '#888'
-            if (!colorMap[name]) colorMap[name] = { name, hex, variantIds: [], image: p.image || '' }
-            colorMap[name].variantIds.push(v.id)
-          }
-          const colors = Object.values(colorMap)
-          setAvailableColors(colors)
-          const white = colors.find(c => c.name.toLowerCase().includes('white'))
-          const black = colors.find(c => c.name.toLowerCase().includes('black'))
-          const defaults = [white, black].filter(Boolean)
-          if (!defaults.length) defaults.push(...colors.slice(0, 2))
-          setSelectedColors(defaults.map(c => c.name))
-          const preview = white || defaults[0]
-          if (preview) setPreviewColor(preview)
-          setSelected({ ...p, variants, printify_provider_id: providerId })
+
+        let colors = []
+
+        // Prefer the pre-built colors array from the server
+        if (data.colors && data.colors.length > 0) {
+          colors = data.colors
+        } else if (data.variants && data.variants.length > 0) {
+          // Fallback: build color map client-side from variants
+          colors = buildPrintifyColors(data.variants, p.image || '')
         }
+
+        setAvailableColors(colors)
+
+        // Smart defaults: white first, then black, else first two
+        const white    = colors.find(c => c.name.toLowerCase().includes('white'))
+        const black    = colors.find(c => c.name.toLowerCase().includes('black'))
+        const defaults = [white, black].filter(Boolean)
+        if (!defaults.length) defaults.push(...colors.slice(0, 2))
+        setSelectedColors(defaults.map(c => c.name))
+        const preview = white || defaults[0]
+        if (preview) setPreviewColor(preview)
+
+        setSelected({
+          ...p,
+          variants: data.variants || [],
+          printify_provider_id: data.print_provider_id || null,
+          provider: 'printify',
+        })
+
       } else {
-        // ── Printful variant loading (default) ───────────────
+        // ── Printful: existing flow ───────────────────────────────────────
         const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
         const data = await res.json()
         const variants = data.variants || []
 
-        // Detect variant type: color-based (apparel) or size-based (wall art/canvas)
         const hasColors = variants.some(v => v.color && v.color.trim())
         const variantMap = {}
 
         if (hasColors) {
-          // ── Color variants (T-shirts, hoodies, mugs etc.) ────
           for (const v of variants) {
             const name = v.color || 'Default'
             if (!variantMap[name]) variantMap[name] = {
@@ -342,7 +399,6 @@ Reply with ONLY a valid JSON object, no markdown:
             if (v.image && !variantMap[name].image) variantMap[name].image = v.image
           }
         } else {
-          // ── Size variants (canvas prints, posters, wall art) ─
           for (const v of variants) {
             const name = v.size || v.name || `Option ${v.id}`
             if (!variantMap[name]) variantMap[name] = {
@@ -357,7 +413,6 @@ Reply with ONLY a valid JSON object, no markdown:
         const options = Object.values(variantMap)
         setAvailableColors(options)
 
-        // Smart defaults
         if (hasColors) {
           const white = options.find(c => c.name.toLowerCase() === 'white')
           const black = options.find(c => c.name.toLowerCase() === 'black')
@@ -366,7 +421,6 @@ Reply with ONLY a valid JSON object, no markdown:
           setSelectedColors(defaults.map(c => c.name))
           if (defaults[0]) setPreviewColor(defaults[0])
         } else {
-          // For size variants, select the most popular sizes by default
           const popularSizes = ['11×14','12×16','16×20','18×24','24×36','12×12','16×16']
           const defaults = options.filter(o =>
             popularSizes.some(s => o.name.replace(/\s/g,'').includes(s.replace(/\s/g,'')))
@@ -375,7 +429,7 @@ Reply with ONLY a valid JSON object, no markdown:
           setSelectedColors(selected_defaults.map(c => c.name))
           if (options[0]) setPreviewColor(options[0])
         }
-        setSelected({ ...p, variants, isWallArt: !hasColors })
+        setSelected({ ...p, variants, isWallArt: !hasColors, provider: 'printful' })
       }
     } catch (e) { console.error('selectProduct error:', e.message) }
     setVariantLoading(false)
@@ -389,7 +443,6 @@ Reply with ONLY a valid JSON object, no markdown:
   const selectPopularColors = () => {
     const isWallArt = availableColors[0]?.isSize
     if (isWallArt) {
-      // Popular wall art sizes
       const popularSizes = ['11×14','12×16','16×20','18×24','24×36','12×12','16×16']
       const popular = availableColors.filter(o =>
         popularSizes.some(s => o.name.replace(/\s/g,'').includes(s.replace(/\s/g,'')))
@@ -405,13 +458,23 @@ Reply with ONLY a valid JSON object, no markdown:
 
   const generateMockup = async () => {
     if (!previewColor || !hostedImageUrl || !selected) return
+
+    // Printify doesn't support on-demand mockup generation without a published product.
+    // Use the blueprint/product image as preview instead.
+    if (selected.provider === 'printify') {
+      const previewImg = previewColor.image || selected.image || ''
+      if (previewImg) { setMockupUrl(previewImg); setMockupStatus('done') }
+      else setMockupStatus('failed')
+      return
+    }
+
     setMockupStatus('generating')
     try {
       const h   = await getAuthHeader()
       const res = await fetch('/api/printful?action=mockupCreate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
-        body: JSON.stringify({ catalogProductId: selected.id, variantIds: previewColor.variantIds.slice(0, 3), imageUrl: hostedImageUrl }),
+        body: JSON.stringify({ catalogProductId: selected.raw_id || selected.id, variantIds: previewColor.variantIds.slice(0, 3), imageUrl: hostedImageUrl }),
       })
       const data = await res.json()
       if (data.task_key) pollMockup(data.task_key, null, 0)
@@ -461,7 +524,6 @@ Reply with ONLY a valid JSON object, no markdown:
       let externalProductId = ''
 
       if (isPrintify) {
-        // ── Create via Printify ───────────────────────────────
         const res = await fetch('/api/printify?action=create_product', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...h },
@@ -477,7 +539,6 @@ Reply with ONLY a valid JSON object, no markdown:
         if (!res.ok) throw new Error(data.error || 'Printify creation failed')
         externalProductId = data.product_id || ''
       } else {
-        // ── Create via Printful (default) ─────────────────────
         const res = await fetch('/api/printful?action=create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...h },
@@ -501,7 +562,6 @@ Reply with ONLY a valid JSON object, no markdown:
         tags: tagList,
       }).select().single()
 
-      // Generate mockup for Printful products
       if (!isPrintify && !mockupUrl && colorObjs[0]) {
         const mRes = await fetch('/api/printful?action=mockupCreate', {
           method: 'POST', headers: { 'Content-Type': 'application/json', ...h },
@@ -591,10 +651,8 @@ Reply with ONLY a valid JSON object, no markdown:
                   {CATEGORY_GROUPS.map(group => {
                     const groupCount = catalog.filter(p => matchesGroup(p, group)).length
                     if (!groupCount) return null
-                    const isGroupActive = group.categories.some(c => activeCategory === c.label)
                     return (
                       <div key={group.group} style={{ marginBottom: 14 }}>
-                        {/* Group header */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: group.featured ? C.accent : C.muted, textTransform: 'uppercase', letterSpacing: 1 }}>
                             {group.featured ? '✦ ' : ''}{group.group}
@@ -602,7 +660,6 @@ Reply with ONLY a valid JSON object, no markdown:
                           <div style={{ fontSize: 10, color: C.muted }}>({groupCount})</div>
                           <div style={{ flex: 1, height: 1, background: C.border }} />
                         </div>
-                        {/* Category chips within group */}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                           {group.categories.map(cat => {
                             const count = catalog.filter(p => matchesCategory(p, cat)).length
@@ -626,7 +683,6 @@ Reply with ONLY a valid JSON object, no markdown:
               {catalogLoading ? <Spinner label="Loading products..." /> :
                !activeCategory && !search ? (
                 <div>
-                  {/* Featured: Best products for AI artwork */}
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
                     ✦ Best for AI Artwork
                   </div>
@@ -634,7 +690,7 @@ Reply with ONLY a valid JSON object, no markdown:
                     {[
                       { label: 'Canvas Prints', icon: '🎨', desc: 'Gallery-quality wall art', kw: 'canvas print' },
                       { label: 'Framed Prints', icon: '🖼', desc: 'Ready to hang', kw: 'framed' },
-                      { label: 'Metal Prints', icon: '✨', desc: 'Ultra-vivid & modern', kw: 'metal print' },
+                      { label: 'Metal Prints',  icon: '✨', desc: 'Ultra-vivid & modern', kw: 'metal print' },
                       { label: 'Posters',       icon: '📜', desc: 'Affordable & sharp', kw: 'poster' },
                       { label: 'Acrylic Prints',icon: '💎', desc: 'Luxury glass-like finish', kw: 'acrylic' },
                       { label: 'T-Shirts',      icon: '👕', desc: 'All-over print or centered', kw: 't-shirt' },
@@ -688,8 +744,8 @@ Reply with ONLY a valid JSON object, no markdown:
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: isSel ? C.accent : C.text, marginBottom: 2 }}>{p.model}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ fontSize: 11, color: C.muted }}>Base ~${base.toFixed(2)} · Suggested ${suggestPrice(base)}</div>
-                          </div>
+                              <div style={{ fontSize: 11, color: C.muted }}>Base ~${base.toFixed(2)} · Suggested ${suggestPrice(base)}</div>
+                            </div>
                           </div>
                           {variantLoading && isSel
                             ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${C.accent}`, borderTopColor: 'transparent', animation: 'cpspin 0.7s linear infinite', flexShrink: 0 }} />
@@ -744,7 +800,6 @@ Reply with ONLY a valid JSON object, no markdown:
                 </div>
               </div>
 
-              {/* Wall art/canvas: size variants. Apparel: color variants. */}
               {availableColors.length > 0 && availableColors[0]?.isSize && (
                 <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: C.teal, marginBottom: 10 }}>
                   ✦ This product comes in sizes — select which sizes to offer in your shop
