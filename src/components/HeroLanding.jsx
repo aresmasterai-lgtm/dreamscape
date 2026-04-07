@@ -31,13 +31,11 @@ export default function HeroLanding({ onSignIn }) {
   const [phIdx, setPhIdx]     = useState(0)
   const [phVisible, setPhVisible] = useState(true)
 
-  // Auto-focus on mount
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 500)
     return () => clearTimeout(t)
   }, [])
 
-  // Rotate placeholder text
   useEffect(() => {
     const t = setInterval(() => {
       setPhVisible(false)
@@ -109,11 +107,11 @@ export default function HeroLanding({ onSignIn }) {
         .hl-fadein-4 { animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both; animation-delay: 0.55s; opacity: 0; }
         .hl-fadein-5 { animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both; animation-delay: 0.7s;  opacity: 0; }
         .hl-bubble { animation: bubbleIdle 3.5s ease-in-out infinite; }
-     .hl-bubble:focus-within {
-  animation: none !important;
-  border-color: rgba(124,92,252,0.35) !important;
-  box-shadow: 0 8px 40px rgba(124,92,252,0.2) !important;
-}
+        .hl-bubble:focus-within {
+          animation: none !important;
+          border-color: rgba(124,92,252,0.35) !important;
+          box-shadow: 0 8px 40px rgba(124,92,252,0.2) !important;
+        }
         .hl-shake { animation: shake 0.45s ease !important; }
         .hl-logo  { animation: logoGlow 3s ease-in-out infinite; }
         .hl-dream-btn { transition: all 0.2s ease; }
@@ -169,7 +167,7 @@ export default function HeroLanding({ onSignIn }) {
         </p>
       </div>
 
-      {/* ── THE BUBBLE ── */}
+      {/* THE BUBBLE */}
       <div className={`hl-fadein-3 hl-bubble${shake ? ' hl-shake' : ''}`} style={{
         width: '100%',
         maxWidth: 660,
@@ -186,7 +184,6 @@ export default function HeroLanding({ onSignIn }) {
         <span style={{ fontSize: 20, flexShrink: 0, opacity: 0.55, userSelect: 'none' }}>✦</span>
 
         <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-          {/* Animated placeholder */}
           {!value && (
             <div className="hl-ph" style={{
               position: 'absolute',
