@@ -963,15 +963,26 @@ function DreamChat({ user, onSignIn }) {
       setTimeout(() => inputRef.current?.focus(), 100)
     }
     const pendingDream = sessionStorage.getItem('ds_pending_prompt')
-    if (pendingDream) {
-      sessionStorage.removeItem('ds_pending_prompt')
-      setTimeout(() => {
-        setInput(pendingDream)
-        setTimeout(() => {
-          document.querySelector('[data-send-btn]')?.click()
-        }, 400)
-      }, 600)
-    }
+if (pendingDream) {
+  sessionStorage.removeItem('ds_pending_prompt')
+  setTimeout(() => {
+    setMessages(prev => [...prev, { role: 'user', content: pendingDream }])
+    setLoading(true)
+    getAuthHeader().then(h => {
+      fetch('/api/dream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({ messages: [{ role: 'user', content: pendingDream }] })
+      }).then(r => r.json()).then(data => {
+        if (!mountedRef.current) return
+        const reply = data.reply || "Tell me more about what you're imagining..."
+        setMessages(prev => [...prev, { role: 'assistant', content: reply, suggestions: extractSuggestionOptions(reply) }])
+        if (data.generationPrompt) setPendingPrompt({ prompt: data.generationPrompt, refImage: null })
+        setLoading(false)
+      }).catch(() => { if (mountedRef.current) setLoading(false) })
+    })
+  }, 400)
+}
     return () => {
       mountedRef.current = false
       if (genTimeoutRef.current) clearTimeout(genTimeoutRef.current)
