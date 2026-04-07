@@ -16,12 +16,11 @@ function useAuthInternal() {
   const [user, setUser]       = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const profileCacheRef = useRef({}) // userId → profile, survives re-renders
+  const profileCacheRef = useRef({})
 
   useEffect(() => {
     let mounted = true
 
-    // ── Initial session load ─────────────────────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
       const u = session?.user ?? null
@@ -30,17 +29,11 @@ function useAuthInternal() {
       else setLoading(false)
     })
 
-    // ── Auth state changes ───────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
-
-      // Ignore TOKEN_REFRESHED events — these fire on every tab focus
-      // and cause unnecessary re-renders. The session is still valid.
       if (event === 'TOKEN_REFRESHED') return
-
       const u = session?.user ?? null
       setUser(u)
-
       if (event === 'SIGNED_IN' && u) {
         loadProfile(u.id)
       } else if (event === 'SIGNED_OUT') {
@@ -57,7 +50,6 @@ function useAuthInternal() {
   }, [])
 
   const loadProfile = async (userId) => {
-    // Return from cache if available — avoids DB hit on every tab switch
     if (profileCacheRef.current[userId]) {
       setProfile(profileCacheRef.current[userId])
       setLoading(false)
@@ -77,6 +69,52 @@ function useAuthInternal() {
     setLoading(false)
   }
 
+  // ── Sign in with email + password ─────────────────────────────────────────
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    return { data, error }
+  }
+
+  // ── Sign up with email + password + username ──────────────────────────────
+  const signUp = async (email, password, username) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username, display_name: username },
+        emailRedirectTo: 'https://trydreamscape.com',
+      },
+    })
+    if (!error && data.user) {
+      // Create profile row immediately (may already exist via trigger, upsert is safe)
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        username,
+        display_name: username,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
+    }
+    return { data, error }
+  }
+
+  // ── Sign in with Google OAuth ─────────────────────────────────────────────
+  // This triggers a redirect — there's no async return to wait on.
+  // The SIGNED_IN auth state change fires when the user lands back on the site.
+  const signInWithGoogle = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account', // always show account picker
+        },
+      },
+    })
+    return { data, error }
+  }
+
+  // ── Sign out ──────────────────────────────────────────────────────────────
   const signOut = async () => {
     profileCacheRef.current = {}
     await supabase.auth.signOut()
@@ -84,7 +122,6 @@ function useAuthInternal() {
     setProfile(null)
   }
 
-  // Allow profile updates to also update cache
   const setProfileAndCache = (updater) => {
     setProfile(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater
@@ -93,5 +130,14 @@ function useAuthInternal() {
     })
   }
 
-  return { user, profile, setProfile: setProfileAndCache, signOut, loading }
+  return {
+    user,
+    profile,
+    setProfile: setProfileAndCache,
+    signOut,
+    signIn,
+    signUp,
+    signInWithGoogle,
+    loading,
+  }
 }
