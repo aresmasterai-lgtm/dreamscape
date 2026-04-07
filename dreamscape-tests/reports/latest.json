@@ -109,7 +109,7 @@
       "error": null,
       "detail": "$14.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.005797"
+      "timestamp": "2026-04-07T20:16:59.477154"
     },
     {
       "id": "unit_cost_hoodie",
@@ -121,7 +121,7 @@
       "error": null,
       "detail": "$27.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006031"
+      "timestamp": "2026-04-07T20:16:59.477256"
     },
     {
       "id": "unit_cost_mug",
@@ -133,7 +133,7 @@
       "error": null,
       "detail": "$9.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006096"
+      "timestamp": "2026-04-07T20:16:59.477311"
     },
     {
       "id": "unit_cost_canvas",
@@ -145,7 +145,7 @@
       "error": null,
       "detail": "$29.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006273"
+      "timestamp": "2026-04-07T20:16:59.477352"
     },
     {
       "id": "unit_cost_framed",
@@ -157,7 +157,7 @@
       "error": null,
       "detail": "$34.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006318"
+      "timestamp": "2026-04-07T20:16:59.477389"
     },
     {
       "id": "unit_cost_acrylic",
@@ -169,7 +169,7 @@
       "error": null,
       "detail": "$39.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006352"
+      "timestamp": "2026-04-07T20:16:59.477423"
     },
     {
       "id": "unit_cost_poster",
@@ -181,7 +181,7 @@
       "error": null,
       "detail": "$11.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006391"
+      "timestamp": "2026-04-07T20:16:59.477472"
     },
     {
       "id": "unit_cost_tote",
@@ -193,7 +193,7 @@
       "error": null,
       "detail": "$12.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006454"
+      "timestamp": "2026-04-07T20:16:59.477527"
     },
     {
       "id": "unit_cost_sticker",
@@ -205,7 +205,7 @@
       "error": null,
       "detail": "$4.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006505"
+      "timestamp": "2026-04-07T20:16:59.477578"
     },
     {
       "id": "unit_cost_canvas_tote",
@@ -217,7 +217,7 @@
       "error": null,
       "detail": "$12.95",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006548"
+      "timestamp": "2026-04-07T20:16:59.477623"
     },
     {
       "id": "unit_profit_tshirt",
@@ -229,7 +229,7 @@
       "error": null,
       "detail": "earnings=$10.87 margin=36.2%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006605"
+      "timestamp": "2026-04-07T20:16:59.477717"
     },
     {
       "id": "unit_profit_canvas",
@@ -241,7 +241,7 @@
       "error": null,
       "detail": "earnings=$22.0 margin=36.7%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006734"
+      "timestamp": "2026-04-07T20:16:59.477754"
     },
     {
       "id": "unit_profit_below_cost",
@@ -253,7 +253,7 @@
       "error": null,
       "detail": "earnings=$-6.54 margin=-65.4%",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006828"
+      "timestamp": "2026-04-07T20:16:59.477786"
     },
     {
       "id": "unit_split_basic",
@@ -265,7 +265,7 @@
       "error": null,
       "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 0, 'creator_earnings': 19.84}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006920"
+      "timestamp": "2026-04-07T20:16:59.477849"
     },
     {
       "id": "unit_split_royalty",
@@ -277,7 +277,7 @@
       "error": null,
       "detail": "{'retail': 29.99, 'stripe_fee': 1.17, 'dreamscape_fee': 3.0, 'artist_royalty': 1.98, 'creator_earnings': 17.86}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.006969"
+      "timestamp": "2026-04-07T20:16:59.477897"
     },
     {
       "id": "unit_split_cents",
@@ -289,7 +289,7 @@
       "error": null,
       "detail": "{'retail': 50.0, 'stripe_fee': 1.75, 'dreamscape_fee': 5.0, 'artist_royalty': 0, 'creator_earnings': 31.25}",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.007008"
+      "timestamp": "2026-04-07T20:16:59.477937"
     },
     {
       "id": "unit_price_tshirt",
@@ -301,7 +301,7 @@
       "error": null,
       "detail": "$23.99",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.007038"
+      "timestamp": "2026-04-07T20:16:59.477971"
     },
     {
       "id": "unit_price_canvas",
@@ -313,19 +313,7 @@
       "error": null,
       "detail": "$47.99",
       "agent": "UnitTests",
-      "timestamp": "2026-04-07T05:02:56.007064"
-    },
-    {
-      "id": "xss_prompt",
-      "name": "XSS in prompt field rejected",
-      "category": "explorer",
-      "path": "red",
-      "status": "green",
-      "duration_ms": 433,
-      "error": null,
-      "detail": "HTTP 401 as expected",
-      "agent": "ExplorerAgent",
-      "timestamp": "2026-04-07T05:02:56.442592"
+      "timestamp": "2026-04-07T20:16:59.477997"
     },
     {
       "id": "health_api_green",
@@ -333,11 +321,23 @@
       "category": "api",
       "path": "green",
       "status": "green",
-      "duration_ms": 621,
+      "duration_ms": 956,
       "error": null,
       "detail": "status=commerce_degraded services=['anthropic', 'gemini', 'printful', 'stripe']",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:56.631614"
+      "timestamp": "2026-04-07T20:17:00.436648"
+    },
+    {
+      "id": "xss_prompt",
+      "name": "XSS in prompt field rejected",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 1922,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-07T20:17:01.402203"
     },
     {
       "id": "gen_unauth_red",
@@ -345,11 +345,11 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 162,
+      "duration_ms": 1048,
       "error": null,
       "detail": "Correctly returned HTTP 401",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:56.794781"
+      "timestamp": "2026-04-07T20:17:01.485276"
     },
     {
       "id": "oversized_payload",
@@ -357,11 +357,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 355,
+      "duration_ms": 255,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-07T05:02:57.100427"
+      "timestamp": "2026-04-07T20:17:01.958612"
     },
     {
       "id": "options_preflight",
@@ -369,11 +369,11 @@
       "category": "explorer",
       "path": "green",
       "status": "green",
-      "duration_ms": 296,
+      "duration_ms": 401,
       "error": null,
       "detail": "HTTP 200 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-07T05:02:57.698162"
+      "timestamp": "2026-04-07T20:17:02.660495"
     },
     {
       "id": "malformed_json",
@@ -381,23 +381,11 @@
       "category": "explorer",
       "path": "red",
       "status": "green",
-      "duration_ms": 193,
+      "duration_ms": 186,
       "error": null,
       "detail": "HTTP 401 as expected",
       "agent": "ExplorerAgent",
-      "timestamp": "2026-04-07T05:02:58.192058"
-    },
-    {
-      "id": "wrong_content_type",
-      "name": "Wrong content-type on POST handled",
-      "category": "explorer",
-      "path": "red",
-      "status": "green",
-      "duration_ms": 320,
-      "error": null,
-      "detail": "HTTP 401 as expected",
-      "agent": "ExplorerAgent",
-      "timestamp": "2026-04-07T05:02:58.813565"
+      "timestamp": "2026-04-07T20:17:03.147662"
     },
     {
       "id": "rate_limit_red",
@@ -405,11 +393,11 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 2327,
+      "duration_ms": 2615,
       "error": null,
       "detail": "Auth gate blocked all requests with {401} \u2014 rate limiter active for authed users via Supabase",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:59.123283"
+      "timestamp": "2026-04-07T20:17:04.101786"
     },
     {
       "id": "dream_api_no_prompt_red",
@@ -417,11 +405,23 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 276,
+      "duration_ms": 241,
       "error": null,
       "detail": "Correctly returned 401",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:59.399686"
+      "timestamp": "2026-04-07T20:17:04.343722"
+    },
+    {
+      "id": "wrong_content_type",
+      "name": "Wrong content-type on POST handled",
+      "category": "explorer",
+      "path": "red",
+      "status": "green",
+      "duration_ms": 1432,
+      "error": null,
+      "detail": "HTTP 401 as expected",
+      "agent": "ExplorerAgent",
+      "timestamp": "2026-04-07T20:17:04.882286"
     },
     {
       "id": "team_seat_red",
@@ -429,11 +429,11 @@
       "category": "api",
       "path": "red",
       "status": "green",
-      "duration_ms": 420,
+      "duration_ms": 1459,
       "error": null,
       "detail": "Unauthenticated invite correctly blocked with 401",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:59.821595"
+      "timestamp": "2026-04-07T20:17:05.803658"
     },
     {
       "id": "cors_green",
@@ -441,11 +441,11 @@
       "category": "api",
       "path": "green",
       "status": "green",
-      "duration_ms": 142,
+      "duration_ms": 125,
       "error": null,
       "detail": "ACAO: *",
       "agent": "APIAgent",
-      "timestamp": "2026-04-07T05:02:59.965381"
+      "timestamp": "2026-04-07T20:17:05.929511"
     },
     {
       "id": "home_load_green",
@@ -453,11 +453,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3298,
+      "duration_ms": 6245,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:03.112009"
+      "timestamp": "2026-04-07T20:17:14.331450"
     },
     {
       "id": "gallery_load_green",
@@ -465,11 +465,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2498,
+      "duration_ms": 2606,
       "error": null,
       "detail": "title=Dreamscape \u2014 AI Artist Platform",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:05.658061"
+      "timestamp": "2026-04-07T20:17:17.009665"
     },
     {
       "id": "gallery_tag_filter_green",
@@ -477,11 +477,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3337,
+      "duration_ms": 3977,
       "error": null,
       "detail": "Buttons: ['Sign In', 'Join Free \u2726', '\u2630', '\u2726 All', '\ud83c\udfa8 My Art', '\u2726 Create New', '\u2726', '\ud83d\udc1b\\nFeedback']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:09.451883"
+      "timestamp": "2026-04-07T20:17:21.690505"
     },
     {
       "id": "marketplace_green",
@@ -489,11 +489,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3456,
+      "duration_ms": 3947,
       "error": null,
       "detail": "cards=15",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:13.062278"
+      "timestamp": "2026-04-07T20:17:25.664269"
     },
     {
       "id": "marketplace_filter_green",
@@ -501,11 +501,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3476,
+      "duration_ms": 3335,
       "error": null,
       "detail": "Found filters: ['T-Shirt', 'Hoodie', 'Poster', 'Canvas', 'Mug', 'All']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:17.765201"
+      "timestamp": "2026-04-07T20:17:30.047549"
     },
     {
       "id": "pricing_load_green",
@@ -513,11 +513,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2321,
+      "duration_ms": 2449,
       "error": null,
       "detail": "Found: ['Free', 'Starter', 'Pro', 'Studio']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:20.316071"
+      "timestamp": "2026-04-07T20:17:32.602912"
     },
     {
       "id": "blog_load_green",
@@ -525,11 +525,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2468,
+      "duration_ms": 2333,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:22.916150"
+      "timestamp": "2026-04-07T20:17:35.111893"
     },
     {
       "id": "nav_links_green",
@@ -537,11 +537,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2463,
+      "duration_ms": 2433,
       "error": null,
       "detail": "Found: ['Gallery', 'Marketplace', 'Create', 'Pricing']",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:25.524927"
+      "timestamp": "2026-04-07T20:17:37.615855"
     },
     {
       "id": "invalid_product_red",
@@ -549,11 +549,11 @@
       "category": "frontend",
       "path": "red",
       "status": "green",
-      "duration_ms": 3391,
+      "duration_ms": 3311,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:28.946584"
+      "timestamp": "2026-04-07T20:17:40.934832"
     },
     {
       "id": "404_redirect_red",
@@ -561,11 +561,11 @@
       "category": "frontend",
       "path": "red",
       "status": "green",
-      "duration_ms": 2294,
+      "duration_ms": 2303,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:31.258302"
+      "timestamp": "2026-04-07T20:17:43.244965"
     },
     {
       "id": "mobile_create_green",
@@ -573,11 +573,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 3839,
+      "duration_ms": 3779,
       "error": null,
       "detail": "Unauthed users see sign-in correctly",
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:35.669628"
+      "timestamp": "2026-04-07T20:17:47.472991"
     },
     {
       "id": "mobile_nav_green",
@@ -585,11 +585,11 @@
       "category": "frontend",
       "path": "green",
       "status": "green",
-      "duration_ms": 2284,
+      "duration_ms": 2252,
       "error": null,
       "detail": null,
       "agent": "UIAgent",
-      "timestamp": "2026-04-07T05:03:38.021826"
+      "timestamp": "2026-04-07T20:17:49.765309"
     }
   ],
   "findings": [
@@ -598,7 +598,7 @@
       "severity": "medium",
       "title": "13 console errors",
       "detail": "Failed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()\nFailed to load resource: the server responded with a status of 400 ()",
-      "timestamp": "2026-04-07T05:03:38.048361"
+      "timestamp": "2026-04-07T20:17:49.780122"
     }
   ],
   "stats": {
@@ -607,8 +607,8 @@
     "red": 0,
     "skipped": 0,
     "error": 0,
-    "start_time": 1775538176.005205,
-    "end_time": 1775538218.225944
+    "start_time": 1775593019.47536,
+    "end_time": 1775593070.02196
   },
   "plan": [
     {
@@ -702,5 +702,5 @@
       "agent": "APIAgent"
     }
   ],
-  "generated_at": "2026-04-07T05:03:38.231287"
+  "generated_at": "2026-04-07T20:17:50.030827"
 }
