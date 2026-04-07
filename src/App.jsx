@@ -788,6 +788,44 @@ function GenerateButton({ pendingPrompt, lastGenerationPromptRef, generatingInde
   )
 }
 
+// ── Extract clickable suggestion options from Dream's reply ─────────────────
+// Detects: "A or B?", "1. Option  2. Option", "- Option" lists, "X vs Y"
+function extractSuggestionOptions(text) {
+  if (!text || typeof text !== 'string') return []
+
+  // Pattern 1: "A or B?" or "X or Y or Z?" near end of message
+  const orMatch = text.match(/(?:^|[.!\n])\s*([^.!?\n]{3,40})\s+or\s+([^.!?\n]{3,40})\??\s*$/im)
+  if (orMatch) {
+    const a = orMatch[1].replace(/^(go with|use|try|choose|pick|do|make it|want)\s+/i, '').trim()
+    const b = orMatch[2].replace(/\?$/, '').trim()
+    if (a.length > 2 && b.length > 2 && a.length < 50 && b.length < 50) {
+      return [a, b]
+    }
+  }
+
+  // Pattern 2: Numbered list "1. X\n2. Y\n3. Z"
+  const numbered = [...text.matchAll(/^\s*[1-5][.):]\s*(.+)$/gm)]
+  if (numbered.length >= 2 && numbered.length <= 5) {
+    const opts = numbered.map(m => m[1].trim()).filter(o => o.length > 2 && o.length < 60)
+    if (opts.length >= 2) return opts.slice(0, 4)
+  }
+
+  // Pattern 3: Bullet list "- X\n- Y"
+  const bullets = [...text.matchAll(/^\s*[-•*]\s+(.+)$/gm)]
+  if (bullets.length >= 2 && bullets.length <= 5) {
+    const opts = bullets.map(m => m[1].trim()).filter(o => o.length > 2 && o.length < 60)
+    if (opts.length >= 2) return opts.slice(0, 4)
+  }
+
+  // Pattern 4: "X vs Y"
+  const vsMatch = text.match(/([^.!?\n]{3,35})\s+vs\.?\s+([^.!?\n]{3,35})/i)
+  if (vsMatch) {
+    return [vsMatch[1].trim(), vsMatch[2].trim()]
+  }
+
+  return []
+}
+
 function DreamChat({ user, onSignIn }) {
   const [messages, setMessages] = useState([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
@@ -923,6 +961,19 @@ function DreamChat({ user, onSignIn }) {
       sessionStorage.removeItem('dreamRefinePrompt')
       setInput(`Refine this prompt: ${refinePrompt}`)
       setTimeout(() => inputRef.current?.focus(), 100)
+    }
+    const pendingDream = sessionStorage.getItem('ds_pending_prompt')
+    if (pendingDream) {
+      sessionStorage.removeItem('ds_pending_prompt')
+      setTimeout(() => {
+        setInput(pendingDream)
+        inputRef.current?.focus()
+        // Auto-send after a short delay so user sees it fire
+        setTimeout(() => {
+          setMessages(prev => [...prev, { role: 'user', content: pendingDream }])
+          setInput('')
+        }, 400)
+      }, 350)
     }
     return () => {
       mountedRef.current = false
@@ -1095,7 +1146,9 @@ function DreamChat({ user, onSignIn }) {
 
       // Use the backend reply as-is — Dream's system prompt already tells the user to generate
       const replyContent = data.reply || "Tell me more about what you're imagining..."
-      setMessages(prev => [...prev, { role: 'assistant', content: replyContent }])
+      // Parse clarifying options from Dream's reply for tap-to-choose cards
+      const cardOptions = extractSuggestionOptions(replyContent)
+      setMessages(prev => [...prev, { role: 'assistant', content: replyContent, suggestions: cardOptions }])
       setLoading(false)
 
       // Store the generation prompt silently — Generate button will appear
@@ -1418,6 +1471,58 @@ Respond ONLY with a JSON object (no markdown, no backticks):
                       </button>
                     )}
                   </div>
+                  {/* ── Suggestion cards — tap to reply ── */}
+                  {!isUser && msg.suggestions && msg.suggestions.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                      {msg.suggestions.map((opt, si) => (
+                        <button key={si} onClick={() => {
+                          setInput(opt)
+                          setTimeout(() => {
+                            setMessages(prev => [...prev, { role: 'user', content: opt }])
+                            setInput('')
+                            setLoading(true)
+                            const sanitized = messages.filter((_, idx) => idx > 0).map(m => {
+                              if (Array.isArray(m.content)) {
+                                const t = m.content.find(c => c.type === 'text')
+                                return { role: m.role, content: t?.text || '' }
+                              }
+                              return { role: m.role, content: m.content }
+                            })
+                            getAuthHeader().then(h => {
+                              fetch('/api/dream', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...h },
+                                body: JSON.stringify({ messages: [...sanitized, { role: 'user', content: opt }] })
+                              }).then(r => r.json()).then(data => {
+                                if (!mountedRef.current) return
+                                const reply = data.reply || "Tell me more..."
+                                const cards = extractSuggestionOptions(reply)
+                                setMessages(prev => [...prev, { role: 'assistant', content: reply, suggestions: cards }])
+                                setLoading(false)
+                                if (data.generationPrompt) setPendingPrompt({ prompt: data.generationPrompt, refImage: null })
+                              }).catch(() => setLoading(false))
+                            })
+                          }, 100)
+                        }}
+                        style={{
+                          background: `rgba(124,92,252,0.1)`,
+                          border: `1px solid rgba(124,92,252,0.35)`,
+                          borderRadius: 20,
+                          padding: '6px 14px',
+                          color: C.accent,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          WebkitTapHighlightColor: 'transparent',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = `rgba(124,92,252,0.2)`; e.currentTarget.style.borderColor = `rgba(124,92,252,0.6)` }}
+                        onMouseLeave={e => { e.currentTarget.style.background = `rgba(124,92,252,0.1)`; e.currentTarget.style.borderColor = `rgba(124,92,252,0.35)` }}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -2875,7 +2980,7 @@ function EditProfileModal({ user, profile, onClose, onSave }) {
               {/* Banner */}
               <div>
                 <label style={labelStyle}>Banner Image</label>
-                <div onClick={() => bannerRef.current?.click()} style={{ width: '100%', height: 120, borderRadius: 12, background: bannerPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}20, ${C.teal}20)`, border: `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                <div onClick={() => bannerRef.current?.click()} style={{ width: '100%', height: 120, borderRadius: 12, background: bannerPreview ? 'transparent' : `linear-gradient(135deg, ${C.accent}20, ${C.teal}20)`, border: bannerPreview ? `1px solid ${C.border}` : `2px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
                   {bannerPreview ? <img src={bannerPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 24, marginBottom: 6 }}>🖼</div>
@@ -3158,8 +3263,8 @@ function ProfileHeader({ profile, artworkCount, followerCount, followingCount, s
   return (
     <div style={{ marginBottom: 0 }}>
       {/* Banner */}
-      <div style={{ width: '100%', height: 180, borderRadius: '16px 16px 0 0', background: profile?.banner_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}30, ${C.teal}20, #FF6B9D18)`, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
-        {profile?.banner_url && <img src={profile.banner_url} alt="Banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+      <div style={{ width: '100%', height: 'clamp(160px, 22vw, 260px)', borderRadius: '16px 16px 0 0', background: profile?.banner_url ? 'transparent' : `linear-gradient(135deg, ${C.accent}30, ${C.teal}20, #FF6B9D18)`, overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+        {profile?.banner_url && <img src={profile.banner_url} alt="Banner" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />}
         {isOwnProfile && (
           <button onClick={onEdit} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(8,11,20,0.7)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 14px', color: C.text, fontSize: 12, cursor: 'pointer', backdropFilter: 'blur(8px)' }}>✏️ Edit Profile</button>
         )}
@@ -6540,7 +6645,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   return (
     <>
       <style>{`
-        @media (max-width: 900px) { .nav-links-full { display: none !important; } .mobile-menu-btn { display: flex !important; } }
+        @media (max-width: 1100px) { .nav-links-full { display: none !important; } .mobile-menu-btn { display: flex !important; } }
         @media (min-width: 901px) { .mobile-menu-btn { display: none !important; } }
         .nav-link:hover { color: #E8EAF0 !important; background: rgba(124,92,252,0.12) !important; }
         .mobile-menu-overlay { position: fixed; inset: 0; top: 72px; z-index: 98; }
