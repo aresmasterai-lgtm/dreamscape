@@ -5738,10 +5738,8 @@ function PhotoToProduct({ user, onSignIn, onClose }) {
   )
 }
 
-if (user) return <LoggedInHome user={user} profile={profile} />
- 
+function DiscoverPage({ user, profile, onSignIn }) {
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
-  // Logged-in users get the home feed; guests get the hero
   if (user) return <LoggedInHome user={user} profile={profile} />
   return <HeroLanding onSignIn={onSignIn} />
 }
