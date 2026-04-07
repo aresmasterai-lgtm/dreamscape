@@ -109,11 +109,11 @@ export default function HeroLanding({ onSignIn }) {
         .hl-fadein-4 { animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both; animation-delay: 0.55s; opacity: 0; }
         .hl-fadein-5 { animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both; animation-delay: 0.7s;  opacity: 0; }
         .hl-bubble { animation: bubbleIdle 3.5s ease-in-out infinite; }
-        .hl-bubble:focus-within {
-          animation: none !important;
-          border-color: rgba(124,92,252,0.7) !important;
-          box-shadow: 0 0 0 3px rgba(124,92,252,0.15), 0 8px 64px rgba(124,92,252,0.45) !important;
-        }
+     .hl-bubble:focus-within {
+  animation: none !important;
+  border-color: rgba(124,92,252,0.35) !important;
+  box-shadow: 0 8px 40px rgba(124,92,252,0.2) !important;
+}
         .hl-shake { animation: shake 0.45s ease !important; }
         .hl-logo  { animation: logoGlow 3s ease-in-out infinite; }
         .hl-dream-btn { transition: all 0.2s ease; }
