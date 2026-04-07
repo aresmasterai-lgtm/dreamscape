@@ -6645,7 +6645,7 @@ function Navbar({ user, profile, signOut, onSignIn }) {
   return (
     <>
       <style>{`
-        @media (max-width: 1100px) { .nav-links-full { display: none !important; } .mobile-menu-btn { display: flex !important; } }
+        @media (max-width: 960px) { .nav-links-full { display: none !important; } .mobile-menu-btn { display: flex !important; } }
         @media (min-width: 901px) { .mobile-menu-btn { display: none !important; } }
         .nav-link:hover { color: #E8EAF0 !important; background: rgba(124,92,252,0.12) !important; }
         .mobile-menu-overlay { position: fixed; inset: 0; top: 72px; z-index: 98; }
