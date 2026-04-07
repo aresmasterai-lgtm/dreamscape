@@ -9,10 +9,9 @@ const C = {
 }
 
 export default function DreamNowBar({ user }) {
-  const navigate  = useNavigate()
-  const inputRef  = useRef(null)
-  const [value, setValue]     = useState('')
-  const [focused, setFocused] = useState(false)
+  const navigate = useNavigate()
+  const inputRef = useRef(null)
+  const [value, setValue] = useState('')
 
   const handleSubmit = () => {
     if (!value.trim()) { inputRef.current?.focus(); return }
@@ -25,12 +24,13 @@ export default function DreamNowBar({ user }) {
       <style>{`
         .dnb-wrap { transition: border-color 0.2s, box-shadow 0.2s; }
         .dnb-wrap:focus-within {
-          border-color: rgba(124,92,252,0.6) !important;
-          box-shadow: 0 0 0 3px rgba(124,92,252,0.1), 0 4px 32px rgba(124,92,252,0.3) !important;
+          border-color: rgba(124,92,252,0.35) !important;
+          box-shadow: 0 4px 28px rgba(124,92,252,0.18) !important;
         }
         .dnb-btn { transition: all 0.18s ease; }
         .dnb-btn:hover  { filter: brightness(1.12); transform: scale(1.03); }
         .dnb-btn:active { transform: scale(0.97); }
+        .dnb-input:focus { outline: none !important; box-shadow: none !important; }
       `}</style>
       <div className="dnb-wrap" style={{
         background: C.panel,
@@ -45,23 +45,24 @@ export default function DreamNowBar({ user }) {
         <span style={{ fontSize: 16, opacity: 0.5, flexShrink: 0, userSelect: 'none' }}>✦</span>
         <input
           ref={inputRef}
+          className="dnb-input"
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           placeholder="What do you want to dream today?"
           style={{
             flex: 1,
             background: 'none',
             border: 'none',
             outline: 'none',
+            boxShadow: 'none',
             color: C.text,
             fontSize: 14,
             fontFamily: "'DM Sans', sans-serif",
             padding: '11px 0',
             minWidth: 0,
             caretColor: C.accent,
+            WebkitAppearance: 'none',
           }}
         />
         <button
