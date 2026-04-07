@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, Component, lazy, Suspense } f
 import { Routes, Route, Link, useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useAuth } from './lib/auth.jsx'
 import { supabase } from './lib/supabase'
+const LoggedInHome = lazy(() => import('./components/LoggedInHome'))
 
 // ── Code-split routes — only loaded when visited ──────────────
 const AuthModal         = lazy(() => import('./components/AuthModal'))
@@ -633,46 +634,15 @@ const LOADING_QUOTES = [
   'The muse is working...',
 ]
 
-function Spinner({ label, cards = 0 }) {
-  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * LOADING_QUOTES.length))
-
-  useEffect(() => {
-    if (!cards) return
-    const t = setInterval(() => setQuoteIdx(i => (i + 1) % LOADING_QUOTES.length), 2200)
-    return () => clearInterval(t)
-  }, [cards])
-
-  if (cards > 0) return (
-    <div>
-      <div style={{ textAlign: 'center', marginBottom: 20, minHeight: 28 }}>
-        <span style={{ fontSize: 13, color: C.accent, fontStyle: 'italic' }}>
-          ✦ {LOADING_QUOTES[quoteIdx]}
-        </span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
-        {Array.from({ length: cards }).map((_, i) => (
-          <div key={i} style={{ borderRadius: 16, overflow: 'hidden', background: C.card, border: `1px solid ${C.border}` }}>
-            <div style={{ height: 160, background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
-            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ height: 14, borderRadius: 6, width: '65%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.2}s` }} />
-              <div style={{ height: 10, borderRadius: 6, width: '40%', background: `linear-gradient(110deg, ${C.card} 30%, ${C.border} 50%, ${C.card} 70%)`, backgroundSize: '200% 100%', animation: 'shimmer 1.4s ease-in-out infinite', animationDelay: `${i * 0.1 + 0.3}s` }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-
+function Spinner({ label, size = 32, cards = 0 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '40px 0' }}>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: C.accent, animation: 'pulse 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />)}
-      </div>
-      {label && <p style={{ fontSize: 12, color: C.muted, margin: 0, fontStyle: 'italic' }}>{label}</p>}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 0' }}>
+      <style>{`@keyframes ds-spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width: size, height: size, borderRadius: '50%', border: '3px solid rgba(124,92,252,0.15)', borderTopColor: '#7C5CFC', animation: 'ds-spin 0.7s linear infinite' }} />
+      {label && <p style={{ fontSize: 12, color: '#6B7494', margin: 0 }}>{label}</p>}
     </div>
   )
 }
-
 // ── Save Modal ────────────────────────────────────────────────
 function SaveModal({ prompt, imageUrl, onSave, onClose }) {
   const [title, setTitle] = useState('')
@@ -5768,10 +5738,11 @@ function PhotoToProduct({ user, onSignIn, onClose }) {
   )
 }
 
-function DiscoverPage({ user, onSignIn }) {
+if (user) return <LoggedInHome user={user} profile={profile} />
+ 
   useMeta({ title: null, description: 'Generate AI art, connect with artists worldwide, and sell merchandise globally on Dreamscape.' })
   // Logged-in users get the home feed; guests get the hero
-  if (user) return <HomeFeed user={user} />
+  if (user) return <LoggedInHome user={user} profile={profile} />
   return <HeroLanding onSignIn={onSignIn} />
 }
 
@@ -7654,13 +7625,13 @@ export default function App() {
               </div>
             }>
             <Routes>
-              <Route path="/" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/" element={<DiscoverPage user={user} profile={profile} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/channels" element={<Navigate to="/marketplace" replace />} />
               <Route path="/channels/:channelName" element={<Navigate to="/marketplace" replace />} />
               <Route path="/gallery" element={<Gallery user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/marketplace" element={<Marketplace user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/create" element={<IsolatedCreatePage user={user} onSignIn={() => setShowAuth(true)} />} />
-              <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="/profile" element={user ? <ProfilePage user={user} profile={profile} /> : <DiscoverPage user={user} profile={profile} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/u/:username" element={<ArtistProfilePage viewerUser={user} />} />
               <Route path="/pricing" element={<Pricing user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -7674,7 +7645,7 @@ export default function App() {
               <Route path="/orders" element={<OrderHistory user={user} onSignIn={() => setShowAuth(true)} />} />
               <Route path="/success" element={<SuccessPage />} />
               <Route path="/product/:id" element={<ProductPage user={user} onSignIn={() => setShowAuth(true)} />} />
-              <Route path="*" element={<DiscoverPage user={user} onSignIn={() => setShowAuth(true)} />} />
+              <Route path="*" element={<DiscoverPage user={user} profile={profile} onSignIn={() => setShowAuth(true)} />} />
             </Routes>
             </Suspense>
           </RoutedErrorBoundary>
