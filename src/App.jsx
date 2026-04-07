@@ -967,13 +967,10 @@ function DreamChat({ user, onSignIn }) {
       sessionStorage.removeItem('ds_pending_prompt')
       setTimeout(() => {
         setInput(pendingDream)
-        inputRef.current?.focus()
-        // Auto-send after a short delay so user sees it fire
         setTimeout(() => {
-          setMessages(prev => [...prev, { role: 'user', content: pendingDream }])
-          setInput('')
+          document.querySelector('[data-send-btn]')?.click()
         }, 400)
-      }, 350)
+      }, 600)
     }
     return () => {
       mountedRef.current = false
@@ -1638,7 +1635,7 @@ Respond ONLY with a JSON object (no markdown, no backticks):
               placeholder="Describe your vision or ask Dream anything..."
               style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', color: C.text, fontSize: 16, outline: 'none', fontFamily: 'inherit' }}
               autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck={false} />
-            <button onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>✦</button>
+            <button data-send-btn onClick={send} disabled={loading || !input.trim()} style={{ background: loading || !input.trim() ? C.border : `linear-gradient(135deg, ${C.accent}, #4B2FD0)`, border: 'none', borderRadius: 10, padding: '10px 18px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: loading || !input.trim() ? 'not-allowed' : 'pointer', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>✦</button>
           </div>
         </div>
       </div>
