@@ -2,17 +2,21 @@
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
-
 [build.environment]
   NODE_VERSION = "20"
-
 [functions]
   node_bundler = "esbuild"
   included_files = ["netlify/functions/auth-middleware.js"]
-
 [functions."generate-image"]
-  timeout = 26
-
+  timeout = 30
+[functions."dream"]
+  timeout = 30
+[functions."catalog"]
+  timeout = 30
+[functions."printify"]
+  timeout = 30
+[functions."printful"]
+  timeout = 30
 # ── Security Headers ──────────────────────────────────────────
 [[headers]]
   for = "/*"
@@ -22,17 +26,12 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(self)"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-    # img-src is intentionally broad — Printful mockups come from multiple CDNs
-    # (cloudfront, ucarecdn, printful-production, etc). Locking this breaks product images.
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: ; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://region1.google-analytics.com https://api.printful.com; frame-src https://js.stripe.com https://hooks.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
-
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https    Content-Security-Policm https://    Content-Security-Polihtt    Content-Secuom;    Content-Security-Policy = "d'     Content-Securgle    Content-Securi 'se    Conten//fonts.gstatic.com; img-src 'self' data: blob: https: ; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://generativelanguage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://region1.google-analytics.com https://api.printful.com https://api.printify.com; frame-src https://js.stripe.com https://hooks.stripe.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
 [[headers]]
   for = "/api/*"
   [headers.values]
-    Access-Control-Allow-Origin = "https://trydreamscape.com"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Acces    Acces    Acces    Acces    Accerydr    Acces    Acces    Acces    Acces    Achods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
-
 [[redirects]]
   from = "/*"
   to = "/index.html"
