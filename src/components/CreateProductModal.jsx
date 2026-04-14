@@ -454,6 +454,8 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Printify creation failed')
         externalProductId = data.product_id || ''
+        // Use Printify-generated mockup if available
+        if (data.mockup_url) setMockupUrl(data.mockup_url)
       } else {
         const res = await fetch('/api/printful?action=create', {
           method: 'POST',

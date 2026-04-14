@@ -159,7 +159,24 @@ exports.handler = async (event) => {
         body: JSON.stringify({ title: true, description: true, images: true, variants: true, tags: true }),
       })
 
-      return { statusCode: 200, headers: HEADERS, body: JSON.stringify({ product_id: product.id }) }
+      // Fetch generated mockup images (Printify generates them after publish)
+      // Wait 3 seconds for Printify to process, then grab the first mockup image
+      await new Promise(r => setTimeout(r, 3000))
+      let mockup_url = null
+      try {
+        const productRes = await fetch(`${PRINTIFY_API}/shops/${SHOP_ID}/products/${product.id}.json`, {
+          headers: { 'Authorization': `Bearer ${API_KEY}` },
+        })
+        const productData = await productRes.json()
+        const images = productData.images || []
+        // Prefer front/default position mockup
+        const front = images.find(img => img.position === 'front' || img.is_default)
+        mockup_url = front?.src || images[0]?.src || null
+      } catch (e) {
+        console.warn('[printify] mockup fetch failed:', e.message)
+      }
+
+      return { statusCode: 200, headers: HEADERS, body: JSON.stringify({ product_id: product.id, mockup_url }) }
     }
 
     if (action === 'mockup') {
