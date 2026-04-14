@@ -73,6 +73,41 @@ function suggestPrice(base) {
   return (Math.ceil(raw) - 0.01).toFixed(2)
 }
 
+// ── Canvas mockup composite ──────────────────────────────────────────────────
+// Overlays the design on a product image client-side using canvas
+async function createCanvasMockup(productImageUrl, designUrl) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    const productImg = new Image()
+    const designImg  = new Image()
+    productImg.crossOrigin = 'anonymous'
+    designImg.crossOrigin  = 'anonymous'
+
+    productImg.onload = () => {
+      canvas.width  = productImg.width
+      canvas.height = productImg.height
+      ctx.drawImage(productImg, 0, 0)
+
+      designImg.onload = () => {
+        // Place design centered on upper-front of shirt (roughly 30-65% down, 25-75% wide)
+        const dw = canvas.width  * 0.45
+        const dh = canvas.height * 0.45
+        const dx = (canvas.width  - dw) / 2
+        const dy = canvas.height  * 0.28
+        ctx.globalAlpha = 0.92
+        ctx.drawImage(designImg, dx, dy, dw, dh)
+        ctx.globalAlpha = 1
+        resolve(canvas.toDataURL('image/png'))
+      }
+      designImg.onerror = () => resolve(productImageUrl) // fallback
+      designImg.src = designUrl
+    }
+    productImg.onerror = () => reject(new Error('Product image load failed'))
+    productImg.src = productImageUrl
+  })
+}
+
 function buildPrintifyColors(variants, fallbackImage = '') {
   const SIZES = ['xs','s','m','l','xl','2xl','3xl','4xl','5xl','one size','os','6xl']
   const colorMap = {}
@@ -376,6 +411,40 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const toggleColor = (color) => {
     setSelectedColors(prev => prev.includes(color.name) ? prev.filter(c => c !== color.name) : [...prev, color.name])
     setPreviewColor(color)
+    // Auto-generate preview on color click
+    if (selected?.provider === 'printful' && hostedImageUrl) {
+      autoGenerateMockup(color)
+    } else if (selected?.provider === 'printify' && hostedImageUrl) {
+      const productImg = color.image || selected?.image || ''
+      if (productImg) {
+        setMockupStatus('generating')
+        setMockupUrl('')
+        createCanvasMockup(productImg, hostedImageUrl)
+          .then(url => { setMockupUrl(url); setMockupStatus('done') })
+          .catch(() => { setMockupUrl(productImg); setMockupStatus('done') })
+      }
+    }
+  }
+
+  const autoGenerateMockup = async (color) => {
+    if (!color || !hostedImageUrl || !selected) return
+    setMockupStatus('generating')
+    setMockupUrl('')
+    try {
+      const h = await getAuthHeader()
+      const res = await fetch('/api/printful?action=mockupCreate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({
+          catalogProductId: selected.raw_id || selected.id,
+          variantIds: color.variantIds.slice(0, 3),
+          imageUrl: hostedImageUrl,
+        })
+      })
+      const data = await res.json()
+      if (data.task_key) pollMockup(data.task_key, null, 0)
+      else setMockupStatus('failed')
+    } catch { setMockupStatus('failed') }
   }
 
   const selectPopularColors = () => {
@@ -393,8 +462,19 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
   const generateMockup = async () => {
     if (!previewColor || !hostedImageUrl || !selected) return
     if (selected.provider === 'printify') {
-      const previewImg = previewColor.image || selected.image || ''
-      if (previewImg) { setMockupUrl(previewImg); setMockupStatus('done') } else setMockupStatus('failed')
+      // Canvas composite: overlay design on product image
+      const productImg = previewColor.image || selected.image || ''
+      if (!productImg) { setMockupStatus('failed'); return }
+      setMockupStatus('generating')
+      try {
+        const composite = await createCanvasMockup(productImg, hostedImageUrl)
+        setMockupUrl(composite)
+        setMockupStatus('done')
+      } catch {
+        // Fallback to plain product image
+        setMockupUrl(productImg)
+        setMockupStatus('done')
+      }
       return
     }
     setMockupStatus('generating')
