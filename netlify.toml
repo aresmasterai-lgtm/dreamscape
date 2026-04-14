@@ -43,6 +43,28 @@
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
 
+# ── Route /api/* to Netlify Functions explicitly ──────────────
+[[redirects]]
+  from = "/api/printify"
+  to = "/.netlify/functions/printify"
+  status = 200
+
+[[redirects]]
+  from = "/api/printify/*"
+  to = "/.netlify/functions/printify/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/printful"
+  to = "/.netlify/functions/printful"
+  status = 200
+
+[[redirects]]
+  from = "/api/printful/*"
+  to = "/.netlify/functions/printful/:splat"
+  status = 200
+
+# ── SPA fallback — must be last ───────────────────────────────
 [[redirects]]
   from = "/*"
   to = "/index.html"
