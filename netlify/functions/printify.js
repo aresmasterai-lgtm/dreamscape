@@ -127,16 +127,17 @@ exports.handler = async (event) => {
       const imageId = uploadData.id
       if (!imageId) throw new Error('Printify image upload failed')
 
-      const variantData = await pyFetch(`/catalog/blueprints/${blueprint_id}/print_providers/${print_provider_id}/variants.json`)
-      const allVariants  = variantData?.variants || []
-      const variantIds   = variants.map(v => v.id)
-      const firstVariant = allVariants.find(v => variantIds.includes(v.id))
-      const placeholders = firstVariant?.placeholders || [{ position: 'front', height: 1, width: 1 }]
+      const variantIds = variants.map(v => v.id)
 
-      const printAreas = placeholders.map(p => ({
+      // Printify requires ALL variant IDs in print_areas — use a single
+      // print_area covering all selected variants with front placement
+      const printAreas = [{
         variant_ids: variantIds,
-        placeholders: [{ position: p.position, images: [{ id: imageId, x: 0.5, y: 0.5, scale: 1, angle: 0 }] }],
-      }))
+        placeholders: [{
+          position: 'front',
+          images: [{ id: imageId, x: 0.5, y: 0.5, scale: 1, angle: 0 }],
+        }],
+      }]
 
       const res = await fetch(`${PRINTIFY_API}/shops/${SHOP_ID}/products.json`, {
         method: 'POST',
