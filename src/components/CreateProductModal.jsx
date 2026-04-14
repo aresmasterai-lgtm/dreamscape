@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getColorHex, formatColorName, groupColorsByFamily, textOnColor } from '../lib/colorMap'
+import { getColorHex, formatColorName, groupColorsByFamily } from '../lib/colorMap'
 
 let _catalogCache = null
 let _catalogCacheTime = 0
@@ -171,7 +171,6 @@ function ColorSwatch({ color, isSelected, isPreviewing, onClick }) {
   const b = parseInt((color.hex || '#888888').slice(5,7),16)
   const lum = (0.299*r + 0.587*g + 0.114*b)/255
   const isLight = lum > 0.75
-
   return (
     <button onClick={() => onClick(color)} title={color.name}
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: 8, transition: 'transform 0.12s', outline: 'none' }}
@@ -182,9 +181,7 @@ function ColorSwatch({ color, isSelected, isPreviewing, onClick }) {
         background: color.hex || '#888888',
         border: isPreviewing ? `3px solid ${C.teal}` : isSelected ? `3px solid ${C.accent}` : isLight ? `2px solid rgba(0,0,0,0.15)` : `2px solid rgba(255,255,255,0.12)`,
         boxShadow: isPreviewing ? `0 0 0 2px ${C.teal}44, 0 2px 8px rgba(0,0,0,0.4)` : isSelected ? `0 0 0 2px ${C.accent}44, 0 2px 8px rgba(0,0,0,0.4)` : `0 2px 6px rgba(0,0,0,0.3)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'all 0.15s',
-        flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', flexShrink: 0,
       }}>
         {isSelected && <span style={{ fontSize: 13, color: lum > 0.5 ? '#000' : '#fff', fontWeight: 900, lineHeight: 1 }}>✓</span>}
       </div>
@@ -411,8 +408,10 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const data = await res.json()
       if (data.status === 'completed') {
         const url = data.mockups?.[0]?.mockup_url || data.mockups?.[0]?.url || ''
-        if (url) { setMockupUrl(url); setMockupStatus('done'); if (productId) await supabase.from('products').update({ mockup_url: url }).eq('id', productId) }
-        else setMockupStatus('failed')
+        if (url) {
+          setMockupUrl(url); setMockupStatus('done')
+          if (productId) await supabase.from('products').update({ mockup_url: url }).eq('id', productId)
+        } else setMockupStatus('failed')
       } else if (data.status === 'failed') { setMockupStatus('failed') }
       else mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
     } catch { mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000) }
@@ -432,29 +431,76 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
       const tier  = prof?.subscription_tier || 'free'
       const limit = await checkProductLimit(user.id, tier)
       if (!limit.allowed) { setError(`You've reached your ${limit.limit} product limit on the ${tier} plan.`); setCreating(false); return }
-      const h          = await getAuthHeader()
-      const colorObjs  = availableColors.filter(c => selectedColors.includes(c.name))
-      const allVariants = colorObjs.flatMap(c => c.variantIds)
-      const isPrintify = selected.provider === 'printify'
+
+      const h           = await getAuthHeader()
+      const colorObjs   = availableColors.filter(c => selectedColors.includes(c.name))
+      const allVariants  = colorObjs.flatMap(c => c.variantIds)
+      const isPrintify   = selected.provider === 'printify'
       let externalProductId = ''
+
       if (isPrintify) {
-        const res = await fetch('/api/printify?action=create_product', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ blueprint_id: selected.raw_id, print_provider_id: selected.printify_provider_id, variants: colorObjs.flatMap(c => c.variantIds.map(id => ({ id, price: Math.round(parseFloat(price) * 100) }))), image_url: hostedImageUrl, title, description }) })
+        const res = await fetch('/api/printify?action=create_product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({
+            blueprint_id: selected.raw_id,
+            print_provider_id: selected.printify_provider_id,
+            variants: colorObjs.flatMap(c => c.variantIds.map(id => ({ id, price: Math.round(parseFloat(price) * 100) }))),
+            image_url: hostedImageUrl,
+            title,
+            description,
+          })
+        })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Printify creation failed')
         externalProductId = data.product_id || ''
       } else {
-        const res = await fetch('/api/printful?action=create', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ title, description, variantIds: allVariants, imageUrl: hostedImageUrl }) })
+        const res = await fetch('/api/printful?action=create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({ title, description, variantIds: allVariants, imageUrl: hostedImageUrl })
+        })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error?.message || JSON.stringify(data.error) || 'Creation failed')
         externalProductId = String(data.id || data.sync_product?.id || '')
       }
+
       const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)
-      const { data: inserted } = await supabase.from('products').insert({ user_id: user.id, artwork_id: artworkId || null, title, description, product_type: selected.type, price: parseFloat(price), printful_product_id: isPrintify ? null : externalProductId, printify_product_id: isPrintify ? externalProductId : null, printful_variant_ids: isPrintify ? [] : allVariants.map(String), fulfillment_provider: selected.provider, mockup_url: mockupUrl || hostedImageUrl, tags: tagList }).select().single()
+
+      // ── Save to Supabase ─────────────────────────────────────────────────
+      const insertPayload = {
+        user_id:              user.id,
+        artwork_id:           artworkId || null,
+        title,
+        description,
+        product_type:         selected.type || selected.model,
+        price:                parseFloat(price),
+        printful_product_id:  isPrintify ? null : externalProductId,
+        printify_product_id:  isPrintify ? externalProductId : null,
+        printful_variant_ids: isPrintify ? [] : allVariants.map(String),
+        mockup_url:           mockupUrl || hostedImageUrl,
+        tags:                 tagList,
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('products')
+        .insert(insertPayload)
+        .select()
+        .single()
+
+      if (insertError) throw new Error('Failed to save product: ' + insertError.message)
+
+      // ── Generate Printful mockup async after save ────────────────────────
       if (!isPrintify && !mockupUrl && colorObjs[0]) {
-        const mRes = await fetch('/api/printful?action=mockupCreate', { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ catalogProductId: selected.raw_id || selected.id, variantIds: colorObjs[0].variantIds.slice(0, 3), imageUrl: hostedImageUrl }) })
+        const mRes = await fetch('/api/printful?action=mockupCreate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...h },
+          body: JSON.stringify({ catalogProductId: selected.raw_id || selected.id, variantIds: colorObjs[0].variantIds.slice(0, 3), imageUrl: hostedImageUrl })
+        })
         const mData = await mRes.json()
         if (mData.task_key) pollMockup(mData.task_key, inserted?.id, 0)
       }
+
       setStep(4)
     } catch (e) { setError(e.message) }
     setCreating(false)
@@ -504,7 +550,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px 20px' }}>
           {step === 0 && <Spinner label="Preparing your artwork..." />}
 
-          {/* Step 1 */}
+          {/* Step 1: Product selection */}
           {step === 1 && (
             <div>
               {hostedImageUrl && (
@@ -551,7 +597,14 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>✦ Best for AI Artwork</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                    {[{ label: 'Canvas Prints', icon: '🎨', desc: 'Gallery-quality wall art' },{ label: 'Framed Prints', icon: '🖼', desc: 'Ready to hang' },{ label: 'Metal Prints', icon: '✨', desc: 'Ultra-vivid & modern' },{ label: 'Posters', icon: '📜', desc: 'Affordable & sharp' },{ label: 'Acrylic Prints', icon: '💎', desc: 'Luxury glass-like finish' },{ label: 'T-Shirts', icon: '👕', desc: 'All-over print or centered' }].map(item => {
+                    {[
+                      { label: 'Canvas Prints',  icon: '🎨', desc: 'Gallery-quality wall art' },
+                      { label: 'Framed Prints',  icon: '🖼',  desc: 'Ready to hang' },
+                      { label: 'Metal Prints',   icon: '✨', desc: 'Ultra-vivid & modern' },
+                      { label: 'Posters',        icon: '📜', desc: 'Affordable & sharp' },
+                      { label: 'Acrylic Prints', icon: '💎', desc: 'Luxury glass-like finish' },
+                      { label: 'T-Shirts',       icon: '👕', desc: 'All-over print or centered' },
+                    ].map(item => {
                       const cat = CATEGORIES.find(c => c.label === item.label)
                       const count = cat ? catalog.filter(p => matchesCategory(p, cat)).length : 0
                       return (
@@ -769,7 +822,11 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                   {base && (
                     <div style={{ background: C.card, border: `1px solid ${profit && profit.earnings <= 0 ? C.red+'44' : C.border}`, borderRadius: 12, padding: '12px 16px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 6 }}>
-                        {[['Production cost', `$${base.toFixed(2)}`, C.muted],['Platform fees', price ? `$${((parseFloat(price)||0)*0.13+0.30).toFixed(2)}` : '—', C.muted],['Your earnings', profit ? `$${profit.earnings.toFixed(2)}` : '—', profitColor]].map(([label, val, color]) => (
+                        {[
+                          ['Production cost', `$${base.toFixed(2)}`, C.muted],
+                          ['Platform fees', price ? `$${((parseFloat(price)||0)*0.13+0.30).toFixed(2)}` : '—', C.muted],
+                          ['Your earnings', profit ? `$${profit.earnings.toFixed(2)}` : '—', profitColor],
+                        ].map(([label, val, color]) => (
                           <div key={label} style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: 15, fontWeight: 800, color }}>{val}</div>
                             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{label}</div>
@@ -777,7 +834,11 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
                         ))}
                       </div>
                       <div style={{ fontSize: 11, textAlign: 'center', color: profitColor }}>
-                        {profit && profit.earnings <= 0 ? `⚠️ Raise price to at least $${(profit.breakEven + 0.01).toFixed(2)} to make a profit` : profit ? `${profit.margin.toFixed(0)}% margin · Suggested: $${suggestPrice(base)}` : `Suggested: $${suggestPrice(base)}`}
+                        {profit && profit.earnings <= 0
+                          ? `⚠️ Raise price to at least $${(profit.breakEven + 0.01).toFixed(2)} to make a profit`
+                          : profit
+                          ? `${profit.margin.toFixed(0)}% margin · Suggested: $${suggestPrice(base)}`
+                          : `Suggested: $${suggestPrice(base)}`}
                       </div>
                     </div>
                   )}
