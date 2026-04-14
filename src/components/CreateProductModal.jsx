@@ -320,7 +320,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     try {
       const h = await getAuthHeader()
       if (p.provider === 'printify') {
-        const blueprintId = p.raw_id || String(p.id).replace('printify_', '')
+        const blueprintId = p.raw_id || String(p.id).replace('py_', '').replace('printify_', '')
         const res  = await fetch(`/api/printify?action=catalogProduct&id=${blueprintId}`, { headers: h })
         const data = await res.json()
         let colors = []
@@ -332,7 +332,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         setAvailableColors(colors); applySmartDefaults(colors)
         setSelected({ ...p, variants: data.variants || [], printify_provider_id: data.print_provider_id || null, provider: 'printify' })
       } else {
-        const res  = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
+        const res = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
         const data = await res.json()
         const variants = data.variants || []
         const hasColors = variants.some(v => v.color && v.color.trim())
