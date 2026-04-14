@@ -442,6 +442,23 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
     } catch { mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000) }
   }
 
+  const pollPrintifyMockup = async (printifyProductId, dbProductId, attempt) => {
+    if (attempt > 12) return // give up after ~60 seconds
+    try {
+      const h = await getAuthHeader()
+      const res = await fetch(`/api/printify?action=getMockup&productId=${printifyProductId}`, { headers: h })
+      const data = await res.json()
+      if (data.mockup_url) {
+        setMockupUrl(data.mockup_url)
+        setMockupStatus('done')
+        await supabase.from('products').update({ mockup_url: data.mockup_url }).eq('id', dbProductId)
+        return
+      }
+    } catch {}
+    // Not ready yet — try again in 5 seconds
+    mockupPollRef.current = setTimeout(() => pollPrintifyMockup(printifyProductId, dbProductId, attempt + 1), 5000)
+  }
+
   const handleCreate = async () => {
     if (!title.trim())          return setError('Product title is required.')
     if (!hostedImageUrl)        return setError('No image available.')
@@ -479,7 +496,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Printify creation failed')
         externalProductId = data.product_id || ''
-        // Use Printify-generated mockup if available
+        // Use Printify-generated mockup if available, otherwise poll after save
         if (data.mockup_url) setMockupUrl(data.mockup_url)
       } else {
         const res = await fetch('/api/printful?action=create', {
@@ -516,6 +533,11 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         .single()
 
       if (insertError) throw new Error('Failed to save product: ' + insertError.message)
+
+      // ── Poll Printify for mockup after publish ──────────────────────────
+      if (isPrintify && inserted?.id && externalProductId) {
+        pollPrintifyMockup(externalProductId, inserted.id, 0)
+      }
 
       // ── Generate Printful mockup async after save ────────────────────────
       if (!isPrintify && !mockupUrl && colorObjs[0]) {
