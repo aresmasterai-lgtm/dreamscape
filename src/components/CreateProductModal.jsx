@@ -332,7 +332,13 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         const res = await fetch(`/api/printful?action=catalogProduct&id=${p.raw_id || p.id}`, { headers: h })
         const data = await res.json()
         const variants = data.variants || []
-        const hasColors = variants.some(v => v.color && v.color.trim())
+        // Detect if this is a dimension/size-based product
+        // Even if v.color exists, check if variant names look like dimensions ("10" x 8"", "16x12" etc)
+        const DIMENSION_RE = /\d+["']?\s*[xX×]\s*\d+/
+        const hasDimensions = variants.some(v => DIMENSION_RE.test(v.size || v.name || ''))
+        const hasColors = !hasDimensions && variants.some(v => v.color && v.color.trim())
+        const isWallArtProduct = hasDimensions || !hasColors
+
         const variantMap = {}
         if (hasColors) {
           for (const v of variants) {
@@ -343,6 +349,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
             if (v.image && !variantMap[display].image) variantMap[display].image = v.image
           }
         } else {
+          // Size/dimension-based — use size field or name
           for (const v of variants) {
             const name = v.size || v.name || `Option ${v.id}`
             if (!variantMap[name]) variantMap[name] = { name, hex: '#7C5CFC', variantIds: [], image: v.image || p.image || '', isSize: true }
@@ -360,7 +367,7 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
           setSelectedColors(sel.map(c => c.name))
           if (options[0]) setPreviewColor(options[0])
         }
-        setSelected({ ...p, variants, isWallArt: !hasColors, provider: 'printful' })
+        setSelected({ ...p, variants, isWallArt: isWallArtProduct, provider: 'printful' })
       }
     } catch (e) { console.error('selectProduct error:', e.message) }
     setVariantLoading(false)
@@ -410,7 +417,25 @@ export default function CreateProductModal({ user, imageUrl, artworkId, title: d
         const url = data.mockups?.[0]?.mockup_url || data.mockups?.[0]?.url || ''
         if (url) {
           setMockupUrl(url); setMockupStatus('done')
-          if (productId) await supabase.from('products').update({ mockup_url: url }).eq('id', productId)
+          if (productId) {
+            // Try to persist mockup to Supabase storage so it doesn't expire
+            let finalUrl = url
+            try {
+              const imgRes = await fetch(url)
+              if (imgRes.ok) {
+                const blob = await imgRes.blob()
+                const ext = blob.type.includes('jpg') || blob.type.includes('jpeg') ? 'jpg' : 'png'
+                const path = `mockups/${productId}.${ext}`
+                const { data: up } = await supabase.storage.from('artwork').upload(path, blob, { contentType: blob.type, upsert: true })
+                if (up?.path) {
+                  const { data: { publicUrl } } = supabase.storage.from('artwork').getPublicUrl(up.path)
+                  finalUrl = publicUrl
+                  setMockupUrl(publicUrl)
+                }
+              }
+            } catch {}
+            await supabase.from('products').update({ mockup_url: finalUrl }).eq('id', productId)
+          }
         } else setMockupStatus('failed')
       } else if (data.status === 'failed') { setMockupStatus('failed') }
       else mockupPollRef.current = setTimeout(() => pollMockup(taskKey, productId, attempt + 1), 3000)
