@@ -5257,10 +5257,10 @@ function ProfilePage({ user, profile: initialProfile }) {
                 </button>
                 {/* Download — only for own artwork */}
                 {user && reuseTarget.user_id === user.id && (
-                  <a href={reuseTarget.image_url} download={`${reuseTarget.title || 'dreamscape'}.png`} target="_blank" rel="noreferrer"
-                    style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer', textDecoration: 'none', textAlign: 'center' }}>
-                    Download
-                  </a>
+                  <DownloadButton url={reuseTarget.image_url} filename={reuseTarget.title || 'dreamscape'}
+  style={{ ... }}>
+  ⬇ Download
+</DownloadButton>
                 )}
                 <button onClick={() => { navigator.clipboard.writeText(`https://trydreamscape.com/u/${profile?.username}`) }}
                   style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px', color: C.muted, fontSize: 13, cursor: 'pointer' }}>
